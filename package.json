@@ -1,6 +1,6 @@
 {
 	"name": "eip7702-poc",
-	"packageManager": "yarn@4.10.3",
+	"packageManager": "yarn@4.12.0",
 	"type": "module",
 	"scripts": {
 		"dev": "tsx src/index.ts",

@@ -17,3 +17,6 @@
 .idea
 node_modules
 dist
+docs
+CLAUDE.MD
+.DS_Store
