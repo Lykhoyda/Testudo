@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Testudo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      width: 320px;
+      min-height: 200px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #fff;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #16213e 0%, #1a1a2e 100%);
+      padding: 20px;
+      border-bottom: 1px solid #2d2d44;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .logo {
+      font-size: 32px;
+    }
+    
+    .title {
+      font-size: 20px;
+      font-weight: 700;
+    }
+    
+    .subtitle {
+      font-size: 11px;
+      color: #888;
+      margin-top: 2px;
+    }
+    
+    .status-section {
+      padding: 20px;
+    }
+    
+    .status-card {
+      background: #2d2d44;
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .status-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+    
+    .status-icon.active {
+      background: rgba(39, 174, 96, 0.2);
+    }
+    
+    .status-icon.inactive {
+      background: rgba(231, 76, 60, 0.2);
+    }
+    
+    .status-text h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    .status-text p {
+      font-size: 12px;
+      color: #888;
+    }
+    
+    .stats-section {
+      padding: 0 20px 20px;
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    
+    .stat-card {
+      background: #2d2d44;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #27ae60;
+    }
+    
+    .stat-label {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+    }
+    
+    .footer {
+      padding: 16px 20px;
+      border-top: 1px solid #2d2d44;
+      text-align: center;
+    }
+    
+    .footer a {
+      color: #3498db;
+      text-decoration: none;
+      font-size: 12px;
+    }
+    
+    .footer a:hover {
+      text-decoration: underline;
+    }
+    
+    .recent-section {
+      padding: 0 20px 20px;
+    }
+    
+    .section-title {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .recent-list {
+      background: #2d2d44;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    
+    .recent-item {
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #3d3d5c;
+    }
+    
+    .recent-item:last-child {
+      border-bottom: none;
+    }
+    
+    .recent-icon {
+      font-size: 16px;
+    }
+    
+    .recent-address {
+      font-family: monospace;
+      font-size: 11px;
+      color: #ccc;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .recent-risk {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    
+    .recent-risk.critical {
+      background: rgba(231, 76, 60, 0.2);
+      color: #e74c3c;
+    }
+    
+    .recent-risk.high {
+      background: rgba(230, 126, 34, 0.2);
+      color: #e67e22;
+    }
+    
+    .recent-risk.low {
+      background: rgba(39, 174, 96, 0.2);
+      color: #27ae60;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="logo">🛡️</span>
+    <div>
+      <div class="title">Testudo</div>
+      <div class="subtitle">EIP-7702 Protection Active</div>
+    </div>
+  </div>
+  
+  <div class="status-section">
+    <div class="status-card">
+      <div class="status-icon active" id="status-icon">✓</div>
+      <div class="status-text">
+        <h3 id="status-title">Protection Active</h3>
+        <p id="status-description">Monitoring for malicious delegations</p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="stats-section">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="stat-blocked">0</div>
+        <div class="stat-label">Threats Blocked</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-scanned">0</div>
+        <div class="stat-label">Contracts Scanned</div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="recent-section">
+    <div class="section-title">Recent Activity</div>
+    <div class="recent-list" id="recent-list">
+      <div class="empty-state">No recent scans</div>
+    </div>
+  </div>
+  
+  <div class="footer">
+    <a href="https://github.com/anthropics/testudo" target="_blank">
+      GitHub
+    </a>
+    &nbsp;•&nbsp;
+    <a href="#" id="clear-cache">
+      Clear Cache
+    </a>
+  </div>
+  
+  <script src="popup.js" type="module"></script>
+</body>
+</html>

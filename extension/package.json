@@ -1,0 +1,15 @@
+{
+  "name": "testudo-extension",
+  "version": "0.1.0",
+  "description": "Shield your wallet from malicious EIP-7702 delegations",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "watch": "node build.js --watch",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "typescript": "^5.9.3"
+  }
+}
