@@ -1,4 +1,28 @@
 {
-  "name": "eip7702-poc",
-  "packageManager": "yarn@4.6.0"
+	"name": "eip7702-poc",
+	"packageManager": "yarn@4.10.3",
+	"type": "module",
+	"scripts": {
+		"dev": "tsx src/index.ts",
+		"build": "rolldown -c rolldown.config.js",
+		"build:watch": "rolldown -c rolldown.config.js --watch",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"format": "biome format --write .",
+		"check": "biome check . && tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:coverage": "vitest run --coverage"
+	},
+	"dependencies": {
+		"@types/node": "^25.0.6",
+		"tsx": "^4.21.0",
+		"typescript": "^5.9.3",
+		"viem": "^2.44.1"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.3.11",
+		"rolldown": "1.0.0-beta.59",
+		"vitest": "^4.0.16"
+	}
 }
