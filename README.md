@@ -24,34 +24,55 @@ Testudo intercepts `eth_signTypedData_v4` requests, analyzes the delegate contra
 # Install dependencies
 yarn install
 
+# Build all packages
+yarn build
+
 # Run tests
 yarn test
-
-# Build extension
-cd extension && npm install && npm run build
 ```
 
 ## Project Structure
 
 ```
-src/
-  analyzer/
-    index.ts        # Main orchestrator
-    fetcher.ts      # Bytecode fetcher (viem)
-    parser.ts       # Bytecode parser
-    detectors.ts    # Threat detectors
-    malicious-db.ts # Known addresses
-  types.ts          # TypeScript interfaces
+packages/
+  core/             # @testudo/core - Detection engine
+    src/
+      index.ts      # Public exports
+      parser.ts     # Bytecode parser
+      detectors.ts  # Threat detectors
+      analyzer.ts   # Main orchestrator
+      fetcher.ts    # Bytecode fetcher (viem)
+      malicious-db.ts
+    tests/          # 66 tests
 
-extension/          # Chrome extension (Manifest V3)
-
-tests/              # Test suite (56 tests)
+  extension/        # @testudo/extension - Chrome extension
+    src/
+      injected.ts   # Intercepts ethereum.request
+      content.ts    # Message bridge
+      background.ts # Uses @testudo/core
+      popup.ts      # Popup UI
+    dist/           # Build output
 
 docs/               # Documentation
-  ROADMAP.md        # Development roadmap
-  BUGS.md           # Bug tracking
-  DECISIONS.md      # Architectural decisions
-  PROJECT_STATUS.md # Detailed progress
+```
+
+## Usage
+
+### Load Extension in Chrome
+
+1. Build the extension: `yarn workspace @testudo/extension run build`
+2. Open `chrome://extensions`
+3. Enable "Developer mode"
+4. Click "Load unpacked"
+5. Select `packages/extension/dist/`
+
+### Use Core Package
+
+```typescript
+import { analyzeContract } from '@testudo/core';
+
+const result = await analyzeContract('0x...');
+// { risk: 'CRITICAL', threats: ['hasAutoForwarder'], blocked: true }
 ```
 
 ## Documentation

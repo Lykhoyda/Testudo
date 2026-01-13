@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import {parseBytecode} from "../src/parser";
+import { describe, expect, it } from 'vitest';
+import { parseBytecode } from '../src/parser';
 
 describe('parseBytecode', () => {
 	it('should parse empty bytecode', () => {

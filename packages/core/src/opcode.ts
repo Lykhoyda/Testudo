@@ -4,4 +4,5 @@ export const OPCODES = {
 	'47': 'SELFBALANCE',
 	'7F': 'PUSH32',
 	FF: 'SELFDESTRUCT',
-};
+	F5: 'CREATE2',
+} as const;

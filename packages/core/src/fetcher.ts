@@ -6,7 +6,7 @@ const client = createPublicClient({
 	transport: http('https://eth.llamarpc.com'),
 });
 
-export async function fetchContractBytecode(address: string): Promise<string | null> {
+export async function fetchBytecode(address: string): Promise<string | null> {
 	const bytecode = await client.getCode({
 		address: address as `0x${string}`,
 	});

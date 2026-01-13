@@ -1,9 +1,9 @@
 /**
  * INJECTED SCRIPT
- * 
+ *
  * This script runs in the PAGE context (not extension context).
  * It intercepts window.ethereum.request calls to detect EIP-7702 authorization requests.
- * 
+ *
  * Flow:
  * 1. Wrap window.ethereum.request
  * 2. Detect eth_signTypedData_v4 with Authorization type
@@ -13,159 +13,160 @@
  */
 
 interface EIP7702Authorization {
-  chainId: string;
-  address: string;  // The delegate contract address - THIS IS WHAT WE ANALYZE
-  nonce: string;
+	chainId: string;
+	address: string; // The delegate contract address - THIS IS WHAT WE ANALYZE
+	nonce: string;
 }
 
 interface TypedDataMessage {
-  types: {
-    Authorization?: unknown;
-    [key: string]: unknown;
-  };
-  primaryType: string;
-  domain: unknown;
-  message: EIP7702Authorization;
+	types: {
+		Authorization?: unknown;
+		[key: string]: unknown;
+	};
+	primaryType: string;
+	domain: unknown;
+	message: EIP7702Authorization;
 }
 
 interface AnalysisResult {
-  risk: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
-  threats: string[];
-  address: string;
-  blocked: boolean;
+	risk: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
+	threats: string[];
+	address: string;
+	blocked: boolean;
 }
 
 // Check if ethereum provider exists
 if (typeof window.ethereum !== 'undefined') {
-  console.log('[Testudo] 🛡️ Initializing EIP-7702 protection...');
-  
-  const originalRequest = window.ethereum.request.bind(window.ethereum);
+	console.log('[Testudo] 🛡️ Initializing EIP-7702 protection...');
 
-  // Wrap the request method
-  window.ethereum.request = async function(args: { method: string; params?: unknown[] }) {
-    // Only intercept eth_signTypedData_v4
-    if (args.method !== 'eth_signTypedData_v4') {
-      return originalRequest(args);
-    }
+	const originalRequest = window.ethereum.request.bind(window.ethereum);
 
-    try {
-      // Parse the typed data
-      const params = args.params as [string, string];
-      const typedDataString = params[1];
-      const typedData: TypedDataMessage = typeof typedDataString === 'string' 
-        ? JSON.parse(typedDataString) 
-        : typedDataString;
+	// Wrap the request method
+	window.ethereum.request = async (args: { method: string; params?: unknown[] }) => {
+		// Only intercept eth_signTypedData_v4
+		if (args.method !== 'eth_signTypedData_v4') {
+			return originalRequest(args);
+		}
 
-      // Check if this is an EIP-7702 Authorization
-      if (!isEIP7702Authorization(typedData)) {
-        return originalRequest(args);
-      }
+		try {
+			// Parse the typed data
+			const params = args.params as [string, string];
+			const typedDataString = params[1];
+			const typedData: TypedDataMessage =
+				typeof typedDataString === 'string' ? JSON.parse(typedDataString) : typedDataString;
 
-      console.log('[Testudo] 🔍 EIP-7702 authorization detected!');
-      console.log('[Testudo] Delegate address:', typedData.message.address);
+			// Check if this is an EIP-7702 Authorization
+			if (!isEIP7702Authorization(typedData)) {
+				return originalRequest(args);
+			}
 
-      // Request analysis from background script
-      const analysis = await requestAnalysis(typedData.message.address);
-      
-      console.log('[Testudo] Analysis result:', analysis);
+			console.log('[Testudo] 🔍 EIP-7702 authorization detected!');
+			console.log('[Testudo] Delegate address:', typedData.message.address);
 
-      // Handle based on risk level
-      if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
-        // Show warning and potentially block
-        const userConfirmed = await showWarning(analysis);
-        
-        if (!userConfirmed) {
-          console.log('[Testudo] ❌ User rejected dangerous delegation');
-          throw new Error('Testudo: Delegation blocked by user - dangerous contract detected');
-        }
-        
-        console.log('[Testudo] ⚠️ User proceeded despite warning');
-      } else if (analysis.risk === 'MEDIUM') {
-        // Show info but don't block
-        showInfo(analysis);
-      }
+			// Request analysis from background script
+			const analysis = await requestAnalysis(typedData.message.address);
 
-      // Allow the signature to proceed
-      return originalRequest(args);
+			console.log('[Testudo] Analysis result:', analysis);
 
-    } catch (error) {
-      // If it's our block, re-throw
-      if (error instanceof Error && error.message.includes('Testudo')) {
-        throw error;
-      }
-      
-      // For parsing errors, log and allow through
-      console.error('[Testudo] Error analyzing request:', error);
-      return originalRequest(args);
-    }
-  };
+			// Handle based on risk level
+			if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
+				// Show warning and potentially block
+				const userConfirmed = await showWarning(analysis);
 
-  console.log('[Testudo] ✅ Protection active');
+				if (!userConfirmed) {
+					console.log('[Testudo] ❌ User rejected dangerous delegation');
+					throw new Error('Testudo: Delegation blocked by user - dangerous contract detected');
+				}
+
+				console.log('[Testudo] ⚠️ User proceeded despite warning');
+			} else if (analysis.risk === 'MEDIUM') {
+				// Show info but don't block
+				showInfo(analysis);
+			}
+
+			// Allow the signature to proceed
+			return originalRequest(args);
+		} catch (error) {
+			// If it's our block, re-throw
+			if (error instanceof Error && error.message.includes('Testudo')) {
+				throw error;
+			}
+
+			// For parsing errors, log and allow through
+			console.error('[Testudo] Error analyzing request:', error);
+			return originalRequest(args);
+		}
+	};
+
+	console.log('[Testudo] ✅ Protection active');
 }
 
 /**
  * Check if typed data is an EIP-7702 Authorization
  */
 function isEIP7702Authorization(typedData: TypedDataMessage): boolean {
-  // Check for Authorization type in types
-  if (!typedData.types?.Authorization) {
-    return false;
-  }
+	// Check for Authorization type in types
+	if (!typedData.types?.Authorization) {
+		return false;
+	}
 
-  // Check primaryType
-  if (typedData.primaryType !== 'Authorization') {
-    return false;
-  }
+	// Check primaryType
+	if (typedData.primaryType !== 'Authorization') {
+		return false;
+	}
 
-  // Check message has required fields
-  if (!typedData.message?.address) {
-    return false;
-  }
+	// Check message has required fields
+	if (!typedData.message?.address) {
+		return false;
+	}
 
-  return true;
+	return true;
 }
 
 /**
  * Send analysis request to content script → background script
  */
 function requestAnalysis(delegateAddress: string): Promise<AnalysisResult> {
-  return new Promise((resolve, reject) => {
-    const requestId = Math.random().toString(36).substring(7);
-    
-    // Listen for response
-    const handler = (event: MessageEvent) => {
-      if (event.data?.type === 'TESTUDO_ANALYSIS_RESULT' && event.data?.requestId === requestId) {
-        window.removeEventListener('message', handler);
-        resolve(event.data.result);
-      }
-    };
-    
-    window.addEventListener('message', handler);
-    
-    // Send request to content script
-    window.postMessage({
-      type: 'TESTUDO_ANALYZE_REQUEST',
-      requestId,
-      delegateAddress,
-    }, '*');
+	return new Promise((resolve, reject) => {
+		const requestId = Math.random().toString(36).substring(7);
 
-    // Timeout after 10 seconds
-    setTimeout(() => {
-      window.removeEventListener('message', handler);
-      reject(new Error('Analysis timeout'));
-    }, 10000);
-  });
+		// Listen for response
+		const handler = (event: MessageEvent) => {
+			if (event.data?.type === 'TESTUDO_ANALYSIS_RESULT' && event.data?.requestId === requestId) {
+				window.removeEventListener('message', handler);
+				resolve(event.data.result);
+			}
+		};
+
+		window.addEventListener('message', handler);
+
+		// Send request to content script
+		window.postMessage(
+			{
+				type: 'TESTUDO_ANALYZE_REQUEST',
+				requestId,
+				delegateAddress,
+			},
+			'*',
+		);
+
+		// Timeout after 10 seconds
+		setTimeout(() => {
+			window.removeEventListener('message', handler);
+			reject(new Error('Analysis timeout'));
+		}, 10000);
+	});
 }
 
 /**
  * Show warning modal for dangerous contracts
  */
 function showWarning(analysis: AnalysisResult): Promise<boolean> {
-  return new Promise((resolve) => {
-    // Create modal overlay
-    const overlay = document.createElement('div');
-    overlay.id = 'testudo-warning-overlay';
-    overlay.innerHTML = `
+	return new Promise((resolve) => {
+		// Create modal overlay
+		const overlay = document.createElement('div');
+		overlay.id = 'testudo-warning-overlay';
+		overlay.innerHTML = `
       <style>
         #testudo-warning-overlay {
           position: fixed;
@@ -298,12 +299,16 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
         </div>
         
         <div class="testudo-threats">
-          ${analysis.threats.map(threat => `
+          ${analysis.threats
+						.map(
+							(threat) => `
             <div class="testudo-threat">
               <span class="testudo-threat-icon">⚠️</span>
               <span>${formatThreat(threat)}</span>
             </div>
-          `).join('')}
+          `,
+						)
+						.join('')}
         </div>
         
         <div class="testudo-address">
@@ -326,27 +331,27 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
       </div>
     `;
 
-    document.body.appendChild(overlay);
+		document.body.appendChild(overlay);
 
-    // Handle button clicks
-    document.getElementById('testudo-cancel')?.addEventListener('click', () => {
-      overlay.remove();
-      resolve(false);
-    });
+		// Handle button clicks
+		document.getElementById('testudo-cancel')?.addEventListener('click', () => {
+			overlay.remove();
+			resolve(false);
+		});
 
-    document.getElementById('testudo-proceed')?.addEventListener('click', () => {
-      overlay.remove();
-      resolve(true);
-    });
-  });
+		document.getElementById('testudo-proceed')?.addEventListener('click', () => {
+			overlay.remove();
+			resolve(true);
+		});
+	});
 }
 
 /**
  * Show info toast for medium risk
  */
-function showInfo(analysis: AnalysisResult): void {
-  const toast = document.createElement('div');
-  toast.innerHTML = `
+function showInfo(_analysis: AnalysisResult): void {
+	const toast = document.createElement('div');
+	toast.innerHTML = `
     <style>
       .testudo-toast {
         position: fixed;
@@ -379,36 +384,36 @@ function showInfo(analysis: AnalysisResult): void {
       </div>
     </div>
   `;
-  
-  document.body.appendChild(toast);
-  
-  setTimeout(() => toast.remove(), 5000);
+
+	document.body.appendChild(toast);
+
+	setTimeout(() => toast.remove(), 5000);
 }
 
 /**
  * Format threat names for display
  */
 function formatThreat(threat: string): string {
-  const threatMap: Record<string, string> = {
-    'hasAutoForwarder': 'Auto-forwards ETH to attacker',
-    'isDelegatedCall': 'Uses DELEGATECALL (can execute any code)',
-    'hasSelfDestruct': 'Can self-destruct after draining',
-    'hasUnlimitedApprovals': 'Requests unlimited token approvals',
-    'ETH_AUTO_FORWARDER': 'Known ETH drainer contract',
-    'INFERNO_DRAINER': 'Known Inferno Drainer exploit',
-  };
-  
-  return threatMap[threat] || threat;
+	const threatMap: Record<string, string> = {
+		hasAutoForwarder: 'Auto-forwards ETH to attacker',
+		isDelegatedCall: 'Uses DELEGATECALL (can execute any code)',
+		hasSelfDestruct: 'Can self-destruct after draining',
+		hasUnlimitedApprovals: 'Requests unlimited token approvals',
+		ETH_AUTO_FORWARDER: 'Known ETH drainer contract',
+		INFERNO_DRAINER: 'Known Inferno Drainer exploit',
+	};
+
+	return threatMap[threat] || threat;
 }
 
 // TypeScript declarations for window.ethereum
 declare global {
-  interface Window {
-    ethereum?: {
-      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-      isMetaMask?: boolean;
-    };
-  }
+	interface Window {
+		ethereum?: {
+			request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+			isMetaMask?: boolean;
+		};
+	}
 }
 
 export {};
