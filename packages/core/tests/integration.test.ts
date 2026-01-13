@@ -4,6 +4,7 @@ import { checkKnownMalicious } from '../src/malicious-db';
 import { parseBytecode } from '../src/parser';
 import {
 	AUTO_FORWARDER_CONTRACTS,
+	CREATE2_CONTRACTS,
 	DELEGATECALL_CONTRACTS,
 	MULTI_THREAT_CONTRACTS,
 	REAL_WORLD_PATTERNS,
@@ -118,6 +119,35 @@ describe('Analysis Pipeline Integration', () => {
 			const result = runAllDetectors(instructions);
 
 			expect(result.isDelegatedCall).toBe(true);
+		});
+	});
+
+	describe('Metamorphic Attack Risk Scoring', () => {
+		it('detects metamorphic pattern (CREATE2 + SELFDESTRUCT)', () => {
+			const bytecode = CREATE2_CONTRACTS.metamorphic;
+			const instructions = parseBytecode(bytecode);
+			const result = runAllDetectors(instructions);
+
+			expect(result.hasCreate2).toBe(true);
+			expect(result.hasSelfDestruct).toBe(true);
+		});
+
+		it('detects CREATE2 only (factory pattern)', () => {
+			const bytecode = CREATE2_CONTRACTS.minimal;
+			const instructions = parseBytecode(bytecode);
+			const result = runAllDetectors(instructions);
+
+			expect(result.hasCreate2).toBe(true);
+			expect(result.hasSelfDestruct).toBe(false);
+		});
+
+		it('detects SELFDESTRUCT only', () => {
+			const bytecode = SELFDESTRUCT_CONTRACTS.minimal;
+			const instructions = parseBytecode(bytecode);
+			const result = runAllDetectors(instructions);
+
+			expect(result.hasCreate2).toBe(false);
+			expect(result.hasSelfDestruct).toBe(true);
 		});
 	});
 

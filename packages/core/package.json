@@ -11,7 +11,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --clean",
+    "build": "rolldown -c && tsc --emitDeclarationOnly --declaration --outDir dist",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -19,7 +19,8 @@
     "viem": "^2.44.1"
   },
   "devDependencies": {
-    "tsup": "^8.0.0",
+    "rolldown": "^1.0.0-beta.9",
+    "typescript": "^5.9.3",
     "vitest": "^4.0.16"
   }
 }
