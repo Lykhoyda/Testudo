@@ -11,6 +11,8 @@
     "@testudo/core": "workspace:*"
   },
   "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "@types/node": "^25.0.7",
     "rolldown": "^1.0.0-beta.9",
     "typescript": "^5.9.3"
   }
