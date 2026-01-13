@@ -83,11 +83,19 @@ export async function analyzeContract(address: Address): Promise<AnalysisResult>
 				'Contract requests unlimited token approvals. Could drain all approved tokens.',
 			);
 		}
-		if (detectionResults.hasChainId) {
+		if (detectionResults.hasChainId && !detectionResults.isEip712Pattern) {
 			threats.push('crossChainPolymorphism');
-			if (detectionResults.hasChainIdBranching) {
+			if (detectionResults.hasChainIdBranching && detectionResults.hasChainIdComparison) {
 				warnings.push(
-					'Contract uses CHAINID with conditional branching. Behavior may differ across chains - safe on Mainnet but malicious on L2s. Avoid signing with chainId=0.',
+					'Contract uses CHAINID with comparison and branching. Behavior will differ across chains - may be safe on Mainnet but malicious on L2s. Avoid signing with chainId=0.',
+				);
+			} else if (detectionResults.hasChainIdBranching) {
+				warnings.push(
+					'Contract uses CHAINID with conditional branching. Behavior may differ across chains. Avoid signing with chainId=0.',
+				);
+			} else if (detectionResults.hasChainIdComparison) {
+				warnings.push(
+					'Contract compares CHAINID value. May restrict or alter behavior on specific chains.',
 				);
 			} else {
 				warnings.push(
@@ -106,8 +114,11 @@ export async function analyzeContract(address: Address): Promise<AnalysisResult>
 			} else if (
 				detectionResults.hasSelfDestruct ||
 				detectionResults.isDelegatedCall ||
-				detectionResults.hasChainIdBranching
+				(detectionResults.hasChainIdBranching && detectionResults.hasChainIdComparison)
 			) {
+				risk = 'HIGH';
+				blocked = true;
+			} else if (detectionResults.hasChainIdBranching) {
 				risk = 'HIGH';
 				blocked = true;
 			} else {

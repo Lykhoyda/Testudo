@@ -6,8 +6,15 @@
  *
  * OPCODE REFERENCE:
  * 0x00 = STOP
+ * 0x10 = LT
+ * 0x11 = GT
+ * 0x12 = SLT
+ * 0x13 = SGT
+ * 0x14 = EQ
+ * 0x20 = KECCAK256
  * 0x46 = CHAINID
  * 0x47 = SELFBALANCE
+ * 0x52 = MSTORE
  * 0x57 = JUMPI
  * 0x60 = PUSH1 (1 byte data follows)
  * 0x7F = PUSH32 (32 bytes data follows)
@@ -70,6 +77,15 @@ export const CHAINID_CONTRACTS = {
 	x46AsPushData: '0x610046',
 	x46AsPush1Data: '0x604600',
 	noBranching: '0x4660015500',
+	withComparison: '0x46600114',
+	withComparisonLT: '0x46600110',
+	withComparisonGT: '0x46600111',
+	withComparisonSLT: '0x46600112',
+	withComparisonSGT: '0x46600113',
+	withBranchingAndComparison: '0x4660011460105700',
+	eip712Pattern: '0x466001600220',
+	eip712PatternDirect: '0x4620',
+	eip712Complex: '0x466000526020600020',
 };
 
 export const SAFE_CONTRACTS = {
