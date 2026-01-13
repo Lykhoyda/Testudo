@@ -1,24 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import { parseBytecode } from '../src';
 import {
+	analyzeTokenTransfers,
 	detectAutoForwarder,
 	detectChainId,
 	detectCreate2,
 	detectDelegateCall,
+	detectEcrecover,
+	detectFallbackLocation,
+	detectHardcodedDestination,
+	detectMsgSenderCheck,
+	detectNonceTracking,
 	detectSelfDestruct,
+	detectTokenSelectors,
 	detectUnlimitedApproval,
 	runAllDetectors,
 } from '../src/detectors';
 
 import {
+	AUTHORIZATION_CONTRACTS,
 	AUTO_FORWARDER_CONTRACTS,
 	CHAINID_CONTRACTS,
 	CREATE2_CONTRACTS,
 	DELEGATECALL_CONTRACTS,
+	DRAINER_PATTERNS,
+	FALLBACK_CONTRACTS,
 	FALSE_POSITIVE_CONTRACTS,
+	HARDCODED_DESTINATION_CONTRACTS,
 	MULTI_THREAT_CONTRACTS,
 	SAFE_CONTRACTS,
 	SELFDESTRUCT_CONTRACTS,
+	TOKEN_TRANSFER_CONTRACTS,
 	UNLIMITED_APPROVAL_CONTRACTS,
 } from './fixtures/contracts';
 
@@ -504,5 +516,242 @@ describe('parseBytecode', () => {
 
 		expect(instructions[0].byteIndex).toBe(0);
 		expect(instructions[1].byteIndex).toBe(2);
+	});
+});
+
+describe('detectTokenSelectors', () => {
+	describe('should detect ERC20 selectors', () => {
+		it('detects transfer selector', () => {
+			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.erc20Transfer);
+			const result = detectTokenSelectors(instructions);
+			expect(result).toHaveLength(1);
+			expect(result[0].name).toBe('transfer');
+			expect(result[0].standard).toBe('ERC20');
+			expect(result[0].type).toBe('transfer');
+		});
+
+		it('detects transferFrom selector', () => {
+			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.erc20TransferFrom);
+			const result = detectTokenSelectors(instructions);
+			expect(result).toHaveLength(1);
+			expect(result[0].name).toBe('transferFrom');
+			expect(result[0].standard).toBe('ERC20');
+		});
+
+		it('detects approve selector', () => {
+			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.erc20Approve);
+			const result = detectTokenSelectors(instructions);
+			expect(result).toHaveLength(1);
+			expect(result[0].name).toBe('approve');
+			expect(result[0].type).toBe('approval');
+		});
+
+		it('detects increaseAllowance selector', () => {
+			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.erc20IncreaseAllowance);
+			const result = detectTokenSelectors(instructions);
+			expect(result).toHaveLength(1);
+			expect(result[0].name).toBe('increaseAllowance');
+			expect(result[0].type).toBe('approval');
+		});
+	});
+
+	describe('should detect ERC721 selectors', () => {
+		it('detects safeTransferFrom selector', () => {
+			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.erc721SafeTransfer);
+			const result = detectTokenSelectors(instructions);
+			expect(result).toHaveLength(1);
+			expect(result[0].name).toBe('safeTransferFrom');
+			expect(result[0].standard).toBe('ERC721');
+		});
+
+		it('detects setApprovalForAll selector', () => {
+			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.erc721SetApprovalForAll);
+			const result = detectTokenSelectors(instructions);
+			expect(result).toHaveLength(1);
+			expect(result[0].name).toBe('setApprovalForAll');
+			expect(result[0].type).toBe('approval');
+		});
+	});
+
+	describe('should detect ERC1155 selectors', () => {
+		it('detects ERC1155 safeTransferFrom selector', () => {
+			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.erc1155SafeTransfer);
+			const result = detectTokenSelectors(instructions);
+			expect(result).toHaveLength(1);
+			expect(result[0].standard).toBe('ERC1155');
+		});
+
+		it('detects safeBatchTransferFrom selector', () => {
+			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.erc1155BatchTransfer);
+			const result = detectTokenSelectors(instructions);
+			expect(result).toHaveLength(1);
+			expect(result[0].name).toBe('safeBatchTransferFrom');
+			expect(result[0].type).toBe('batch');
+		});
+	});
+
+	describe('should handle multiple selectors', () => {
+		it('detects multiple selectors in one contract', () => {
+			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.multipleSelectors);
+			const result = detectTokenSelectors(instructions);
+			expect(result).toHaveLength(3);
+		});
+	});
+
+	describe('should NOT false positive', () => {
+		it('ignores selector in PUSH32 data', () => {
+			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.selectorInPush32NotDetected);
+			const result = detectTokenSelectors(instructions);
+			expect(result).toHaveLength(0);
+		});
+
+		it('returns empty for no token selectors', () => {
+			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.noTokenSelectors);
+			const result = detectTokenSelectors(instructions);
+			expect(result).toHaveLength(0);
+		});
+	});
+});
+
+describe('detectEcrecover', () => {
+	it('detects ecrecover with PUSH1 0x01', () => {
+		const instructions = parseBytecode(AUTHORIZATION_CONTRACTS.withEcrecover);
+		expect(detectEcrecover(instructions)).toBe(true);
+	});
+
+	it('detects ecrecover with PUSH20 address 0x01', () => {
+		const instructions = parseBytecode(AUTHORIZATION_CONTRACTS.withEcrecoverPush20);
+		expect(detectEcrecover(instructions)).toBe(true);
+	});
+
+	it('returns false without ecrecover', () => {
+		const instructions = parseBytecode(AUTHORIZATION_CONTRACTS.noAuth);
+		expect(detectEcrecover(instructions)).toBe(false);
+	});
+});
+
+describe('detectMsgSenderCheck', () => {
+	it('detects CALLER + EQ pattern', () => {
+		const instructions = parseBytecode(AUTHORIZATION_CONTRACTS.withMsgSenderCheck);
+		expect(detectMsgSenderCheck(instructions)).toBe(true);
+	});
+
+	it('returns false without msg.sender check', () => {
+		const instructions = parseBytecode(AUTHORIZATION_CONTRACTS.noAuth);
+		expect(detectMsgSenderCheck(instructions)).toBe(false);
+	});
+});
+
+describe('detectNonceTracking', () => {
+	it('detects SLOAD + SSTORE pattern', () => {
+		const instructions = parseBytecode(AUTHORIZATION_CONTRACTS.withNonceTracking);
+		expect(detectNonceTracking(instructions)).toBe(true);
+	});
+
+	it('returns false without nonce tracking', () => {
+		const instructions = parseBytecode(AUTHORIZATION_CONTRACTS.noAuth);
+		expect(detectNonceTracking(instructions)).toBe(false);
+	});
+});
+
+describe('detectFallbackLocation', () => {
+	it('detects CALL after CALLDATASIZE without dispatcher', () => {
+		const instructions = parseBytecode(FALLBACK_CONTRACTS.callInFallback);
+		expect(detectFallbackLocation(instructions)).toBe(true);
+	});
+
+	it('returns false when dispatcher present', () => {
+		const instructions = parseBytecode(FALLBACK_CONTRACTS.callWithDispatcher);
+		expect(detectFallbackLocation(instructions)).toBe(false);
+	});
+
+	it('returns false without CALLDATASIZE', () => {
+		const instructions = parseBytecode(FALLBACK_CONTRACTS.noCalldatasize);
+		expect(detectFallbackLocation(instructions)).toBe(false);
+	});
+});
+
+describe('detectHardcodedDestination', () => {
+	it('detects hardcoded address before CALL', () => {
+		const instructions = parseBytecode(HARDCODED_DESTINATION_CONTRACTS.hardcodedAddress);
+		expect(detectHardcodedDestination(instructions)).toBe(true);
+	});
+
+	it('ignores zero address', () => {
+		const instructions = parseBytecode(HARDCODED_DESTINATION_CONTRACTS.callerDestination);
+		expect(detectHardcodedDestination(instructions)).toBe(false);
+	});
+
+	it('ignores precompile addresses', () => {
+		const instructions = parseBytecode(HARDCODED_DESTINATION_CONTRACTS.precompileDestination);
+		expect(detectHardcodedDestination(instructions)).toBe(false);
+	});
+
+	it('returns false without hardcoded address', () => {
+		const instructions = parseBytecode(HARDCODED_DESTINATION_CONTRACTS.noHardcodedAddr);
+		expect(detectHardcodedDestination(instructions)).toBe(false);
+	});
+});
+
+describe('analyzeTokenTransfers', () => {
+	describe('risk classification', () => {
+		it('returns LOW for contracts without token operations', () => {
+			const instructions = parseBytecode(SAFE_CONTRACTS.simpleAdd);
+			const result = analyzeTokenTransfers(instructions);
+			expect(result.contextualRisk).toBe('LOW');
+			expect(result.hasTokenTransfer).toBe(false);
+		});
+
+		it('returns CRITICAL for transfer in fallback', () => {
+			const instructions = parseBytecode(DRAINER_PATTERNS.crimeEnjoyerWithToken);
+			const result = analyzeTokenTransfers(instructions);
+			expect(result.contextualRisk).toBe('CRITICAL');
+			expect(result.appearsInFallback).toBe(true);
+		});
+
+		it('returns HIGH for token ops without auth', () => {
+			const instructions = parseBytecode(AUTHORIZATION_CONTRACTS.noAuth);
+			const result = analyzeTokenTransfers(instructions);
+			expect(result.contextualRisk).toBe('HIGH');
+			expect(result.hasAuthorizationPattern).toBe(false);
+		});
+
+		it('returns HIGH for ecrecover without nonce tracking', () => {
+			const instructions = parseBytecode(AUTHORIZATION_CONTRACTS.ecrecoverWithoutNonce);
+			const result = analyzeTokenTransfers(instructions);
+			expect(result.contextualRisk).toBe('HIGH');
+			expect(result.hasEcrecover).toBe(true);
+			expect(result.hasNonceTracking).toBe(false);
+		});
+
+		it('returns MEDIUM for token ops with auth', () => {
+			const instructions = parseBytecode(DRAINER_PATTERNS.legitimateWithAuth);
+			const result = analyzeTokenTransfers(instructions);
+			expect(result.contextualRisk).toBe('MEDIUM');
+			expect(result.hasAuthorizationPattern).toBe(true);
+		});
+
+		it('returns MEDIUM for safe wallet pattern', () => {
+			const instructions = parseBytecode(DRAINER_PATTERNS.safeWalletPattern);
+			const result = analyzeTokenTransfers(instructions);
+			expect(result.contextualRisk).toBe('MEDIUM');
+			expect(result.hasEcrecover).toBe(true);
+			expect(result.hasNonceTracking).toBe(true);
+		});
+	});
+
+	describe('integration with runAllDetectors', () => {
+		it('includes token transfer analysis in detection results', () => {
+			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.erc20Transfer);
+			const result = runAllDetectors(instructions);
+			expect(result.tokenTransfer).toBeDefined();
+			expect(result.tokenTransfer.hasTokenTransfer).toBe(true);
+		});
+
+		it('detects safe contracts correctly', () => {
+			const instructions = parseBytecode(SAFE_CONTRACTS.simpleAdd);
+			const result = runAllDetectors(instructions);
+			expect(result.tokenTransfer.contextualRisk).toBe('LOW');
+		});
 	});
 });

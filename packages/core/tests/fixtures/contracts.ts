@@ -106,3 +106,74 @@ export const REAL_WORLD_PATTERNS = {
 	safeProxy:
 		'0x363d3d373d3d3d363d73bebebebebebebebebebebebebebebebebebebebe5af43d82803e903d91602b57fd5bf3',
 };
+
+/**
+ * Token Transfer Test Contracts
+ *
+ * SELECTOR REFERENCE:
+ * 0xa9059cbb = transfer(address,uint256) [ERC20]
+ * 0x23b872dd = transferFrom(address,address,uint256) [ERC20]
+ * 0x095ea7b3 = approve(address,uint256) [ERC20]
+ * 0x39509351 = increaseAllowance(address,uint256) [ERC20]
+ * 0x42842e0e = safeTransferFrom(address,address,uint256) [ERC721]
+ * 0xb88d4fde = safeTransferFrom(address,address,uint256,bytes) [ERC721]
+ * 0xa22cb465 = setApprovalForAll(address,bool) [ERC721]
+ * 0xf242432a = safeTransferFrom(...) [ERC1155]
+ * 0x2eb2c2d6 = safeBatchTransferFrom(...) [ERC1155]
+ *
+ * OPCODE REFERENCE:
+ * 0x33 = CALLER (msg.sender)
+ * 0x36 = CALLDATASIZE
+ * 0x54 = SLOAD
+ * 0x55 = SSTORE
+ * 0x63 = PUSH4
+ * 0x73 = PUSH20
+ * 0xFA = STATICCALL
+ */
+
+export const TOKEN_TRANSFER_CONTRACTS = {
+	erc20Transfer: '0x63a9059cbb',
+	erc20TransferFrom: '0x6323b872dd',
+	erc20Approve: '0x63095ea7b3',
+	erc20IncreaseAllowance: '0x6339509351',
+	erc721SafeTransfer: '0x6342842e0e',
+	erc721SafeTransferWithData: '0x63b88d4fde',
+	erc721SetApprovalForAll: '0x63a22cb465',
+	erc1155SafeTransfer: '0x63f242432a',
+	erc1155BatchTransfer: '0x632eb2c2d6',
+	multipleSelectors: '0x63a9059cbb6323b872dd63095ea7b3',
+	selectorInPush32NotDetected: `0x7fa9059cbb${'00'.repeat(28)}`,
+	noTokenSelectors: '0x6001600201',
+};
+
+export const AUTHORIZATION_CONTRACTS = {
+	withEcrecover: '0x6001fa',
+	withEcrecoverPush20: `0x73${'00'.repeat(19)}01fa`,
+	withMsgSenderCheck: '0x3360001014',
+	withNonceTracking: '0x60005460016001015500',
+	withFullAuth: '0x6001fa3360001014600054600100015500',
+	noAuth: '0x63a9059cbb',
+	ecrecoverWithoutNonce: '0x63a9059cbb6001fa',
+	msgSenderWithoutEcrecover: '0x63a9059cbb3360001014',
+};
+
+export const FALLBACK_CONTRACTS = {
+	callInFallback: '0x36600052f1',
+	callWithDispatcher: '0x3663a9059cbb1460105760006000f1',
+	noCalldatasize: '0x60006000f1',
+	dispatcherBeforeCall: '0x3663a9059cbb1463095ea7b31460205760006000f1',
+};
+
+export const HARDCODED_DESTINATION_CONTRACTS = {
+	hardcodedAddress: '0x73deadbeefdeadbeefdeadbeefdeadbeefdeadbeeff1',
+	callerDestination: `0x73${'00'.repeat(19)}00f1`,
+	precompileDestination: `0x73${'00'.repeat(19)}01f1`,
+	noHardcodedAddr: '0x60006000f1',
+};
+
+export const DRAINER_PATTERNS = {
+	infernoStyle: '0x63a22cb46573deadbeefdeadbeefdeadbeefdeadbeefdeadbeeef1',
+	crimeEnjoyerWithToken: '0x3663a9059cbb60006000f1',
+	safeWalletPattern: '0x63a9059cbb6001fa600054600100015500',
+	legitimateWithAuth: '0x63a9059cbb3360001014600054600100015500',
+};
