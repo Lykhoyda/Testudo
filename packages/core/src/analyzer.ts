@@ -104,17 +104,59 @@ export async function analyzeContract(address: Address): Promise<AnalysisResult>
 			}
 		}
 
+		const tokenAnalysis = detectionResults.tokenTransfer;
+		if (tokenAnalysis.contextualRisk !== 'LOW') {
+			if (tokenAnalysis.contextualRisk === 'CRITICAL') {
+				threats.push('unprotectedTokenTransfer');
+				if (tokenAnalysis.appearsInFallback) {
+					warnings.push(
+						'Automatic Fund Drain Detected: Contract automatically forwards your tokens in fallback function. This is a known attack pattern.',
+					);
+				} else if (tokenAnalysis.hasHardcodedDestination) {
+					warnings.push(
+						'Unsecured Token Access: Contract can transfer tokens to a hardcoded address without your approval.',
+					);
+				} else if (tokenAnalysis.detectedSelectors.some((s) => s.name === 'setApprovalForAll')) {
+					warnings.push(
+						'Full Collection Drain Risk: Contract can approve unlimited access to your NFT collections without security controls.',
+					);
+				}
+			} else if (tokenAnalysis.contextualRisk === 'HIGH') {
+				threats.push('missingTokenAuth');
+				if (!tokenAnalysis.hasNonceTracking && tokenAnalysis.hasEcrecover) {
+					warnings.push(
+						'Replay Attack Risk: Contract verifies signatures but lacks nonce tracking. Same signature could be reused.',
+					);
+				} else {
+					warnings.push(
+						'Missing Security Controls: Contract can transfer your tokens but has no signature verification. Legitimate wallets require your approval for each transfer.',
+					);
+				}
+			} else if (tokenAnalysis.contextualRisk === 'MEDIUM') {
+				threats.push('tokenTransferCapability');
+				warnings.push(
+					`Token Transfer Capability: Contract can move your tokens. Security features detected: ${tokenAnalysis.hasEcrecover ? '✓ Signature verification' : ''}${tokenAnalysis.hasAuthorizationPattern ? ' ✓ Access controls' : ''}. Verify this is a trusted wallet.`,
+				);
+			}
+		}
+
 		let risk: AnalysisResult['risk'] = 'LOW';
 		let blocked = false;
 
 		if (threats.length > 0) {
-			if (isMetamorphic || detectionResults.hasAutoForwarder || threats.length >= 2) {
+			if (
+				isMetamorphic ||
+				detectionResults.hasAutoForwarder ||
+				tokenAnalysis.contextualRisk === 'CRITICAL' ||
+				threats.length >= 2
+			) {
 				risk = 'CRITICAL';
 				blocked = true;
 			} else if (
 				detectionResults.hasSelfDestruct ||
 				detectionResults.isDelegatedCall ||
-				(detectionResults.hasChainIdBranching && detectionResults.hasChainIdComparison)
+				(detectionResults.hasChainIdBranching && detectionResults.hasChainIdComparison) ||
+				tokenAnalysis.contextualRisk === 'HIGH'
 			) {
 				risk = 'HIGH';
 				blocked = true;

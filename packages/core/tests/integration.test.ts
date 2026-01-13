@@ -94,10 +94,11 @@ describe('Analysis Pipeline Integration', () => {
 			const threats = runAllDetectors(instructions);
 
 			const detectedThreats = Object.entries(threats)
-				.filter(([_, detected]) => detected)
+				.filter(([key, detected]) => key !== 'tokenTransfer' && detected === true)
 				.map(([name]) => name);
 
 			expect(detectedThreats.length).toBe(0);
+			expect(threats.tokenTransfer.contextualRisk).toBe('LOW');
 
 			const risk = detectedThreats.length > 0 ? 'CRITICAL' : 'LOW';
 			expect(risk).toBe('LOW');
@@ -172,10 +173,11 @@ describe('Analysis Pipeline Integration', () => {
 			const threats = runAllDetectors(instructions);
 
 			const threatList = Object.entries(threats)
-				.filter(([_, detected]) => detected)
+				.filter(([key, detected]) => key !== 'tokenTransfer' && detected === true)
 				.map(([name]) => name);
 
 			expect(threatList).toHaveLength(0);
+			expect(threats.tokenTransfer.contextualRisk).toBe('LOW');
 		});
 	});
 });
