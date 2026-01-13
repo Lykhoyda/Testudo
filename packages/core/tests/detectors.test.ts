@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { parseBytecode } from '../src';
 import {
 	detectAutoForwarder,
 	detectChainId,
@@ -8,7 +9,6 @@ import {
 	detectUnlimitedApproval,
 	runAllDetectors,
 } from '../src/detectors';
-import { parseBytecode } from '../src/parser';
 
 import {
 	AUTO_FORWARDER_CONTRACTS,
