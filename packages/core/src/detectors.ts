@@ -1,5 +1,5 @@
-import { OPCODES } from './opcode';
-import type { DetectionResults, Instruction } from './types';
+import { COMPARISON_OPCODES, OPCODES } from './opcode';
+import type { ChainIdDetectionResult, DetectionResults, Instruction } from './types';
 
 export function detectAutoForwarder(instructions: Instruction[]): boolean {
 	let hasSelfBalance = false;
@@ -57,28 +57,37 @@ export function detectCreate2(instructions: Instruction[]): boolean {
 	return false;
 }
 
-export function detectChainId(instructions: Instruction[]): {
-	hasChainId: boolean;
-	hasBranching: boolean;
-} {
+export function detectChainId(instructions: Instruction[]): ChainIdDetectionResult {
 	let hasChainId = false;
 	let hasBranching = false;
+	let hasComparison = false;
+	let isEip712Pattern = false;
 
 	for (let i = 0; i < instructions.length; i++) {
 		const instruction = instructions[i];
 		if (instruction.opcode === OPCODES['46']) {
 			hasChainId = true;
 
-			for (let j = i + 1; j < Math.min(i + 10, instructions.length); j++) {
-				if (instructions[j].opcode === OPCODES['57']) {
+			const lookAheadLimit = Math.min(i + 10, instructions.length);
+			for (let j = i + 1; j < lookAheadLimit; j++) {
+				const nextOpcode = instructions[j].opcode;
+
+				if (nextOpcode === OPCODES['57']) {
 					hasBranching = true;
-					break;
+				}
+
+				if (COMPARISON_OPCODES.includes(nextOpcode as (typeof COMPARISON_OPCODES)[number])) {
+					hasComparison = true;
+				}
+
+				if (nextOpcode === OPCODES['20']) {
+					isEip712Pattern = true;
 				}
 			}
 		}
 	}
 
-	return { hasChainId, hasBranching };
+	return { hasChainId, hasBranching, hasComparison, isEip712Pattern };
 }
 
 export function runAllDetectors(instructions: Instruction[]): DetectionResults {
@@ -92,5 +101,7 @@ export function runAllDetectors(instructions: Instruction[]): DetectionResults {
 		hasCreate2: detectCreate2(instructions),
 		hasChainId: chainIdResult.hasChainId,
 		hasChainIdBranching: chainIdResult.hasBranching,
+		hasChainIdComparison: chainIdResult.hasComparison,
+		isEip712Pattern: chainIdResult.isEip712Pattern,
 	};
 }

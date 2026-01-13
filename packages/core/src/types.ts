@@ -15,6 +15,15 @@ export interface DetectionResults {
 	hasCreate2: boolean;
 	hasChainId: boolean;
 	hasChainIdBranching: boolean;
+	hasChainIdComparison: boolean;
+	isEip712Pattern: boolean;
+}
+
+export interface ChainIdDetectionResult {
+	hasChainId: boolean;
+	hasBranching: boolean;
+	hasComparison: boolean;
+	isEip712Pattern: boolean;
 }
 
 export interface AnalysisResult {

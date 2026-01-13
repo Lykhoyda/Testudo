@@ -206,6 +206,8 @@ describe('detectChainId', () => {
 			const result = detectChainId(instructions);
 			expect(result.hasChainId).toBe(true);
 			expect(result.hasBranching).toBe(false);
+			expect(result.hasComparison).toBe(false);
+			expect(result.isEip712Pattern).toBe(false);
 		});
 
 		it('detects CHAINID with no branching', () => {
@@ -229,6 +231,74 @@ describe('detectChainId', () => {
 			const result = detectChainId(instructions);
 			expect(result.hasChainId).toBe(true);
 			expect(result.hasBranching).toBe(true);
+		});
+	});
+
+	describe('should detect CHAINID with comparison opcodes', () => {
+		it('detects CHAINID with EQ', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.withComparison);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(true);
+			expect(result.hasComparison).toBe(true);
+		});
+
+		it('detects CHAINID with LT', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.withComparisonLT);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(true);
+			expect(result.hasComparison).toBe(true);
+		});
+
+		it('detects CHAINID with GT', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.withComparisonGT);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(true);
+			expect(result.hasComparison).toBe(true);
+		});
+
+		it('detects CHAINID with SLT', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.withComparisonSLT);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(true);
+			expect(result.hasComparison).toBe(true);
+		});
+
+		it('detects CHAINID with SGT', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.withComparisonSGT);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(true);
+			expect(result.hasComparison).toBe(true);
+		});
+
+		it('detects CHAINID with both branching and comparison', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.withBranchingAndComparison);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(true);
+			expect(result.hasBranching).toBe(true);
+			expect(result.hasComparison).toBe(true);
+		});
+	});
+
+	describe('should detect EIP-712 pattern (CHAINID -> KECCAK256)', () => {
+		it('detects EIP-712 pattern with setup code', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.eip712Pattern);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(true);
+			expect(result.isEip712Pattern).toBe(true);
+		});
+
+		it('detects direct CHAINID -> KECCAK256', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.eip712PatternDirect);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(true);
+			expect(result.isEip712Pattern).toBe(true);
+		});
+
+		it('detects EIP-712 in complex bytecode', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.eip712Complex);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(true);
+			expect(result.isEip712Pattern).toBe(true);
 		});
 	});
 
@@ -328,6 +398,8 @@ describe('runAllDetectors', () => {
 			expect(result.hasCreate2).toBe(false);
 			expect(result.hasChainId).toBe(false);
 			expect(result.hasChainIdBranching).toBe(false);
+			expect(result.hasChainIdComparison).toBe(false);
+			expect(result.isEip712Pattern).toBe(false);
 		});
 
 		it('handles empty bytecode', () => {
@@ -341,6 +413,8 @@ describe('runAllDetectors', () => {
 			expect(result.hasCreate2).toBe(false);
 			expect(result.hasChainId).toBe(false);
 			expect(result.hasChainIdBranching).toBe(false);
+			expect(result.hasChainIdComparison).toBe(false);
+			expect(result.isEip712Pattern).toBe(false);
 		});
 
 		it('handles just STOP', () => {
@@ -351,6 +425,8 @@ describe('runAllDetectors', () => {
 			expect(result.isDelegatedCall).toBe(false);
 			expect(result.hasCreate2).toBe(false);
 			expect(result.hasChainId).toBe(false);
+			expect(result.hasChainIdComparison).toBe(false);
+			expect(result.isEip712Pattern).toBe(false);
 		});
 	});
 
@@ -369,6 +445,31 @@ describe('runAllDetectors', () => {
 
 			expect(result.hasChainId).toBe(true);
 			expect(result.hasChainIdBranching).toBe(false);
+		});
+
+		it('detects CHAINID with comparison via runAllDetectors', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.withComparison);
+			const result = runAllDetectors(instructions);
+
+			expect(result.hasChainId).toBe(true);
+			expect(result.hasChainIdComparison).toBe(true);
+		});
+
+		it('detects CHAINID with branching and comparison via runAllDetectors', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.withBranchingAndComparison);
+			const result = runAllDetectors(instructions);
+
+			expect(result.hasChainId).toBe(true);
+			expect(result.hasChainIdBranching).toBe(true);
+			expect(result.hasChainIdComparison).toBe(true);
+		});
+
+		it('detects EIP-712 pattern via runAllDetectors', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.eip712Pattern);
+			const result = runAllDetectors(instructions);
+
+			expect(result.hasChainId).toBe(true);
+			expect(result.isEip712Pattern).toBe(true);
 		});
 	});
 });
