@@ -1,0 +1,25 @@
+{
+  "name": "@testudo/core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "viem": "^2.44.1"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "vitest": "^4.0.16"
+  }
+}
