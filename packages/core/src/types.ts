@@ -12,12 +12,16 @@ export interface DetectionResults {
 	hasAutoForwarder: boolean;
 	hasUnlimitedApprovals: boolean;
 	hasSelfDestruct: boolean;
+	hasCreate2: boolean;
+	hasChainId: boolean;
+	hasChainIdBranching: boolean;
 }
 
 export interface AnalysisResult {
 	address: Address;
 	risk: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
 	threats: string[];
+	warnings?: string[];
 	blocked: boolean;
 	cached?: boolean;
 	source?: string;

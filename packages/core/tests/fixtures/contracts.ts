@@ -6,7 +6,9 @@
  *
  * OPCODE REFERENCE:
  * 0x00 = STOP
+ * 0x46 = CHAINID
  * 0x47 = SELFBALANCE
+ * 0x57 = JUMPI
  * 0x60 = PUSH1 (1 byte data follows)
  * 0x7F = PUSH32 (32 bytes data follows)
  * 0xF1 = CALL
@@ -52,7 +54,22 @@ export const UNLIMITED_APPROVAL_CONTRACTS = {
 
 export const CREATE2_CONTRACTS = {
 	minimal: '0xf5',
+	withSetup: '0x6000600060006000f5',
+	inComplexCode: '0x600160020133f500',
 	f5AsPushData: '0x60f500',
+	f5AsPush2Data: '0x61f5f500',
+	metamorphic: '0xf5ff',
+	metamorphicReverse: '0xfff5',
+	metamorphicWithCode: '0x6000f5336080ff',
+};
+
+export const CHAINID_CONTRACTS = {
+	minimal: '0x46',
+	withBranching: '0x46600114601057',
+	branchingSpaced: '0x4660016002600314601057',
+	x46AsPushData: '0x610046',
+	x46AsPush1Data: '0x604600',
+	noBranching: '0x4660015500',
 };
 
 export const SAFE_CONTRACTS = {

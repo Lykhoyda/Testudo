@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
 	detectAutoForwarder,
+	detectChainId,
+	detectCreate2,
 	detectDelegateCall,
 	detectSelfDestruct,
 	detectUnlimitedApproval,
@@ -10,6 +12,8 @@ import { parseBytecode } from '../src/parser';
 
 import {
 	AUTO_FORWARDER_CONTRACTS,
+	CHAINID_CONTRACTS,
+	CREATE2_CONTRACTS,
 	DELEGATECALL_CONTRACTS,
 	FALSE_POSITIVE_CONTRACTS,
 	MULTI_THREAT_CONTRACTS,
@@ -90,6 +94,54 @@ describe('detectDelegateCall', () => {
 	});
 });
 
+describe('detectCreate2', () => {
+	describe('should detect CREATE2 opcode', () => {
+		it('detects minimal CREATE2', () => {
+			const instructions = parseBytecode(CREATE2_CONTRACTS.minimal);
+			expect(detectCreate2(instructions)).toBe(true);
+		});
+
+		it('detects CREATE2 with setup code', () => {
+			const instructions = parseBytecode(CREATE2_CONTRACTS.withSetup);
+			expect(detectCreate2(instructions)).toBe(true);
+		});
+
+		it('detects CREATE2 in complex bytecode', () => {
+			const instructions = parseBytecode(CREATE2_CONTRACTS.inComplexCode);
+			expect(detectCreate2(instructions)).toBe(true);
+		});
+
+		it('detects metamorphic pattern (CREATE2 + SELFDESTRUCT)', () => {
+			const instructions = parseBytecode(CREATE2_CONTRACTS.metamorphic);
+			expect(detectCreate2(instructions)).toBe(true);
+		});
+	});
+
+	describe('should NOT false positive on 0xF5 as data', () => {
+		it('ignores 0xF5 inside PUSH1 data', () => {
+			const instructions = parseBytecode(CREATE2_CONTRACTS.f5AsPushData);
+			expect(detectCreate2(instructions)).toBe(false);
+		});
+
+		it('ignores 0xF5 inside PUSH2 data', () => {
+			const instructions = parseBytecode(CREATE2_CONTRACTS.f5AsPush2Data);
+			expect(detectCreate2(instructions)).toBe(false);
+		});
+	});
+
+	describe('should return false for safe contracts', () => {
+		it('returns false for simple arithmetic', () => {
+			const instructions = parseBytecode(SAFE_CONTRACTS.simpleAdd);
+			expect(detectCreate2(instructions)).toBe(false);
+		});
+
+		it('returns false for empty bytecode', () => {
+			const instructions = parseBytecode(SAFE_CONTRACTS.empty);
+			expect(detectCreate2(instructions)).toBe(false);
+		});
+	});
+});
+
 describe('detectAutoForwarder', () => {
 	describe('should detect SELFBALANCE + CALL pattern', () => {
 		it('detects minimal pattern', () => {
@@ -147,6 +199,94 @@ describe('detectUnlimitedApproval', () => {
 	});
 });
 
+describe('detectChainId', () => {
+	describe('should detect CHAINID opcode', () => {
+		it('detects minimal CHAINID', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.minimal);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(true);
+			expect(result.hasBranching).toBe(false);
+		});
+
+		it('detects CHAINID with no branching', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.noBranching);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(true);
+			expect(result.hasBranching).toBe(false);
+		});
+	});
+
+	describe('should detect CHAINID with branching pattern', () => {
+		it('detects CHAINID followed by JUMPI', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.withBranching);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(true);
+			expect(result.hasBranching).toBe(true);
+		});
+
+		it('detects branching even when spaced apart', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.branchingSpaced);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(true);
+			expect(result.hasBranching).toBe(true);
+		});
+	});
+
+	describe('should NOT false positive on 0x46 as data', () => {
+		it('ignores 0x46 inside PUSH2 data', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.x46AsPushData);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(false);
+		});
+
+		it('ignores 0x46 inside PUSH1 data', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.x46AsPush1Data);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(false);
+		});
+	});
+
+	describe('should return false for safe contracts', () => {
+		it('returns false for simple arithmetic', () => {
+			const instructions = parseBytecode(SAFE_CONTRACTS.simpleAdd);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(false);
+		});
+
+		it('returns false for empty bytecode', () => {
+			const instructions = parseBytecode(SAFE_CONTRACTS.empty);
+			const result = detectChainId(instructions);
+			expect(result.hasChainId).toBe(false);
+		});
+	});
+});
+
+describe('metamorphic pattern detection', () => {
+	it('detects CREATE2 + SELFDESTRUCT combination', () => {
+		const instructions = parseBytecode(CREATE2_CONTRACTS.metamorphic);
+		const result = runAllDetectors(instructions);
+
+		expect(result.hasCreate2).toBe(true);
+		expect(result.hasSelfDestruct).toBe(true);
+	});
+
+	it('detects pattern regardless of order (SELFDESTRUCT first)', () => {
+		const instructions = parseBytecode(CREATE2_CONTRACTS.metamorphicReverse);
+		const result = runAllDetectors(instructions);
+
+		expect(result.hasCreate2).toBe(true);
+		expect(result.hasSelfDestruct).toBe(true);
+	});
+
+	it('detects metamorphic pattern in complex code', () => {
+		const instructions = parseBytecode(CREATE2_CONTRACTS.metamorphicWithCode);
+		const result = runAllDetectors(instructions);
+
+		expect(result.hasCreate2).toBe(true);
+		expect(result.hasSelfDestruct).toBe(true);
+	});
+});
+
 describe('runAllDetectors', () => {
 	describe('multi-threat contracts', () => {
 		it('detects all threats in combined contract', () => {
@@ -185,6 +325,9 @@ describe('runAllDetectors', () => {
 			expect(result.isDelegatedCall).toBe(false);
 			expect(result.hasAutoForwarder).toBe(false);
 			expect(result.hasUnlimitedApprovals).toBe(false);
+			expect(result.hasCreate2).toBe(false);
+			expect(result.hasChainId).toBe(false);
+			expect(result.hasChainIdBranching).toBe(false);
 		});
 
 		it('handles empty bytecode', () => {
@@ -195,6 +338,9 @@ describe('runAllDetectors', () => {
 			expect(result.isDelegatedCall).toBe(false);
 			expect(result.hasAutoForwarder).toBe(false);
 			expect(result.hasUnlimitedApprovals).toBe(false);
+			expect(result.hasCreate2).toBe(false);
+			expect(result.hasChainId).toBe(false);
+			expect(result.hasChainIdBranching).toBe(false);
 		});
 
 		it('handles just STOP', () => {
@@ -203,6 +349,26 @@ describe('runAllDetectors', () => {
 
 			expect(result.hasSelfDestruct).toBe(false);
 			expect(result.isDelegatedCall).toBe(false);
+			expect(result.hasCreate2).toBe(false);
+			expect(result.hasChainId).toBe(false);
+		});
+	});
+
+	describe('chainid detection', () => {
+		it('detects CHAINID with branching via runAllDetectors', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.withBranching);
+			const result = runAllDetectors(instructions);
+
+			expect(result.hasChainId).toBe(true);
+			expect(result.hasChainIdBranching).toBe(true);
+		});
+
+		it('detects CHAINID without branching via runAllDetectors', () => {
+			const instructions = parseBytecode(CHAINID_CONTRACTS.minimal);
+			const result = runAllDetectors(instructions);
+
+			expect(result.hasChainId).toBe(true);
+			expect(result.hasChainIdBranching).toBe(false);
 		});
 	});
 });

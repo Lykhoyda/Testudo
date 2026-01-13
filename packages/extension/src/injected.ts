@@ -31,6 +31,7 @@ interface TypedDataMessage {
 interface AnalysisResult {
 	risk: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
 	threats: string[];
+	warnings?: string[];
 	address: string;
 	blocked: boolean;
 }
@@ -310,13 +311,23 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
 						)
 						.join('')}
         </div>
-        
+
+        ${
+					analysis.warnings && analysis.warnings.length > 0
+						? `
+        <div style="background: #3d2d2d; border-radius: 8px; padding: 12px 16px; margin: 16px 0; border-left: 3px solid #e74c3c;">
+          ${analysis.warnings.map((warning) => `<p style="color: #ffcccc; font-size: 13px; line-height: 1.5; margin: 8px 0;">${warning}</p>`).join('')}
+        </div>
+        `
+						: ''
+				}
+
         <div class="testudo-address">
           Contract: ${analysis.address}
         </div>
-        
+
         <p style="color: #ccc; font-size: 14px; line-height: 1.5;">
-          Signing this authorization could give this contract full control over your wallet, 
+          Signing this authorization could give this contract full control over your wallet,
           including the ability to drain all your ETH, tokens, and NFTs.
         </p>
         
@@ -349,7 +360,12 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
 /**
  * Show info toast for medium risk
  */
-function showInfo(_analysis: AnalysisResult): void {
+function showInfo(analysis: AnalysisResult): void {
+	const warningText =
+		analysis.warnings && analysis.warnings.length > 0
+			? analysis.warnings[0]
+			: 'Review this delegation carefully';
+
 	const toast = document.createElement('div');
 	toast.innerHTML = `
     <style>
@@ -364,13 +380,11 @@ function showInfo(_analysis: AnalysisResult): void {
         color: white;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         z-index: 999998;
-        display: flex;
-        align-items: center;
-        gap: 12px;
+        max-width: 400px;
         box-shadow: 0 10px 40px rgba(0,0,0,0.3);
         animation: slideIn 0.3s ease;
       }
-      
+
       @keyframes slideIn {
         from { transform: translateX(100%); opacity: 0; }
         to { transform: translateX(0); opacity: 1; }
@@ -379,15 +393,15 @@ function showInfo(_analysis: AnalysisResult): void {
     <div class="testudo-toast">
       <span style="font-size: 24px;">🛡️</span>
       <div>
-        <div style="font-weight: 600;">Testudo: Medium Risk</div>
-        <div style="font-size: 12px; color: #888;">Review this delegation carefully</div>
+        <div style="font-weight: 600; color: #f39c12;">Testudo: Medium Risk</div>
+        <div style="font-size: 12px; color: #ccc; margin-top: 4px; line-height: 1.4;">${warningText}</div>
       </div>
     </div>
   `;
 
 	document.body.appendChild(toast);
 
-	setTimeout(() => toast.remove(), 5000);
+	setTimeout(() => toast.remove(), 7000);
 }
 
 /**
@@ -399,6 +413,9 @@ function formatThreat(threat: string): string {
 		isDelegatedCall: 'Uses DELEGATECALL (can execute any code)',
 		hasSelfDestruct: 'Can self-destruct after draining',
 		hasUnlimitedApprovals: 'Requests unlimited token approvals',
+		hasCreate2: 'Uses CREATE2 (can deploy additional contracts)',
+		metamorphicPattern: 'Metamorphic contract (can change code at same address)',
+		crossChainPolymorphism: 'Cross-chain polymorphism (may behave differently on other chains)',
 		ETH_AUTO_FORWARDER: 'Known ETH drainer contract',
 		INFERNO_DRAINER: 'Known Inferno Drainer exploit',
 	};
