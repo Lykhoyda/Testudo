@@ -158,7 +158,13 @@ export function detectTokenSelectors(instructions: Instruction[]): TokenSelector
 export function detectEcrecover(instructions: Instruction[]): boolean {
 	for (let i = 0; i < instructions.length; i++) {
 		const instruction = instructions[i];
-		if (instruction.opcode === OPCODES.FA || instruction.opcode === 'STATICCALL') {
+		// Check for both STATICCALL (0xFA) and CALL (0xF1) - older contracts use CALL for precompiles
+		if (
+			instruction.opcode === OPCODES.FA ||
+			instruction.opcode === 'STATICCALL' ||
+			instruction.opcode === OPCODES.F1 ||
+			instruction.opcode === 'CALL'
+		) {
 			const lookBackLimit = Math.max(0, i - 10);
 			for (let j = i - 1; j >= lookBackLimit; j--) {
 				const prevInstruction = instructions[j];
