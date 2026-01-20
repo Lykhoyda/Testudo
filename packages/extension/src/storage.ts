@@ -157,9 +157,7 @@ export async function removeFromWhitelist(address: string): Promise<boolean> {
 		const whitelist = await getWhitelist();
 		const normalized = normalizeAddress(address);
 
-		const filtered = whitelist.filter(
-			(entry) => normalizeAddress(entry.address) !== normalized,
-		);
+		const filtered = whitelist.filter((entry) => normalizeAddress(entry.address) !== normalized);
 
 		await chrome.storage.local.set({ whitelist: filtered });
 		return true;

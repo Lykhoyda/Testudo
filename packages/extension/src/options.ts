@@ -72,8 +72,12 @@ function initTabs(): void {
 		tab.addEventListener('click', () => {
 			const targetId = tab.getAttribute('data-tab');
 
-			tabs.forEach((t) => t.classList.remove('active'));
-			contents.forEach((c) => c.classList.remove('active'));
+			tabs.forEach((t) => {
+				t.classList.remove('active');
+			});
+			contents.forEach((c) => {
+				c.classList.remove('active');
+			});
 
 			tab.classList.add('active');
 			document.getElementById(`tab-${targetId}`)?.classList.add('active');

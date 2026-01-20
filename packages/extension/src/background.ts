@@ -20,10 +20,7 @@ interface ExtendedAnalysisResult extends AnalysisResult {
 	cached?: boolean;
 }
 
-async function analyzeWithCache(
-	address: string,
-	url?: string,
-): Promise<ExtendedAnalysisResult> {
+async function analyzeWithCache(address: string, url?: string): Promise<ExtendedAnalysisResult> {
 	const normalizedAddress = address.toLowerCase();
 
 	// Check whitelist first (fail-secure: returns false on error)
@@ -134,13 +131,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 		const url = sender.tab?.url ? new URL(sender.tab.url).origin : undefined;
 
 		import('./storage').then(({ addToWhitelist }) => {
-			addToWhitelist(message.address, message.label || 'Quick whitelist', url).then(
-				(success) => {
-					// Clear cache so next analysis uses whitelist
-					analysisCache.delete(message.address.toLowerCase());
-					sendResponse({ success });
-				},
-			);
+			addToWhitelist(message.address, message.label || 'Quick whitelist', url).then((success) => {
+				// Clear cache so next analysis uses whitelist
+				analysisCache.delete(message.address.toLowerCase());
+				sendResponse({ success });
+			});
 		});
 
 		return true;

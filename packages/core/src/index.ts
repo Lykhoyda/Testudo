@@ -1,5 +1,5 @@
-export { analyzeContract } from './analyzer';
 export type { AnalyzeOptions } from './analyzer';
+export { analyzeContract } from './analyzer';
 export {
 	detectAutoForwarder,
 	detectDelegateCall,

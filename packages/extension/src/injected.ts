@@ -179,10 +179,7 @@ function requestWhitelist(address: string, label?: string): Promise<boolean> {
 		const requestId = Math.random().toString(36).substring(7);
 
 		const handler = (event: MessageEvent) => {
-			if (
-				event.data?.type === 'TESTUDO_WHITELIST_RESULT' &&
-				event.data?.requestId === requestId
-			) {
+			if (event.data?.type === 'TESTUDO_WHITELIST_RESULT' && event.data?.requestId === requestId) {
 				window.removeEventListener('message', handler);
 				resolve(event.data.success);
 			}
