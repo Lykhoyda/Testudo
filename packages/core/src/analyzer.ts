@@ -3,10 +3,220 @@ import { runAllDetectors } from './detectors';
 import { fetchBytecode } from './fetcher';
 import { checkKnownMalicious, isKnownSafe } from './malicious-db';
 import { parseBytecode } from './parser';
-import type { AnalysisResult } from './types';
+import type { AnalysisResult, DetectionResults, Warning } from './types';
 
 export interface AnalyzeOptions {
 	rpcUrl?: string;
+}
+
+export function generateWarnings(detectionResults: DetectionResults): Warning[] {
+	const warnings: Warning[] = [];
+	const isMetamorphic = detectionResults.hasCreate2 && detectionResults.hasSelfDestruct;
+
+	if (isMetamorphic) {
+		warnings.push({
+			type: 'METAMORPHIC',
+			severity: 'CRITICAL',
+			title: 'Metamorphic Contract Detected',
+			description:
+				'Contract can redeploy different code at the same address. Your delegation could become malicious after you sign.',
+			technical: 'CREATE2 + SELFDESTRUCT pattern enables code replacement at same address',
+		});
+	} else {
+		if (detectionResults.hasCreate2) {
+			warnings.push({
+				type: 'CREATE2',
+				severity: 'MEDIUM',
+				title: 'CREATE2 Deployment Capability',
+				description:
+					'Contract uses CREATE2. May deploy additional contracts at predictable addresses.',
+				technical: 'CREATE2 opcode (0xF5) detected - deterministic address deployment',
+			});
+		}
+		if (detectionResults.hasSelfDestruct) {
+			warnings.push({
+				type: 'SELF_DESTRUCT',
+				severity: 'HIGH',
+				title: 'Self-Destruct Capability',
+				description: 'Contract can self-destruct. Your delegation would become invalid.',
+				technical: 'SELFDESTRUCT opcode (0xFF) detected',
+			});
+		}
+	}
+
+	if (detectionResults.hasAutoForwarder) {
+		warnings.push({
+			type: 'AUTO_FORWARDER',
+			severity: 'CRITICAL',
+			title: 'Automatic Fund Drain Detected',
+			description:
+				'Contract automatically forwards ETH. Funds sent to your wallet could be stolen.',
+			technical: 'SELFBALANCE + CALL pattern - auto-forwards incoming ETH',
+		});
+	}
+
+	if (detectionResults.isDelegatedCall) {
+		warnings.push({
+			type: 'DELEGATE_CALL',
+			severity: 'HIGH',
+			title: 'Arbitrary Code Execution',
+			description: 'Contract uses DELEGATECALL. Can execute arbitrary code in your wallet context.',
+			technical: 'DELEGATECALL opcode (0xF4) detected',
+		});
+	}
+
+	if (detectionResults.hasUnlimitedApprovals) {
+		warnings.push({
+			type: 'UNLIMITED_APPROVAL',
+			severity: 'HIGH',
+			title: 'Unlimited Token Approval',
+			description: 'Contract requests unlimited token approvals. Could drain all approved tokens.',
+			technical: 'PUSH32 with max uint256 (0xFF...FF) detected',
+		});
+	}
+
+	if (detectionResults.hasChainId && !detectionResults.isEip712Pattern) {
+		if (detectionResults.hasChainIdBranching && detectionResults.hasChainIdComparison) {
+			warnings.push({
+				type: 'CHAINID_BRANCHING',
+				severity: 'HIGH',
+				title: 'Network-Dependent Behavior',
+				description:
+					'Contract uses CHAINID with comparison and branching. Behavior will differ across chains - may be safe on Mainnet but malicious on L2s. Avoid signing with chainId=0.',
+				technical: 'CHAINID (0x46) + comparison opcodes (EQ/LT/GT) + JUMPI branching',
+			});
+		} else if (detectionResults.hasChainIdBranching) {
+			warnings.push({
+				type: 'CHAINID_BRANCHING',
+				severity: 'HIGH',
+				title: 'Network-Dependent Branching',
+				description:
+					'Contract uses CHAINID with conditional branching. Behavior may differ across chains. Avoid signing with chainId=0.',
+				technical: 'CHAINID (0x46) + JUMPI (0x57) branching pattern',
+			});
+		} else if (detectionResults.hasChainIdComparison) {
+			warnings.push({
+				type: 'CHAINID_COMPARISON',
+				severity: 'MEDIUM',
+				title: 'Network ID Comparison',
+				description:
+					'Contract compares CHAINID value. May restrict or alter behavior on specific chains.',
+				technical: 'CHAINID (0x46) + comparison opcodes (EQ/LT/GT/SLT/SGT)',
+			});
+		} else {
+			warnings.push({
+				type: 'CHAINID_READ',
+				severity: 'MEDIUM',
+				title: 'Network ID Access',
+				description:
+					'Contract reads CHAINID. Behavior may vary by chain. Consider restricting delegation to a specific chain.',
+				technical: 'CHAINID opcode (0x46) detected',
+			});
+		}
+	}
+
+	const tokenAnalysis = detectionResults.tokenTransfer;
+	if (tokenAnalysis.contextualRisk !== 'LOW') {
+		if (tokenAnalysis.contextualRisk === 'CRITICAL') {
+			if (tokenAnalysis.appearsInFallback) {
+				warnings.push({
+					type: 'TOKEN_DRAIN_FALLBACK',
+					severity: 'CRITICAL',
+					title: 'Automatic Token Drain',
+					description:
+						'Contract automatically forwards your tokens in fallback function. This is a known attack pattern.',
+					technical: 'Token transfer selector in fallback/receive - no function dispatcher',
+				});
+			} else if (tokenAnalysis.hasHardcodedDestination) {
+				warnings.push({
+					type: 'TOKEN_HARDCODED_DEST',
+					severity: 'CRITICAL',
+					title: 'Unsecured Token Access',
+					description: 'Contract can transfer tokens to a hardcoded address without your approval.',
+					technical: 'PUSH20 hardcoded address + token transfer without auth checks',
+				});
+			} else if (tokenAnalysis.detectedSelectors.some((s) => s.name === 'setApprovalForAll')) {
+				warnings.push({
+					type: 'TOKEN_APPROVAL_NO_AUTH',
+					severity: 'CRITICAL',
+					title: 'Full Collection Drain Risk',
+					description:
+						'Contract can approve unlimited access to your NFT collections without security controls.',
+					technical: 'setApprovalForAll (0xa22cb465) without ecrecover or CALLER check',
+				});
+			}
+		} else if (tokenAnalysis.contextualRisk === 'HIGH') {
+			if (!tokenAnalysis.hasNonceTracking && tokenAnalysis.hasEcrecover) {
+				warnings.push({
+					type: 'TOKEN_REPLAY_RISK',
+					severity: 'HIGH',
+					title: 'Replay Attack Risk',
+					description:
+						'Contract verifies signatures but lacks nonce tracking. Same signature could be reused.',
+					technical: 'ecrecover (precompile 0x01) present but no SLOAD+SSTORE nonce pattern',
+				});
+			} else {
+				warnings.push({
+					type: 'TOKEN_NO_AUTH',
+					severity: 'HIGH',
+					title: 'Missing Security Controls',
+					description:
+						'Contract can transfer your tokens but has no signature verification. Legitimate wallets require your approval for each transfer.',
+					technical: 'Token selectors present without ecrecover or CALLER check',
+				});
+			}
+		} else if (tokenAnalysis.contextualRisk === 'MEDIUM') {
+			const features: string[] = [];
+			if (tokenAnalysis.hasEcrecover) features.push('Signature verification');
+			if (tokenAnalysis.hasAuthorizationPattern) features.push('Access controls');
+
+			warnings.push({
+				type: 'TOKEN_WITH_AUTH',
+				severity: 'MEDIUM',
+				title: 'Token Transfer Capability',
+				description: `Contract can move your tokens. Security features detected: ${features.map((f) => `✓ ${f}`).join(' ')}. Verify this is a trusted wallet.`,
+				technical: `Token selectors with auth: ${tokenAnalysis.hasEcrecover ? 'ecrecover' : ''}${tokenAnalysis.hasAuthorizationPattern ? ' CALLER check' : ''}`,
+			});
+		}
+	}
+
+	if (detectionResults.isEip712Pattern && detectionResults.hasChainId) {
+		warnings.push({
+			type: 'EIP712_SAFE',
+			severity: 'INFO',
+			title: 'Standard Security Pattern',
+			description:
+				'Contract uses network ID for secure signatures (EIP-712). This is expected behavior.',
+			technical: 'CHAINID (0x46) followed by KECCAK256 (0x20) - EIP-712 domain separator',
+		});
+	}
+
+	return warnings;
+}
+
+export function deriveRiskFromWarnings(warnings: Warning[]): {
+	risk: AnalysisResult['risk'];
+	blocked: boolean;
+} {
+	const actionableWarnings = warnings.filter((w) => w.severity !== 'INFO');
+
+	if (actionableWarnings.length === 0) {
+		return { risk: 'LOW', blocked: false };
+	}
+
+	const hasCritical = actionableWarnings.some((w) => w.severity === 'CRITICAL');
+	const hasHigh = actionableWarnings.some((w) => w.severity === 'HIGH');
+	const multipleThreats = actionableWarnings.length >= 2;
+
+	if (hasCritical || multipleThreats) {
+		return { risk: 'CRITICAL', blocked: true };
+	}
+
+	if (hasHigh) {
+		return { risk: 'HIGH', blocked: true };
+	}
+
+	return { risk: 'MEDIUM', blocked: false };
 }
 
 export async function analyzeContract(
@@ -49,131 +259,13 @@ export async function analyzeContract(
 
 		const instructions = parseBytecode(bytecode);
 		const detectionResults = runAllDetectors(instructions);
+		const warnings = generateWarnings(detectionResults);
 
-		const threats: string[] = [];
-		const warnings: string[] = [];
-		const isMetamorphic = detectionResults.hasCreate2 && detectionResults.hasSelfDestruct;
+		const threats: string[] = warnings
+			.filter((w) => w.severity !== 'INFO')
+			.map((w) => w.type.toLowerCase());
 
-		if (isMetamorphic) {
-			threats.push('metamorphicPattern');
-			warnings.push(
-				'Contract can redeploy different code at the same address. Your delegation could become malicious after you sign.',
-			);
-		} else {
-			if (detectionResults.hasCreate2) {
-				threats.push('hasCreate2');
-				warnings.push(
-					'Contract uses CREATE2. May deploy additional contracts at predictable addresses.',
-				);
-			}
-			if (detectionResults.hasSelfDestruct) {
-				threats.push('hasSelfDestruct');
-				warnings.push('Contract can self-destruct. Your delegation would become invalid.');
-			}
-		}
-
-		if (detectionResults.hasAutoForwarder) {
-			threats.push('hasAutoForwarder');
-			warnings.push(
-				'Contract automatically forwards ETH. Funds sent to your wallet could be stolen.',
-			);
-		}
-		if (detectionResults.isDelegatedCall) {
-			threats.push('isDelegatedCall');
-			warnings.push(
-				'Contract uses DELEGATECALL. Can execute arbitrary code in your wallet context.',
-			);
-		}
-		if (detectionResults.hasUnlimitedApprovals) {
-			threats.push('hasUnlimitedApprovals');
-			warnings.push(
-				'Contract requests unlimited token approvals. Could drain all approved tokens.',
-			);
-		}
-		if (detectionResults.hasChainId && !detectionResults.isEip712Pattern) {
-			threats.push('crossChainPolymorphism');
-			if (detectionResults.hasChainIdBranching && detectionResults.hasChainIdComparison) {
-				warnings.push(
-					'Contract uses CHAINID with comparison and branching. Behavior will differ across chains - may be safe on Mainnet but malicious on L2s. Avoid signing with chainId=0.',
-				);
-			} else if (detectionResults.hasChainIdBranching) {
-				warnings.push(
-					'Contract uses CHAINID with conditional branching. Behavior may differ across chains. Avoid signing with chainId=0.',
-				);
-			} else if (detectionResults.hasChainIdComparison) {
-				warnings.push(
-					'Contract compares CHAINID value. May restrict or alter behavior on specific chains.',
-				);
-			} else {
-				warnings.push(
-					'Contract reads CHAINID. Behavior may vary by chain. Consider restricting delegation to a specific chain.',
-				);
-			}
-		}
-
-		const tokenAnalysis = detectionResults.tokenTransfer;
-		if (tokenAnalysis.contextualRisk !== 'LOW') {
-			if (tokenAnalysis.contextualRisk === 'CRITICAL') {
-				threats.push('unprotectedTokenTransfer');
-				if (tokenAnalysis.appearsInFallback) {
-					warnings.push(
-						'Automatic Fund Drain Detected: Contract automatically forwards your tokens in fallback function. This is a known attack pattern.',
-					);
-				} else if (tokenAnalysis.hasHardcodedDestination) {
-					warnings.push(
-						'Unsecured Token Access: Contract can transfer tokens to a hardcoded address without your approval.',
-					);
-				} else if (tokenAnalysis.detectedSelectors.some((s) => s.name === 'setApprovalForAll')) {
-					warnings.push(
-						'Full Collection Drain Risk: Contract can approve unlimited access to your NFT collections without security controls.',
-					);
-				}
-			} else if (tokenAnalysis.contextualRisk === 'HIGH') {
-				threats.push('missingTokenAuth');
-				if (!tokenAnalysis.hasNonceTracking && tokenAnalysis.hasEcrecover) {
-					warnings.push(
-						'Replay Attack Risk: Contract verifies signatures but lacks nonce tracking. Same signature could be reused.',
-					);
-				} else {
-					warnings.push(
-						'Missing Security Controls: Contract can transfer your tokens but has no signature verification. Legitimate wallets require your approval for each transfer.',
-					);
-				}
-			} else if (tokenAnalysis.contextualRisk === 'MEDIUM') {
-				threats.push('tokenTransferCapability');
-				warnings.push(
-					`Token Transfer Capability: Contract can move your tokens. Security features detected: ${tokenAnalysis.hasEcrecover ? '✓ Signature verification' : ''}${tokenAnalysis.hasAuthorizationPattern ? ' ✓ Access controls' : ''}. Verify this is a trusted wallet.`,
-				);
-			}
-		}
-
-		let risk: AnalysisResult['risk'] = 'LOW';
-		let blocked = false;
-
-		if (threats.length > 0) {
-			if (
-				isMetamorphic ||
-				detectionResults.hasAutoForwarder ||
-				tokenAnalysis.contextualRisk === 'CRITICAL' ||
-				threats.length >= 2
-			) {
-				risk = 'CRITICAL';
-				blocked = true;
-			} else if (
-				detectionResults.hasSelfDestruct ||
-				detectionResults.isDelegatedCall ||
-				(detectionResults.hasChainIdBranching && detectionResults.hasChainIdComparison) ||
-				tokenAnalysis.contextualRisk === 'HIGH'
-			) {
-				risk = 'HIGH';
-				blocked = true;
-			} else if (detectionResults.hasChainIdBranching) {
-				risk = 'HIGH';
-				blocked = true;
-			} else {
-				risk = 'MEDIUM';
-			}
-		}
+		const { risk, blocked } = deriveRiskFromWarnings(warnings);
 
 		return {
 			address: normalizedAddress,
