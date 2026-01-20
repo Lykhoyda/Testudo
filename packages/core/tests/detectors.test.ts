@@ -573,6 +573,35 @@ describe('detectTokenSelectors', () => {
 		});
 	});
 
+	describe('should detect Permit/Permit2 selectors', () => {
+		it('detects ERC20 permit selector (EIP-2612)', () => {
+			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.erc20Permit);
+			const result = detectTokenSelectors(instructions);
+			expect(result).toHaveLength(1);
+			expect(result[0].name).toBe('permit');
+			expect(result[0].standard).toBe('ERC20');
+			expect(result[0].type).toBe('approval');
+		});
+
+		it('detects Permit2 permitTransferFrom selector', () => {
+			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.permit2TransferFrom);
+			const result = detectTokenSelectors(instructions);
+			expect(result).toHaveLength(1);
+			expect(result[0].name).toBe('permitTransferFrom');
+			expect(result[0].standard).toBe('Permit2');
+			expect(result[0].type).toBe('permit');
+		});
+
+		it('detects Permit2 permitTransferFromBatch selector', () => {
+			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.permit2TransferFromBatch);
+			const result = detectTokenSelectors(instructions);
+			expect(result).toHaveLength(1);
+			expect(result[0].name).toBe('permitTransferFromBatch');
+			expect(result[0].standard).toBe('Permit2');
+			expect(result[0].type).toBe('permit');
+		});
+	});
+
 	describe('should detect ERC1155 selectors', () => {
 		it('detects ERC1155 safeTransferFrom selector', () => {
 			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.erc1155SafeTransfer);
@@ -747,6 +776,14 @@ describe('analyzeTokenTransfers', () => {
 			expect(result.contextualRisk).toBe('MEDIUM');
 			expect(result.hasEcrecover).toBe(true);
 			expect(result.hasNonceTracking).toBe(true);
+		});
+
+		it('returns CRITICAL for Permit2 without auth', () => {
+			const instructions = parseBytecode(TOKEN_TRANSFER_CONTRACTS.permit2TransferFrom);
+			const result = analyzeTokenTransfers(instructions);
+			expect(result.contextualRisk).toBe('CRITICAL');
+			expect(result.hasAuthorizationPattern).toBe(false);
+			expect(result.detectedSelectors[0]?.type).toBe('permit');
 		});
 	});
 

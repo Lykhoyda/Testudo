@@ -3,6 +3,7 @@ import {
 	BATCH_SELECTORS,
 	COMPARISON_OPCODES,
 	OPCODES,
+	PERMIT2_SELECTORS,
 	TOKEN_SELECTORS,
 } from './opcode';
 import type {
@@ -104,12 +105,13 @@ export function detectChainId(instructions: Instruction[]): ChainIdDetectionResu
 
 const SELECTOR_NAME_MAP: Record<
 	string,
-	{ name: string; standard: 'ERC20' | 'ERC721' | 'ERC1155' }
+	{ name: string; standard: 'ERC20' | 'ERC721' | 'ERC1155' | 'Permit2' }
 > = {
 	[TOKEN_SELECTORS.transfer]: { name: 'transfer', standard: 'ERC20' },
 	[TOKEN_SELECTORS.transferFrom]: { name: 'transferFrom', standard: 'ERC20' },
 	[TOKEN_SELECTORS.approve]: { name: 'approve', standard: 'ERC20' },
 	[TOKEN_SELECTORS.increaseAllowance]: { name: 'increaseAllowance', standard: 'ERC20' },
+	[TOKEN_SELECTORS.permit]: { name: 'permit', standard: 'ERC20' },
 	[TOKEN_SELECTORS.safeTransferFrom]: { name: 'safeTransferFrom', standard: 'ERC721' },
 	[TOKEN_SELECTORS.safeTransferFromWithData]: {
 		name: 'safeTransferFrom',
@@ -120,6 +122,11 @@ const SELECTOR_NAME_MAP: Record<
 	[TOKEN_SELECTORS.safeBatchTransferFrom]: {
 		name: 'safeBatchTransferFrom',
 		standard: 'ERC1155',
+	},
+	[TOKEN_SELECTORS.permitTransferFrom]: { name: 'permitTransferFrom', standard: 'Permit2' },
+	[TOKEN_SELECTORS.permitTransferFromBatch]: {
+		name: 'permitTransferFromBatch',
+		standard: 'Permit2',
 	},
 };
 
@@ -135,8 +142,12 @@ export function detectTokenSelectors(instructions: Instruction[]): TokenSelector
 
 			if (allSelectors.includes(selectorHex as (typeof allSelectors)[number])) {
 				const info = SELECTOR_NAME_MAP[selectorHex];
-				let type: 'transfer' | 'approval' | 'batch' = 'transfer';
-				if (APPROVAL_SELECTORS.includes(selectorHex as (typeof APPROVAL_SELECTORS)[number])) {
+				let type: 'transfer' | 'approval' | 'batch' | 'permit' = 'transfer';
+				if (PERMIT2_SELECTORS.includes(selectorHex as (typeof PERMIT2_SELECTORS)[number])) {
+					type = 'permit';
+				} else if (
+					APPROVAL_SELECTORS.includes(selectorHex as (typeof APPROVAL_SELECTORS)[number])
+				) {
 					type = 'approval';
 				} else if (BATCH_SELECTORS.includes(selectorHex as (typeof BATCH_SELECTORS)[number])) {
 					type = 'batch';
@@ -284,6 +295,7 @@ export function analyzeTokenTransfers(instructions: Instruction[]): TokenTransfe
 	const hasTokenTransfer = detectedSelectors.some((s) => s.type === 'transfer');
 	const hasTokenApproval = detectedSelectors.some((s) => s.type === 'approval');
 	const hasBatchOperations = detectedSelectors.some((s) => s.type === 'batch');
+	const hasPermit2 = detectedSelectors.some((s) => s.type === 'permit');
 
 	const hasEcrecover = detectEcrecover(instructions);
 	const hasMsgSenderCheck = detectMsgSenderCheck(instructions);
@@ -293,7 +305,7 @@ export function analyzeTokenTransfers(instructions: Instruction[]): TokenTransfe
 	const appearsInFallback = detectFallbackLocation(instructions);
 	const hasHardcodedDestination = detectHardcodedDestination(instructions);
 
-	const hasAnyTokenOps = hasTokenTransfer || hasTokenApproval || hasBatchOperations;
+	const hasAnyTokenOps = hasTokenTransfer || hasTokenApproval || hasBatchOperations || hasPermit2;
 	let contextualRisk: TokenTransferAnalysis['contextualRisk'] = 'LOW';
 	let riskReason = '';
 
@@ -317,6 +329,9 @@ export function analyzeTokenTransfers(instructions: Instruction[]): TokenTransfe
 	) {
 		contextualRisk = 'CRITICAL';
 		riskReason = 'setApprovalForAll without access control - full collection drain risk';
+	} else if (hasPermit2 && !hasAuthorizationPattern) {
+		contextualRisk = 'CRITICAL';
+		riskReason = 'Permit2 gasless transfer without access control - immediate drain risk';
 	} else if (hasAnyTokenOps && !hasAuthorizationPattern) {
 		contextualRisk = 'HIGH';
 		riskReason = 'Token operations without signature verification or access controls';

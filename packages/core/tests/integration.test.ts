@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { deriveRiskFromWarnings, generateWarnings } from '../src/analyzer';
-import { runAllDetectors } from '../src/detectors';
-import { checkKnownMalicious } from '../src/malicious-db';
-import { parseBytecode } from '../src/parser';
-import type { DetectionResults, Warning } from '../src/types';
+import type { DetectionResults, Warning } from '../src';
+import {
+	checkKnownMalicious,
+	deriveRiskFromWarnings,
+	generateWarnings,
+	parseBytecode,
+	runAllDetectors,
+} from '../src';
 import {
 	AUTO_FORWARDER_CONTRACTS,
 	CREATE2_CONTRACTS,
