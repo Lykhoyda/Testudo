@@ -72,68 +72,68 @@ function wrapEthereumProvider(): void {
 	// Use try/catch to handle frozen provider objects (Object.freeze)
 	try {
 		window.ethereum.request = async (args: { method: string; params?: unknown[] }) => {
-		// Only intercept eth_signTypedData_v4
-		if (args.method !== 'eth_signTypedData_v4') {
-			return originalRequest(args);
-		}
-
-		try {
-			// Parse the typed data
-			const params = args.params as [string, string];
-			const typedDataString = params[1];
-			const typedData: TypedDataMessage =
-				typeof typedDataString === 'string' ? JSON.parse(typedDataString) : typedDataString;
-
-			// Check if this is an EIP-7702 Authorization
-			if (!isEIP7702Authorization(typedData)) {
+			// Only intercept eth_signTypedData_v4
+			if (args.method !== 'eth_signTypedData_v4') {
 				return originalRequest(args);
 			}
 
-			console.log('[Testudo] 🔍 EIP-7702 authorization detected!');
-			console.log('[Testudo] Delegate address:', typedData.message.address);
+			try {
+				// Parse the typed data
+				const params = args.params as [string, string];
+				const typedDataString = params[1];
+				const typedData: TypedDataMessage =
+					typeof typedDataString === 'string' ? JSON.parse(typedDataString) : typedDataString;
 
-			// Request analysis from background script
-			const analysis = await requestAnalysis(typedData.message.address);
-
-			console.log('[Testudo] Analysis result:', analysis);
-
-			// Handle based on risk level
-			if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
-				// Show warning and potentially block
-				const userConfirmed = await showWarning(analysis);
-
-				if (!userConfirmed) {
-					console.log('[Testudo] ❌ User rejected dangerous delegation');
-					throw new Error('Testudo: Delegation blocked by user - dangerous contract detected');
+				// Check if this is an EIP-7702 Authorization
+				if (!isEIP7702Authorization(typedData)) {
+					return originalRequest(args);
 				}
 
-				console.log('[Testudo] ⚠️ User proceeded despite warning');
-			} else if (analysis.risk === 'MEDIUM') {
-				// Show info but don't block
-				showInfo(analysis);
-			} else if (analysis.risk === 'UNKNOWN') {
-				// Show notice for contracts with no bytecode
-				showUnknownNotice(analysis);
-			}
+				console.log('[Testudo] 🔍 EIP-7702 authorization detected!');
+				console.log('[Testudo] Delegate address:', typedData.message.address);
 
-			// Allow the signature to proceed
-			return originalRequest(args);
-		} catch (error) {
-			// If it's our block, re-throw
-			if (error instanceof Error && error.message.includes('Testudo')) {
-				throw error;
-			}
+				// Request analysis from background script
+				const analysis = await requestAnalysis(typedData.message.address);
 
-			// DESIGN DECISION: Fail-open on parse/analysis errors
-			// Rationale: For a security tool wrapping third-party functionality,
-			// breaking legitimate dApps would cause users to uninstall the extension,
-			// leaving them with NO protection. It's better to allow edge cases through
-			// (with logging) than to block all functionality on unexpected errors.
-			// The core security path (detected threats) still blocks correctly.
-			console.error('[Testudo] Error analyzing request:', error);
-			return originalRequest(args);
-		}
-	};
+				console.log('[Testudo] Analysis result:', analysis);
+
+				// Handle based on risk level
+				if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
+					// Show warning and potentially block
+					const userConfirmed = await showWarning(analysis);
+
+					if (!userConfirmed) {
+						console.log('[Testudo] ❌ User rejected dangerous delegation');
+						throw new Error('Testudo: Delegation blocked by user - dangerous contract detected');
+					}
+
+					console.log('[Testudo] ⚠️ User proceeded despite warning');
+				} else if (analysis.risk === 'MEDIUM') {
+					// Show info but don't block
+					showInfo(analysis);
+				} else if (analysis.risk === 'UNKNOWN') {
+					// Show notice for contracts with no bytecode
+					showUnknownNotice(analysis);
+				}
+
+				// Allow the signature to proceed
+				return originalRequest(args);
+			} catch (error) {
+				// If it's our block, re-throw
+				if (error instanceof Error && error.message.includes('Testudo')) {
+					throw error;
+				}
+
+				// DESIGN DECISION: Fail-open on parse/analysis errors
+				// Rationale: For a security tool wrapping third-party functionality,
+				// breaking legitimate dApps would cause users to uninstall the extension,
+				// leaving them with NO protection. It's better to allow edge cases through
+				// (with logging) than to block all functionality on unexpected errors.
+				// The core security path (detected threats) still blocks correctly.
+				console.error('[Testudo] Error analyzing request:', error);
+				return originalRequest(args);
+			}
+		};
 	} catch (wrapError) {
 		// Provider object may be frozen (Object.freeze) or have non-configurable properties
 		// Fail-open: Allow original requests rather than breaking dApp functionality
@@ -146,7 +146,7 @@ function wrapEthereumProvider(): void {
 }
 
 // Store reference to the current wrapped provider to detect replacements
-let wrappedProvider: Window['ethereum'] = undefined;
+let wrappedProvider: Window['ethereum'];
 
 // Try to wrap immediately if provider exists
 if (typeof window.ethereum !== 'undefined') {

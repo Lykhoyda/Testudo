@@ -97,12 +97,17 @@ function App() {
 				</p>
 
 				<div className="button-group">
-					<button id="sign-malicious" className="btn btn-danger" onClick={handleSignMalicious}>
+					<button
+						type="button"
+						id="sign-malicious"
+						className="btn btn-danger"
+						onClick={handleSignMalicious}
+					>
 						<span className="btn-icon">⚠️</span>
 						Sign Malicious Delegation
 					</button>
 
-					<button id="sign-safe" className="btn btn-success" onClick={handleSignSafe}>
+					<button type="button" id="sign-safe" className="btn btn-success" onClick={handleSignSafe}>
 						<span className="btn-icon">✓</span>
 						Sign Safe Delegation
 					</button>
