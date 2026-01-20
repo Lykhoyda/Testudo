@@ -93,7 +93,12 @@ if (typeof window.ethereum !== 'undefined') {
 				throw error;
 			}
 
-			// For parsing errors, log and allow through
+			// DESIGN DECISION: Fail-open on parse/analysis errors
+			// Rationale: For a security tool wrapping third-party functionality,
+			// breaking legitimate dApps would cause users to uninstall the extension,
+			// leaving them with NO protection. It's better to allow edge cases through
+			// (with logging) than to block all functionality on unexpected errors.
+			// The core security path (detected threats) still blocks correctly.
 			console.error('[Testudo] Error analyzing request:', error);
 			return originalRequest(args);
 		}
@@ -156,6 +161,50 @@ function requestAnalysis(delegateAddress: string): Promise<AnalysisResult> {
 			window.removeEventListener('message', handler);
 			reject(new Error('Analysis timeout'));
 		}, 10000);
+	});
+}
+
+/**
+ * Notify content script that user blocked a delegation
+ */
+function recordBlocked(): void {
+	window.postMessage({ type: 'TESTUDO_RECORD_BLOCKED' }, '*');
+}
+
+/**
+ * Request to whitelist an address from the modal
+ */
+function requestWhitelist(address: string, label?: string): Promise<boolean> {
+	return new Promise((resolve) => {
+		const requestId = Math.random().toString(36).substring(7);
+
+		const handler = (event: MessageEvent) => {
+			if (
+				event.data?.type === 'TESTUDO_WHITELIST_RESULT' &&
+				event.data?.requestId === requestId
+			) {
+				window.removeEventListener('message', handler);
+				resolve(event.data.success);
+			}
+		};
+
+		window.addEventListener('message', handler);
+
+		window.postMessage(
+			{
+				type: 'TESTUDO_WHITELIST_REQUEST',
+				requestId,
+				address,
+				label,
+			},
+			'*',
+		);
+
+		// Timeout after 5 seconds
+		setTimeout(() => {
+			window.removeEventListener('message', handler);
+			resolve(false);
+		}, 5000);
 	});
 }
 
@@ -277,13 +326,22 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
           background: #27ae60;
           color: white;
         }
-        
+
+        .testudo-btn-trust {
+          background: #3498db;
+          color: white;
+        }
+
+        .testudo-btn-trust:hover {
+          background: #2980b9;
+        }
+
         .testudo-btn-proceed {
           background: transparent;
           border: 1px solid #666;
           color: #888;
         }
-        
+
         .testudo-btn-proceed:hover {
           border-color: #e74c3c;
           color: #e74c3c;
@@ -335,6 +393,9 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
           <button class="testudo-btn testudo-btn-cancel" id="testudo-cancel">
             ✓ Cancel (Safe)
           </button>
+          <button class="testudo-btn testudo-btn-trust" id="testudo-trust">
+            Trust & Proceed
+          </button>
           <button class="testudo-btn testudo-btn-proceed" id="testudo-proceed">
             Proceed Anyway
           </button>
@@ -347,7 +408,29 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
 		// Handle button clicks
 		document.getElementById('testudo-cancel')?.addEventListener('click', () => {
 			overlay.remove();
+			recordBlocked();
 			resolve(false);
+		});
+
+		document.getElementById('testudo-trust')?.addEventListener('click', async () => {
+			const trustBtn = document.getElementById('testudo-trust');
+			if (trustBtn) {
+				trustBtn.textContent = 'Adding...';
+				trustBtn.setAttribute('disabled', 'true');
+			}
+
+			const success = await requestWhitelist(analysis.address, 'Trusted from warning');
+
+			if (success) {
+				console.log('[Testudo] ✅ Address added to whitelist');
+				overlay.remove();
+				resolve(true);
+			} else {
+				if (trustBtn) {
+					trustBtn.textContent = 'Failed - Try Again';
+					trustBtn.removeAttribute('disabled');
+				}
+			}
 		});
 
 		document.getElementById('testudo-proceed')?.addEventListener('click', () => {
@@ -416,6 +499,10 @@ function formatThreat(threat: string): string {
 		hasCreate2: 'Uses CREATE2 (can deploy additional contracts)',
 		metamorphicPattern: 'Metamorphic contract (can change code at same address)',
 		crossChainPolymorphism: 'Cross-chain polymorphism (may behave differently on other chains)',
+		unprotectedTokenTransfer: 'Token transfers without authorization checks',
+		missingTokenAuth: 'Token operations without proper access control',
+		tokenTransferInFallback: 'Token transfer in fallback function (auto-drain)',
+		hasHardcodedDestination: 'Funds sent to hardcoded attacker address',
 		ETH_AUTO_FORWARDER: 'Known ETH drainer contract',
 		INFERNO_DRAINER: 'Known Inferno Drainer exploit',
 	};

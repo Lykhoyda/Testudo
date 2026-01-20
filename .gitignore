@@ -12,11 +12,10 @@
 #!.yarn/cache
 .pnp.*
 
-
+docs
 .claude
 .idea
 node_modules
 dist
-docs
 CLAUDE.MD
 .DS_Store

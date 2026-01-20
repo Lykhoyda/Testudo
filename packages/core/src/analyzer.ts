@@ -5,7 +5,14 @@ import { checkKnownMalicious, isKnownSafe } from './malicious-db';
 import { parseBytecode } from './parser';
 import type { AnalysisResult } from './types';
 
-export async function analyzeContract(address: Address): Promise<AnalysisResult> {
+export interface AnalyzeOptions {
+	rpcUrl?: string;
+}
+
+export async function analyzeContract(
+	address: Address,
+	options?: AnalyzeOptions,
+): Promise<AnalysisResult> {
 	const normalizedAddress = address.toLowerCase() as Address;
 
 	if (isKnownSafe(normalizedAddress)) {
@@ -29,7 +36,7 @@ export async function analyzeContract(address: Address): Promise<AnalysisResult>
 	}
 
 	try {
-		const bytecode = await fetchBytecode(normalizedAddress);
+		const bytecode = await fetchBytecode(normalizedAddress, options?.rpcUrl);
 
 		if (!bytecode) {
 			return {

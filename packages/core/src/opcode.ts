@@ -37,15 +37,6 @@ export const TOKEN_SELECTORS = {
 	safeBatchTransferFrom: '2eb2c2d6',
 } as const;
 
-export const TRANSFER_SELECTORS = [
-	TOKEN_SELECTORS.transfer,
-	TOKEN_SELECTORS.transferFrom,
-	TOKEN_SELECTORS.safeTransferFrom,
-	TOKEN_SELECTORS.safeTransferFromWithData,
-	TOKEN_SELECTORS.safeTransferFrom1155,
-	TOKEN_SELECTORS.safeBatchTransferFrom,
-] as const;
-
 export const APPROVAL_SELECTORS = [
 	TOKEN_SELECTORS.approve,
 	TOKEN_SELECTORS.increaseAllowance,
