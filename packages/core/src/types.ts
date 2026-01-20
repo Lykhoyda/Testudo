@@ -1,5 +1,33 @@
 import type { Address } from 'viem';
 
+export type WarningType =
+	| 'AUTO_FORWARDER'
+	| 'DELEGATE_CALL'
+	| 'SELF_DESTRUCT'
+	| 'METAMORPHIC'
+	| 'CREATE2'
+	| 'UNLIMITED_APPROVAL'
+	| 'CHAINID_BRANCHING'
+	| 'CHAINID_COMPARISON'
+	| 'CHAINID_READ'
+	| 'TOKEN_DRAIN_FALLBACK'
+	| 'TOKEN_HARDCODED_DEST'
+	| 'TOKEN_NO_AUTH'
+	| 'TOKEN_REPLAY_RISK'
+	| 'TOKEN_APPROVAL_NO_AUTH'
+	| 'TOKEN_WITH_AUTH'
+	| 'EIP712_SAFE';
+
+export type WarningSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+
+export interface Warning {
+	type: WarningType;
+	severity: WarningSeverity;
+	title: string;
+	description: string;
+	technical?: string;
+}
+
 export interface Instruction {
 	opcode: string;
 	byteIndex: number;
@@ -31,7 +59,7 @@ export interface AnalysisResult {
 	address: Address;
 	risk: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
 	threats: string[];
-	warnings?: string[];
+	warnings?: Warning[];
 	blocked: boolean;
 	cached?: boolean;
 	source?: string;

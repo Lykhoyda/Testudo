@@ -12,6 +12,8 @@
  * 5. Block or allow based on result
  */
 
+import type { Warning, WarningSeverity } from '@testudo/core';
+
 interface EIP7702Authorization {
 	chainId: string;
 	address: string; // The delegate contract address - THIS IS WHAT WE ANALYZE
@@ -31,7 +33,7 @@ interface TypedDataMessage {
 interface AnalysisResult {
 	risk: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
 	threats: string[];
-	warnings?: string[];
+	warnings?: Warning[];
 	address: string;
 	blocked: boolean;
 }
@@ -360,7 +362,7 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
 							(threat) => `
             <div class="testudo-threat">
               <span class="testudo-threat-icon">⚠️</span>
-              <span>${formatThreat(threat)}</span>
+              <span>${escapeHtml(formatThreat(threat))}</span>
             </div>
           `,
 						)
@@ -371,14 +373,27 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
 					analysis.warnings && analysis.warnings.length > 0
 						? `
         <div style="background: #3d2d2d; border-radius: 8px; padding: 12px 16px; margin: 16px 0; border-left: 3px solid #e74c3c;">
-          ${analysis.warnings.map((warning) => `<p style="color: #ffcccc; font-size: 13px; line-height: 1.5; margin: 8px 0;">${warning}</p>`).join('')}
+          ${analysis.warnings
+						.filter((w) => w.severity !== 'INFO')
+						.map(
+							(warning) => `
+            <div style="margin: 12px 0;">
+              <div style="color: ${getSeverityColor(warning.severity)}; font-weight: 600; font-size: 14px; margin-bottom: 4px;">
+                ${getSeverityIcon(warning.severity)} ${escapeHtml(warning.title)}
+              </div>
+              <p style="color: #ffcccc; font-size: 13px; line-height: 1.5; margin: 4px 0;">${escapeHtml(warning.description)}</p>
+              ${warning.technical ? `<p style="color: #888; font-size: 11px; font-family: monospace; margin: 4px 0;">${escapeHtml(warning.technical)}</p>` : ''}
+            </div>
+          `,
+						)
+						.join('')}
         </div>
         `
 						: ''
 				}
 
         <div class="testudo-address">
-          Contract: ${analysis.address}
+          Contract: ${escapeHtml(analysis.address)}
         </div>
 
         <p style="color: #ccc; font-size: 14px; line-height: 1.5;">
@@ -438,13 +453,49 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
 }
 
 /**
+ * Get color for severity level
+ */
+function getSeverityColor(severity: WarningSeverity): string {
+	const colors: Record<WarningSeverity, string> = {
+		CRITICAL: '#e74c3c',
+		HIGH: '#e67e22',
+		MEDIUM: '#f39c12',
+		LOW: '#27ae60',
+		INFO: '#3498db',
+	};
+	return colors[severity];
+}
+
+/**
+ * Get icon for severity level
+ */
+function getSeverityIcon(severity: WarningSeverity): string {
+	const icons: Record<WarningSeverity, string> = {
+		CRITICAL: '🚨',
+		HIGH: '⚠️',
+		MEDIUM: '⚡',
+		LOW: '✓',
+		INFO: 'ℹ️',
+	};
+	return icons[severity];
+}
+
+/**
+ * Escape HTML entities to prevent XSS
+ */
+function escapeHtml(text: string): string {
+	const div = document.createElement('div');
+	div.textContent = text;
+	return div.innerHTML;
+}
+
+/**
  * Show info toast for medium risk
  */
 function showInfo(analysis: AnalysisResult): void {
-	const warningText =
-		analysis.warnings && analysis.warnings.length > 0
-			? analysis.warnings[0]
-			: 'Review this delegation carefully';
+	const firstWarning = analysis.warnings?.find((w) => w.severity !== 'INFO');
+	const warningTitle = firstWarning?.title || 'Review Required';
+	const warningText = firstWarning?.description || 'Review this delegation carefully';
 
 	const toast = document.createElement('div');
 	toast.innerHTML = `
@@ -473,8 +524,8 @@ function showInfo(analysis: AnalysisResult): void {
     <div class="testudo-toast">
       <span style="font-size: 24px;">🛡️</span>
       <div>
-        <div style="font-weight: 600; color: #f39c12;">Testudo: Medium Risk</div>
-        <div style="font-size: 12px; color: #ccc; margin-top: 4px; line-height: 1.4;">${warningText}</div>
+        <div style="font-weight: 600; color: #f39c12;">⚡ ${escapeHtml(warningTitle)}</div>
+        <div style="font-size: 12px; color: #ccc; margin-top: 4px; line-height: 1.4;">${escapeHtml(warningText)}</div>
       </div>
     </div>
   `;
@@ -489,22 +540,26 @@ function showInfo(analysis: AnalysisResult): void {
  */
 function formatThreat(threat: string): string {
 	const threatMap: Record<string, string> = {
-		hasAutoForwarder: 'Auto-forwards ETH to attacker',
-		isDelegatedCall: 'Uses DELEGATECALL (can execute any code)',
-		hasSelfDestruct: 'Can self-destruct after draining',
-		hasUnlimitedApprovals: 'Requests unlimited token approvals',
-		hasCreate2: 'Uses CREATE2 (can deploy additional contracts)',
-		metamorphicPattern: 'Metamorphic contract (can change code at same address)',
-		crossChainPolymorphism: 'Cross-chain polymorphism (may behave differently on other chains)',
-		unprotectedTokenTransfer: 'Token transfers without authorization checks',
-		missingTokenAuth: 'Token operations without proper access control',
-		tokenTransferInFallback: 'Token transfer in fallback function (auto-drain)',
-		hasHardcodedDestination: 'Funds sent to hardcoded attacker address',
+		auto_forwarder: 'Auto-forwards ETH to attacker',
+		delegate_call: 'Uses DELEGATECALL (can execute any code)',
+		self_destruct: 'Can self-destruct after draining',
+		unlimited_approval: 'Requests unlimited token approvals',
+		create2: 'Uses CREATE2 (can deploy additional contracts)',
+		metamorphic: 'Metamorphic contract (can change code at same address)',
+		chainid_branching: 'Cross-chain polymorphism (may behave differently on other chains)',
+		chainid_comparison: 'Compares network ID (may restrict behavior)',
+		chainid_read: 'Reads network ID (behavior may vary by chain)',
+		token_drain_fallback: 'Token transfer in fallback function (auto-drain)',
+		token_hardcoded_dest: 'Funds sent to hardcoded attacker address',
+		token_no_auth: 'Token operations without proper access control',
+		token_replay_risk: 'Signature replay attack risk',
+		token_approval_no_auth: 'Token approvals without access control',
+		token_with_auth: 'Token transfer capability (with security features)',
 		ETH_AUTO_FORWARDER: 'Known ETH drainer contract',
 		INFERNO_DRAINER: 'Known Inferno Drainer exploit',
 	};
 
-	return threatMap[threat] || threat;
+	return threatMap[threat] || threat.replace(/_/g, ' ');
 }
 
 // TypeScript declarations for window.ethereum
@@ -516,5 +571,3 @@ declare global {
 		};
 	}
 }
-
-export {};

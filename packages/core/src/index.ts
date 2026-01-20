@@ -1,5 +1,5 @@
 export type { AnalyzeOptions } from './analyzer';
-export { analyzeContract } from './analyzer';
+export { analyzeContract, deriveRiskFromWarnings, generateWarnings } from './analyzer';
 export {
 	detectAutoForwarder,
 	detectDelegateCall,
@@ -21,4 +21,7 @@ export type {
 	DetectionResults,
 	Instruction,
 	KnownMaliciousContract,
+	Warning,
+	WarningSeverity,
+	WarningType,
 } from './types';
