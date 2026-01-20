@@ -23,10 +23,7 @@ function getClient(rpcUrl?: string): ReturnType<typeof createPublicClient> {
 	return cachedClient;
 }
 
-export async function fetchBytecode(
-	address: string,
-	rpcUrl?: string,
-): Promise<string | null> {
+export async function fetchBytecode(address: string, rpcUrl?: string): Promise<string | null> {
 	const client = getClient(rpcUrl);
 
 	const bytecode = await client.getCode({
