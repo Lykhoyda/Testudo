@@ -614,13 +614,23 @@ describe('detectTokenSelectors', () => {
 });
 
 describe('detectEcrecover', () => {
-	it('detects ecrecover with PUSH1 0x01', () => {
+	it('detects ecrecover with STATICCALL + PUSH1 0x01', () => {
 		const instructions = parseBytecode(AUTHORIZATION_CONTRACTS.withEcrecover);
 		expect(detectEcrecover(instructions)).toBe(true);
 	});
 
-	it('detects ecrecover with PUSH20 address 0x01', () => {
+	it('detects ecrecover with STATICCALL + PUSH20 address 0x01', () => {
 		const instructions = parseBytecode(AUTHORIZATION_CONTRACTS.withEcrecoverPush20);
+		expect(detectEcrecover(instructions)).toBe(true);
+	});
+
+	it('detects ecrecover with CALL + PUSH1 0x01 (older contracts)', () => {
+		const instructions = parseBytecode(AUTHORIZATION_CONTRACTS.withEcrecoverCall);
+		expect(detectEcrecover(instructions)).toBe(true);
+	});
+
+	it('detects ecrecover with CALL + PUSH20 address 0x01 (older contracts)', () => {
+		const instructions = parseBytecode(AUTHORIZATION_CONTRACTS.withEcrecoverCallPush20);
 		expect(detectEcrecover(instructions)).toBe(true);
 	});
 

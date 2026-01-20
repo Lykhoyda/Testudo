@@ -149,6 +149,8 @@ export const TOKEN_TRANSFER_CONTRACTS = {
 export const AUTHORIZATION_CONTRACTS = {
 	withEcrecover: '0x6001fa',
 	withEcrecoverPush20: `0x73${'00'.repeat(19)}01fa`,
+	withEcrecoverCall: '0x6001f1',
+	withEcrecoverCallPush20: `0x73${'00'.repeat(19)}01f1`,
 	withMsgSenderCheck: '0x3360001014',
 	withNonceTracking: '0x60005460016001015500',
 	withFullAuth: '0x6001fa3360001014600054600100015500',
