@@ -160,7 +160,7 @@
 }
 
 .address-item code {
-	font-family: 'Roboto Mono', monospace;
+	font-family: "Roboto Mono", monospace;
 	color: var(--text-muted);
 	background: var(--bg-app);
 	padding: 4px 8px;
@@ -181,7 +181,7 @@
 	border-radius: 8px;
 	color: var(--text-primary);
 	font-size: 14px;
-	font-family: 'Roboto Mono', monospace;
+	font-family: "Roboto Mono", monospace;
 }
 
 .input:focus {
@@ -197,7 +197,7 @@
 	padding: 16px;
 	background: var(--bg-app);
 	border-radius: 8px;
-	font-family: 'Roboto Mono', monospace;
+	font-family: "Roboto Mono", monospace;
 	font-size: 13px;
 	white-space: pre-wrap;
 	word-break: break-all;

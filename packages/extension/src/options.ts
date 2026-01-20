@@ -68,8 +68,12 @@ function switchToTab(tabId: string): void {
 	const tabs = document.querySelectorAll('.tab');
 	const contents = document.querySelectorAll('.tab-content');
 
-	tabs.forEach((t) => t.classList.remove('active'));
-	contents.forEach((c) => c.classList.remove('active'));
+	for (const t of tabs) {
+		t.classList.remove('active');
+	}
+	for (const c of contents) {
+		c.classList.remove('active');
+	}
 
 	const targetTab = document.querySelector(`.tab[data-tab="${tabId}"]`);
 	targetTab?.classList.add('active');

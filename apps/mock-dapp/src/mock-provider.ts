@@ -74,7 +74,7 @@ export function initMockProvider(): void {
 	const mockProvider: MockProvider = {
 		isMetaMask: true,
 
-		request: async function (args: RequestArgs): Promise<unknown> {
+		request: async (args: RequestArgs): Promise<unknown> => {
 			console.log('[Mock Provider] Request:', args.method, args.params);
 
 			if (args.method === 'eth_requestAccounts') {
@@ -92,7 +92,7 @@ export function initMockProvider(): void {
 				console.log('[Mock Provider] Typed data:', typedData);
 
 				// Simulate successful signature if extension allows it
-				return '0x' + '00'.repeat(65);
+				return `0x${'00'.repeat(65)}`;
 			}
 
 			throw new Error(`Unsupported method: ${args.method}`);
