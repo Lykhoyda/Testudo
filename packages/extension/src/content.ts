@@ -74,6 +74,60 @@ window.addEventListener('message', async (event) => {
 			);
 		}
 	}
+
+	// Handle blocked record
+	if (event.data?.type === 'TESTUDO_RECORD_BLOCKED') {
+		console.log('[Testudo Content] Recording blocked delegation');
+		await chrome.runtime.sendMessage({ type: 'RECORD_BLOCKED' });
+	}
+
+	// Handle whitelist request from modal
+	if (event.data?.type === 'TESTUDO_WHITELIST_REQUEST') {
+		const { requestId, address, label } = event.data;
+
+		console.log('[Testudo Content] Whitelist request:', address);
+
+		// Validate address format (security)
+		if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+			window.postMessage(
+				{
+					type: 'TESTUDO_WHITELIST_RESULT',
+					requestId,
+					success: false,
+				},
+				'*',
+			);
+			return;
+		}
+
+		// Send to background - URL will be derived from sender.tab (security)
+		chrome.runtime
+			.sendMessage({
+				type: 'WHITELIST_FROM_MODAL',
+				address: address.toLowerCase(),
+				label,
+			})
+			.then((response) => {
+				window.postMessage(
+					{
+						type: 'TESTUDO_WHITELIST_RESULT',
+						requestId,
+						success: response?.success ?? false,
+					},
+					'*',
+				);
+			})
+			.catch(() => {
+				window.postMessage(
+					{
+						type: 'TESTUDO_WHITELIST_RESULT',
+						requestId,
+						success: false,
+					},
+					'*',
+				);
+			});
+	}
 });
 
 // Listen for messages from background script (e.g., for popup updates)

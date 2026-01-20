@@ -12,7 +12,8 @@ if (!existsSync(distDir)) {
 
 copyFileSync(join(__dirname, 'manifest.json'), join(distDir, 'manifest.json'));
 copyFileSync(join(__dirname, 'popup.html'), join(distDir, 'popup.html'));
-console.log('Copied manifest.json and popup.html to dist/');
+copyFileSync(join(__dirname, 'options.html'), join(distDir, 'options.html'));
+console.log('Copied manifest.json, popup.html, and options.html to dist/');
 
 const shared = {
 	output: {
@@ -38,6 +39,10 @@ export default defineConfig([
 	},
 	{
 		input: 'src/popup.ts',
+		...shared,
+	},
+	{
+		input: 'src/options.ts',
 		...shared,
 	},
 ]);

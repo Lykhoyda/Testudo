@@ -4,7 +4,6 @@ import {
 	COMPARISON_OPCODES,
 	OPCODES,
 	TOKEN_SELECTORS,
-	TRANSFER_SELECTORS,
 } from './opcode';
 import type {
 	ChainIdDetectionResult,
@@ -103,24 +102,26 @@ export function detectChainId(instructions: Instruction[]): ChainIdDetectionResu
 	return { hasChainId, hasBranching, hasComparison, isEip712Pattern };
 }
 
-const SELECTOR_NAME_MAP: Record<string, { name: string; standard: 'ERC20' | 'ERC721' | 'ERC1155' }> =
-	{
-		[TOKEN_SELECTORS.transfer]: { name: 'transfer', standard: 'ERC20' },
-		[TOKEN_SELECTORS.transferFrom]: { name: 'transferFrom', standard: 'ERC20' },
-		[TOKEN_SELECTORS.approve]: { name: 'approve', standard: 'ERC20' },
-		[TOKEN_SELECTORS.increaseAllowance]: { name: 'increaseAllowance', standard: 'ERC20' },
-		[TOKEN_SELECTORS.safeTransferFrom]: { name: 'safeTransferFrom', standard: 'ERC721' },
-		[TOKEN_SELECTORS.safeTransferFromWithData]: {
-			name: 'safeTransferFrom',
-			standard: 'ERC721',
-		},
-		[TOKEN_SELECTORS.setApprovalForAll]: { name: 'setApprovalForAll', standard: 'ERC721' },
-		[TOKEN_SELECTORS.safeTransferFrom1155]: { name: 'safeTransferFrom', standard: 'ERC1155' },
-		[TOKEN_SELECTORS.safeBatchTransferFrom]: {
-			name: 'safeBatchTransferFrom',
-			standard: 'ERC1155',
-		},
-	};
+const SELECTOR_NAME_MAP: Record<
+	string,
+	{ name: string; standard: 'ERC20' | 'ERC721' | 'ERC1155' }
+> = {
+	[TOKEN_SELECTORS.transfer]: { name: 'transfer', standard: 'ERC20' },
+	[TOKEN_SELECTORS.transferFrom]: { name: 'transferFrom', standard: 'ERC20' },
+	[TOKEN_SELECTORS.approve]: { name: 'approve', standard: 'ERC20' },
+	[TOKEN_SELECTORS.increaseAllowance]: { name: 'increaseAllowance', standard: 'ERC20' },
+	[TOKEN_SELECTORS.safeTransferFrom]: { name: 'safeTransferFrom', standard: 'ERC721' },
+	[TOKEN_SELECTORS.safeTransferFromWithData]: {
+		name: 'safeTransferFrom',
+		standard: 'ERC721',
+	},
+	[TOKEN_SELECTORS.setApprovalForAll]: { name: 'setApprovalForAll', standard: 'ERC721' },
+	[TOKEN_SELECTORS.safeTransferFrom1155]: { name: 'safeTransferFrom', standard: 'ERC1155' },
+	[TOKEN_SELECTORS.safeBatchTransferFrom]: {
+		name: 'safeBatchTransferFrom',
+		standard: 'ERC1155',
+	},
+};
 
 export function detectTokenSelectors(instructions: Instruction[]): TokenSelector[] {
 	const detectedSelectors: TokenSelector[] = [];
@@ -225,8 +226,7 @@ export function detectFallbackLocation(instructions: Instruction[]): boolean {
 	}
 
 	const callIdx = instructions.findIndex(
-		(i, idx) =>
-			idx > calldataSizeIdx && (i.opcode === OPCODES.F1 || i.opcode === 'CALL'),
+		(i, idx) => idx > calldataSizeIdx && (i.opcode === OPCODES.F1 || i.opcode === 'CALL'),
 	);
 
 	if (callIdx === -1) {
@@ -237,7 +237,10 @@ export function detectFallbackLocation(instructions: Instruction[]): boolean {
 	const hasDispatcher = betweenInstructions.some((i, idx, arr) => {
 		if (i.opcode === 'PUSH4') {
 			const nextInstruction = arr[idx + 1];
-			if (nextInstruction && (nextInstruction.opcode === OPCODES['14'] || nextInstruction.opcode === 'EQ')) {
+			if (
+				nextInstruction &&
+				(nextInstruction.opcode === OPCODES['14'] || nextInstruction.opcode === 'EQ')
+			) {
 				return true;
 			}
 		}
@@ -294,10 +297,18 @@ export function analyzeTokenTransfers(instructions: Instruction[]): TokenTransfe
 	} else if (hasTokenTransfer && appearsInFallback) {
 		contextualRisk = 'CRITICAL';
 		riskReason = 'Token transfer in fallback/receive function - automatic drain pattern';
-	} else if ((hasTokenTransfer || hasTokenApproval) && hasHardcodedDestination && !hasAuthorizationPattern) {
+	} else if (
+		(hasTokenTransfer || hasTokenApproval) &&
+		hasHardcodedDestination &&
+		!hasAuthorizationPattern
+	) {
 		contextualRisk = 'CRITICAL';
 		riskReason = 'Token operations to hardcoded address without authorization';
-	} else if (hasTokenApproval && detectedSelectors.some((s) => s.name === 'setApprovalForAll') && !hasAuthorizationPattern) {
+	} else if (
+		hasTokenApproval &&
+		detectedSelectors.some((s) => s.name === 'setApprovalForAll') &&
+		!hasAuthorizationPattern
+	) {
 		contextualRisk = 'CRITICAL';
 		riskReason = 'setApprovalForAll without access control - full collection drain risk';
 	} else if (hasAnyTokenOps && !hasAuthorizationPattern) {
@@ -308,7 +319,8 @@ export function analyzeTokenTransfers(instructions: Instruction[]): TokenTransfe
 		riskReason = 'Signature verification present but no nonce tracking - replay attack risk';
 	} else if (hasAnyTokenOps && hasAuthorizationPattern) {
 		contextualRisk = 'MEDIUM';
-		riskReason = 'Token operations with authorization patterns detected - standard smart wallet behavior';
+		riskReason =
+			'Token operations with authorization patterns detected - standard smart wallet behavior';
 	}
 
 	return {

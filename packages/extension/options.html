@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Testudo Settings</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f1a;
+      color: #fff;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 40px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #2d2d44;
+    }
+
+    .logo {
+      font-size: 48px;
+    }
+
+    .header-text h1 {
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .header-text p {
+      color: #888;
+      margin-top: 4px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 32px;
+      border-bottom: 1px solid #2d2d44;
+      padding-bottom: 16px;
+    }
+
+    .tab {
+      padding: 10px 20px;
+      background: transparent;
+      border: 1px solid #3d3d5c;
+      border-radius: 8px;
+      color: #888;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+
+    .tab:hover {
+      border-color: #5d5d7c;
+      color: #fff;
+    }
+
+    .tab.active {
+      background: #27ae60;
+      border-color: #27ae60;
+      color: #fff;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .section {
+      background: #1a1a2e;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title span {
+      font-size: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #ccc;
+    }
+
+    .form-description {
+      font-size: 12px;
+      color: #888;
+      margin-top: 6px;
+    }
+
+    select, input[type="text"], input[type="url"] {
+      width: 100%;
+      padding: 12px 16px;
+      background: #2d2d44;
+      border: 1px solid #3d3d5c;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    select:focus, input:focus {
+      outline: none;
+      border-color: #27ae60;
+    }
+
+    .toggle-group {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid #2d2d44;
+    }
+
+    .toggle-group:last-child {
+      border-bottom: none;
+    }
+
+    .toggle-label {
+      font-size: 14px;
+    }
+
+    .toggle-description {
+      font-size: 12px;
+      color: #888;
+      margin-top: 4px;
+    }
+
+    .toggle {
+      position: relative;
+      width: 48px;
+      height: 26px;
+      background: #3d3d5c;
+      border-radius: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .toggle.active {
+      background: #27ae60;
+    }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .toggle.active::after {
+      transform: translateX(22px);
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #27ae60;
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: #2ecc71;
+    }
+
+    .btn-secondary {
+      background: #2d2d44;
+      color: #fff;
+      border: 1px solid #3d3d5c;
+    }
+
+    .btn-secondary:hover {
+      border-color: #5d5d7c;
+    }
+
+    .btn-danger {
+      background: #e74c3c;
+      color: #fff;
+    }
+
+    .btn-danger:hover {
+      background: #c0392b;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    /* Whitelist styles */
+    .whitelist-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .whitelist-count {
+      font-size: 14px;
+      color: #888;
+    }
+
+    .whitelist-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .whitelist-add {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .whitelist-add input {
+      flex: 1;
+    }
+
+    .whitelist-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .whitelist-table th {
+      text-align: left;
+      padding: 12px;
+      background: #2d2d44;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: #888;
+    }
+
+    .whitelist-table td {
+      padding: 12px;
+      border-bottom: 1px solid #2d2d44;
+      font-size: 14px;
+    }
+
+    .whitelist-table tr:hover td {
+      background: rgba(39, 174, 96, 0.05);
+    }
+
+    .whitelist-address {
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    .whitelist-empty {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+
+    .btn-remove {
+      padding: 6px 12px;
+      font-size: 12px;
+      background: transparent;
+      border: 1px solid #e74c3c;
+      color: #e74c3c;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .btn-remove:hover {
+      background: #e74c3c;
+      color: #fff;
+    }
+
+    /* History styles */
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-bottom: 1px solid #2d2d44;
+    }
+
+    .history-item:last-child {
+      border-bottom: none;
+    }
+
+    .history-icon {
+      font-size: 20px;
+    }
+
+    .history-details {
+      flex: 1;
+    }
+
+    .history-address {
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    .history-meta {
+      font-size: 12px;
+      color: #888;
+      margin-top: 4px;
+    }
+
+    .history-risk {
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .history-risk.critical {
+      background: rgba(231, 76, 60, 0.2);
+      color: #e74c3c;
+    }
+
+    .history-risk.high {
+      background: rgba(230, 126, 34, 0.2);
+      color: #e67e22;
+    }
+
+    .history-risk.medium {
+      background: rgba(241, 196, 15, 0.2);
+      color: #f1c40f;
+    }
+
+    .history-risk.low {
+      background: rgba(39, 174, 96, 0.2);
+      color: #27ae60;
+    }
+
+    /* Storage info */
+    .storage-bar {
+      height: 8px;
+      background: #2d2d44;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .storage-bar-fill {
+      height: 100%;
+      background: #27ae60;
+      transition: width 0.3s;
+    }
+
+    .storage-bar-fill.warning {
+      background: #f39c12;
+    }
+
+    .storage-bar-fill.danger {
+      background: #e74c3c;
+    }
+
+    .storage-text {
+      font-size: 12px;
+      color: #888;
+      margin-top: 8px;
+    }
+
+    /* Toast notification */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      padding: 16px 24px;
+      background: #27ae60;
+      color: #fff;
+      border-radius: 8px;
+      font-size: 14px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .toast.error {
+      background: #e74c3c;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <span class="logo">🛡️</span>
+      <div class="header-text">
+        <h1>Testudo Settings</h1>
+        <p>Configure your EIP-7702 protection</p>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="general">General</button>
+      <button class="tab" data-tab="whitelist">Whitelist</button>
+      <button class="tab" data-tab="history">History</button>
+      <button class="tab" data-tab="advanced">Advanced</button>
+    </div>
+
+    <!-- General Settings -->
+    <div id="tab-general" class="tab-content active">
+      <div class="section">
+        <h2 class="section-title"><span>🔒</span> Protection Level</h2>
+        <div class="form-group">
+          <label class="form-label">Security Mode</label>
+          <select id="protection-level">
+            <option value="strict">Strict - Block MEDIUM and above</option>
+            <option value="standard" selected>Standard - Block HIGH and CRITICAL</option>
+            <option value="permissive">Permissive - Block CRITICAL only</option>
+          </select>
+          <p class="form-description">Choose how aggressively Testudo blocks potentially risky delegations.</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2 class="section-title"><span>🔔</span> Notifications</h2>
+        <div class="toggle-group">
+          <div>
+            <div class="toggle-label">Show Medium Risk Toast</div>
+            <div class="toggle-description">Display a notification for medium-risk contracts</div>
+          </div>
+          <div class="toggle active" id="toggle-medium-toast"></div>
+        </div>
+        <div class="toggle-group">
+          <div>
+            <div class="toggle-label">Auto-record Scans</div>
+            <div class="toggle-description">Save scan history for later review</div>
+          </div>
+          <div class="toggle active" id="toggle-auto-record"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Whitelist -->
+    <div id="tab-whitelist" class="tab-content">
+      <div class="section">
+        <div class="whitelist-header">
+          <h2 class="section-title"><span>✓</span> Whitelisted Addresses</h2>
+          <span class="whitelist-count" id="whitelist-count">0 addresses</span>
+        </div>
+
+        <div class="whitelist-add">
+          <input type="text" id="whitelist-address" placeholder="0x..." />
+          <input type="text" id="whitelist-label" placeholder="Label (optional)" style="max-width: 200px;" />
+          <button class="btn btn-primary" id="btn-add-whitelist">Add</button>
+        </div>
+
+        <div class="whitelist-actions">
+          <button class="btn btn-secondary" id="btn-import">Import</button>
+          <button class="btn btn-secondary" id="btn-export">Export</button>
+        </div>
+
+        <table class="whitelist-table">
+          <thead>
+            <tr>
+              <th>Address</th>
+              <th>Label</th>
+              <th>Added</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="whitelist-body">
+            <tr>
+              <td colspan="4" class="whitelist-empty">No whitelisted addresses</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div id="tab-history" class="tab-content">
+      <div class="section">
+        <div class="whitelist-header">
+          <h2 class="section-title"><span>📋</span> Scan History</h2>
+          <button class="btn btn-danger" id="btn-clear-history">Clear History</button>
+        </div>
+
+        <div id="history-list">
+          <div class="whitelist-empty">No scan history</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Advanced -->
+    <div id="tab-advanced" class="tab-content">
+      <div class="section">
+        <h2 class="section-title"><span>🔗</span> Custom RPC</h2>
+        <div class="form-group">
+          <label class="form-label">RPC Endpoint URL</label>
+          <input type="url" id="custom-rpc" placeholder="https://eth.llamarpc.com" />
+          <p class="form-description">Use a custom RPC endpoint for bytecode fetching. Leave empty for default.</p>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="btn-save-rpc">Save RPC</button>
+          <button class="btn btn-secondary" id="btn-clear-rpc">Clear</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2 class="section-title"><span>💾</span> Storage</h2>
+        <p class="form-label">Storage Usage</p>
+        <div class="storage-bar">
+          <div class="storage-bar-fill" id="storage-fill" style="width: 0%"></div>
+        </div>
+        <p class="storage-text" id="storage-text">Calculating...</p>
+
+        <div class="btn-group">
+          <button class="btn btn-danger" id="btn-clear-all">Clear All Data</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <input type="file" id="import-file" accept=".json" style="display: none;" />
+
+  <script src="options.js" type="module"></script>
+</body>
+</html>
