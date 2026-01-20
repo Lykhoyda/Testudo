@@ -12,7 +12,7 @@
  * 5. Block or allow based on result
  */
 
-import type { Warning, WarningSeverity } from '@testudo/core';
+import type { Warning } from '@testudo/core';
 
 interface EIP7702Authorization {
 	chainId: string;
@@ -38,14 +38,40 @@ interface AnalysisResult {
 	blocked: boolean;
 }
 
-// Check if ethereum provider exists
-if (typeof window.ethereum !== 'undefined') {
+// Inject Google Fonts for Material Symbols
+function injectFonts(): void {
+	if (!document.getElementById('testudo-fonts')) {
+		const link = document.createElement('link');
+		link.id = 'testudo-fonts';
+		link.rel = 'stylesheet';
+		link.href =
+			'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap';
+		document.head.appendChild(link);
+	}
+}
+
+// Track if we've already wrapped the provider
+let providerWrapped = false;
+
+/**
+ * Wrap the ethereum provider's request method
+ */
+function wrapEthereumProvider(): void {
+	if (providerWrapped || typeof window.ethereum === 'undefined') {
+		return;
+	}
+
 	console.log('[Testudo] 🛡️ Initializing EIP-7702 protection...');
+	providerWrapped = true;
+
+	injectFonts();
 
 	const originalRequest = window.ethereum.request.bind(window.ethereum);
 
 	// Wrap the request method
-	window.ethereum.request = async (args: { method: string; params?: unknown[] }) => {
+	// Use try/catch to handle frozen provider objects (Object.freeze)
+	try {
+		window.ethereum.request = async (args: { method: string; params?: unknown[] }) => {
 		// Only intercept eth_signTypedData_v4
 		if (args.method !== 'eth_signTypedData_v4') {
 			return originalRequest(args);
@@ -85,6 +111,9 @@ if (typeof window.ethereum !== 'undefined') {
 			} else if (analysis.risk === 'MEDIUM') {
 				// Show info but don't block
 				showInfo(analysis);
+			} else if (analysis.risk === 'UNKNOWN') {
+				// Show notice for contracts with no bytecode
+				showUnknownNotice(analysis);
 			}
 
 			// Allow the signature to proceed
@@ -105,9 +134,47 @@ if (typeof window.ethereum !== 'undefined') {
 			return originalRequest(args);
 		}
 	};
+	} catch (wrapError) {
+		// Provider object may be frozen (Object.freeze) or have non-configurable properties
+		// Fail-open: Allow original requests rather than breaking dApp functionality
+		console.error('[Testudo] Failed to wrap provider (frozen object?):', wrapError);
+		providerWrapped = false; // Reset so we don't think we're protected
+		return;
+	}
 
 	console.log('[Testudo] ✅ Protection active');
 }
+
+// Store reference to the current wrapped provider to detect replacements
+let wrappedProvider: Window['ethereum'] = undefined;
+
+// Try to wrap immediately if provider exists
+if (typeof window.ethereum !== 'undefined') {
+	wrappedProvider = window.ethereum;
+}
+wrapEthereumProvider();
+
+// ALWAYS set up the property trap to catch provider replacements
+let ethereumValue: Window['ethereum'] = window.ethereum;
+
+Object.defineProperty(window, 'ethereum', {
+	configurable: true,
+	enumerable: true,
+	get() {
+		return ethereumValue;
+	},
+	set(value) {
+		// Check if this is a new provider (not our wrapped version)
+		if (value !== ethereumValue && value !== wrappedProvider) {
+			ethereumValue = value;
+			providerWrapped = false; // Reset so we can wrap the new provider
+			wrappedProvider = value;
+			wrapEthereumProvider();
+		} else {
+			ethereumValue = value;
+		}
+	},
+});
 
 /**
  * Check if typed data is an EIP-7702 Authorization
@@ -208,6 +275,32 @@ function requestWhitelist(address: string, label?: string): Promise<boolean> {
 }
 
 /**
+ * Get Material Symbol icon for threat type
+ */
+function getThreatIcon(threat: string): string {
+	const iconMap: Record<string, string> = {
+		auto_forwarder: 'currency_exchange',
+		delegate_call: 'call_split',
+		self_destruct: 'delete_forever',
+		unlimited_approval: 'all_inclusive',
+		create2: 'add_box',
+		metamorphic: 'swap_horiz',
+		chainid_branching: 'public',
+		chainid_comparison: 'public',
+		chainid_read: 'public',
+		token_drain_fallback: 'token',
+		token_hardcoded_dest: 'token',
+		token_no_auth: 'token',
+		token_replay_risk: 'replay',
+		token_approval_no_auth: 'token',
+		token_with_auth: 'token',
+		ETH_AUTO_FORWARDER: 'currency_exchange',
+		INFERNO_DRAINER: 'local_fire_department',
+	};
+	return iconMap[threat] || 'warning';
+}
+
+/**
  * Show warning modal for dangerous contracts
  */
 function showWarning(analysis: AnalysisResult): Promise<boolean> {
@@ -215,6 +308,26 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
 		// Create modal overlay
 		const overlay = document.createElement('div');
 		overlay.id = 'testudo-warning-overlay';
+
+		const truncatedAddress = `${analysis.address.slice(0, 10)}...${analysis.address.slice(-6)}`;
+
+		// Get the primary warning for the critical alert
+		// First look for CRITICAL/HIGH, then fall back to first actionable warning
+		const primaryWarning =
+			analysis.warnings?.find((w) => w.severity === 'CRITICAL' || w.severity === 'HIGH') ||
+			analysis.warnings?.find((w) => w.severity === 'MEDIUM');
+
+		// Use risk-appropriate fallback titles when no warning found
+		const fallbackTitle =
+			analysis.risk === 'CRITICAL' ? 'Fund Drain Detected' : 'Multiple Risk Factors Detected';
+		const fallbackDescription =
+			analysis.risk === 'CRITICAL'
+				? 'This contract contains logic known to drain wallets immediately upon signature.'
+				: 'This contract has multiple concerning patterns that warrant caution.';
+
+		const criticalTitle = primaryWarning?.title || fallbackTitle;
+		const criticalDescription = primaryWarning?.description || fallbackDescription;
+
 		overlay.innerHTML = `
       <style>
         #testudo-warning-overlay {
@@ -224,201 +337,481 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
           width: 100%;
           height: 100%;
           background: rgba(0, 0, 0, 0.8);
+          backdrop-filter: blur(4px);
           display: flex;
           align-items: center;
           justify-content: center;
           z-index: 999999;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          animation: testudo-fade-in 0.3s ease;
         }
-        
+
+        @keyframes testudo-fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        @keyframes testudo-zoom-in {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
+        }
+
         .testudo-modal {
-          background: #1a1a2e;
-          border: 2px solid #e74c3c;
+          background: #1a232e;
           border-radius: 16px;
-          padding: 32px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
           max-width: 480px;
+          width: 90%;
+          max-height: 90vh;
           color: white;
-          box-shadow: 0 20px 60px rgba(231, 76, 60, 0.3);
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+          overflow: hidden;
+          animation: testudo-zoom-in 0.3s ease;
+          display: flex;
+          flex-direction: column;
         }
-        
+
+        .testudo-material-icon {
+          font-family: 'Material Symbols Outlined';
+          font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+          font-style: normal;
+          display: inline-block;
+          line-height: 1;
+          text-transform: none;
+          letter-spacing: normal;
+          word-wrap: normal;
+          white-space: nowrap;
+          direction: ltr;
+          -webkit-font-smoothing: antialiased;
+        }
+
         .testudo-header {
           display: flex;
+          flex-direction: column;
           align-items: center;
-          gap: 12px;
-          margin-bottom: 20px;
+          padding: 32px 24px 16px;
+          gap: 16px;
+          flex-shrink: 0;
         }
-        
-        .testudo-icon {
+
+        .testudo-header-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          background: rgba(231, 76, 60, 0.1);
+          color: #e74c3c;
+        }
+
+        .testudo-header-icon .testudo-material-icon {
           font-size: 48px;
         }
-        
+
+        .testudo-header-text {
+          text-align: center;
+        }
+
         .testudo-title {
           font-size: 24px;
           font-weight: bold;
-          color: #e74c3c;
-          margin: 0;
+          color: #fff;
+          margin: 0 0 8px 0;
+          letter-spacing: -0.02em;
         }
-        
+
         .testudo-subtitle {
           font-size: 14px;
-          color: #888;
-          margin: 4px 0 0 0;
+          color: #97adc4;
+          margin: 0;
+          line-height: 1.5;
         }
-        
-        .testudo-threats {
-          background: #2d2d44;
+
+        .testudo-subtitle strong {
+          color: #fff;
+          font-weight: 500;
+        }
+
+        /* Critical Alert Box */
+        .testudo-alert {
+          margin: 0 24px;
+          position: relative;
+          overflow: hidden;
           border-radius: 8px;
-          padding: 16px;
-          margin: 20px 0;
+          border: 1px solid rgba(231, 76, 60, 0.4);
+          background: rgba(231, 76, 60, 0.1);
+          padding: 20px;
         }
-        
-        .testudo-threat {
+
+        .testudo-alert::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(135deg, rgba(231, 76, 60, 0.1) 0%, transparent 100%);
+          pointer-events: none;
+        }
+
+        .testudo-alert-header {
           display: flex;
           align-items: center;
           gap: 8px;
-          padding: 8px 0;
-          border-bottom: 1px solid #3d3d5c;
-        }
-        
-        .testudo-threat:last-child {
-          border-bottom: none;
-        }
-        
-        .testudo-threat-icon {
           color: #e74c3c;
+          position: relative;
+          z-index: 1;
         }
-        
-        .testudo-address {
-          font-family: monospace;
+
+        .testudo-alert-header .testudo-material-icon {
+          font-size: 20px;
+        }
+
+        .testudo-alert-title {
+          font-size: 14px;
+          font-weight: 700;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+        }
+
+        .testudo-alert-description {
+          color: rgba(255, 255, 255, 0.9);
+          font-size: 14px;
+          font-weight: 500;
+          line-height: 1.6;
+          margin-top: 8px;
+          position: relative;
+          z-index: 1;
+        }
+
+        /* Threats List */
+        .testudo-threats {
+          padding: 16px 24px;
+          margin-top: 16px;
+          overflow-y: auto;
+          max-height: 280px;
+          flex-shrink: 1;
+        }
+
+        .testudo-threats-title {
           font-size: 12px;
-          color: #888;
-          word-break: break-all;
-          margin: 16px 0;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          color: rgba(255, 255, 255, 0.7);
+          margin-bottom: 12px;
+          padding: 0 4px;
         }
-        
+
+        .testudo-threat-item {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          background: rgba(18, 26, 33, 0.5);
+          border-radius: 8px;
+          padding: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          margin-bottom: 8px;
+        }
+
+        .testudo-threat-item:last-child {
+          margin-bottom: 0;
+        }
+
+        .testudo-threat-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 40px;
+          height: 40px;
+          border-radius: 8px;
+          background: rgba(245, 158, 11, 0.1);
+          color: #f59e0b;
+          flex-shrink: 0;
+        }
+
+        .testudo-threat-icon .testudo-material-icon {
+          font-size: 24px;
+        }
+
+        .testudo-threat-content {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .testudo-threat-name {
+          font-size: 14px;
+          font-weight: 500;
+          color: #fff;
+          line-height: 1.4;
+        }
+
+        .testudo-threat-desc {
+          font-size: 12px;
+          color: #97adc4;
+          margin-top: 2px;
+        }
+
+        /* Address Section */
+        .testudo-address-section {
+          margin: 8px 24px;
+        }
+
+        .testudo-address-box {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: #121a21;
+          border-radius: 4px;
+          padding: 8px 12px;
+          border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .testudo-address-label {
+          font-size: 12px;
+          font-weight: 500;
+          color: #97adc4;
+        }
+
+        .testudo-address-value {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .testudo-address-text {
+          font-family: 'Roboto Mono', ui-monospace, monospace;
+          font-size: 14px;
+          color: #fff;
+          letter-spacing: 0.02em;
+        }
+
+        .testudo-copy-btn {
+          background: none;
+          border: none;
+          color: #97adc4;
+          cursor: pointer;
+          padding: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: color 0.2s;
+        }
+
+        .testudo-copy-btn:hover {
+          color: #fff;
+        }
+
+        .testudo-copy-btn .testudo-material-icon {
+          font-size: 16px;
+        }
+
+        /* Buttons */
         .testudo-buttons {
           display: flex;
-          gap: 12px;
-          margin-top: 24px;
+          flex-direction: column;
+          gap: 16px;
+          padding: 8px 24px 24px;
+          background: #1a232e;
+          flex-shrink: 0;
         }
-        
-        .testudo-btn {
-          flex: 1;
-          padding: 14px 24px;
-          border-radius: 8px;
-          font-size: 16px;
-          font-weight: 600;
-          cursor: pointer;
-          border: none;
-          transition: transform 0.1s, opacity 0.1s;
-        }
-        
-        .testudo-btn:hover {
-          transform: scale(1.02);
-        }
-        
-        .testudo-btn:active {
-          transform: scale(0.98);
-        }
-        
+
         .testudo-btn-cancel {
+          width: 100%;
           background: #27ae60;
           color: white;
+          border: none;
+          border-radius: 8px;
+          padding: 16px 24px;
+          font-size: 16px;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          box-shadow: 0 4px 14px rgba(39, 174, 96, 0.2);
+          transition: all 0.2s;
         }
 
-        .testudo-btn-trust {
-          background: #3498db;
-          color: white;
+        .testudo-btn-cancel:hover {
+          background: #229954;
         }
 
-        .testudo-btn-trust:hover {
-          background: #2980b9;
+        .testudo-btn-cancel:active {
+          transform: scale(0.98);
         }
 
-        .testudo-btn-proceed {
-          background: transparent;
-          border: 1px solid #666;
-          color: #888;
+        .testudo-btn-cancel .testudo-material-icon {
+          font-size: 20px;
         }
 
-        .testudo-btn-proceed:hover {
-          border-color: #e74c3c;
+        .testudo-secondary-actions {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 24px;
+          padding-top: 8px;
+        }
+
+        .testudo-btn-link {
+          background: none;
+          border: none;
+          color: #97adc4;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          padding: 8px;
+          transition: color 0.2s;
+          border-bottom: 1px solid transparent;
+        }
+
+        .testudo-btn-link:hover {
+          color: #fff;
+          border-bottom-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .testudo-btn-danger {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          background: none;
+          border: none;
+          color: rgba(231, 76, 60, 0.7);
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          padding: 8px;
+          transition: color 0.2s;
+        }
+
+        .testudo-btn-danger:hover {
           color: #e74c3c;
         }
+
+        .testudo-btn-danger .testudo-material-icon {
+          font-size: 16px;
+          transition: transform 0.2s;
+        }
+
+        .testudo-btn-danger:hover .testudo-material-icon {
+          transform: translateX(2px);
+        }
       </style>
-      
+
       <div class="testudo-modal">
+        <!-- Header -->
         <div class="testudo-header">
-          <span class="testudo-icon">🛡️</span>
-          <div>
+          <div class="testudo-header-icon">
+            <span class="testudo-material-icon">gpp_maybe</span>
+          </div>
+          <div class="testudo-header-text">
             <h2 class="testudo-title">Dangerous Contract Detected</h2>
-            <p class="testudo-subtitle">Testudo blocked a risky EIP-7702 delegation</p>
+            <p class="testudo-subtitle">
+              We have intercepted a malicious <strong>EIP-7702</strong> delegation request.
+            </p>
           </div>
         </div>
-        
+
+        <!-- Critical Alert Box -->
+        <div class="testudo-alert">
+          <div class="testudo-alert-header">
+            <span class="testudo-material-icon">error</span>
+            <span class="testudo-alert-title">CRITICAL: ${escapeHtml(criticalTitle)}</span>
+          </div>
+          <p class="testudo-alert-description">
+            ${escapeHtml(criticalDescription)}
+          </p>
+        </div>
+
+        <!-- Threats List -->
         <div class="testudo-threats">
+          <h3 class="testudo-threats-title">Threats Detected</h3>
           ${analysis.threats
-						.map(
-							(threat) => `
-            <div class="testudo-threat">
-              <span class="testudo-threat-icon">⚠️</span>
-              <span>${escapeHtml(formatThreat(threat))}</span>
-            </div>
-          `,
-						)
-						.join('')}
-        </div>
-
-        ${
-					analysis.warnings && analysis.warnings.length > 0
-						? `
-        <div style="background: #3d2d2d; border-radius: 8px; padding: 12px 16px; margin: 16px 0; border-left: 3px solid #e74c3c;">
-          ${analysis.warnings
-						.filter((w) => w.severity !== 'INFO')
-						.map(
-							(warning) => `
-            <div style="margin: 12px 0;">
-              <div style="color: ${getSeverityColor(warning.severity)}; font-weight: 600; font-size: 14px; margin-bottom: 4px;">
-                ${getSeverityIcon(warning.severity)} ${escapeHtml(warning.title)}
+						.slice(0, 3)
+						.map((threat) => {
+							const formatted = formatThreat(threat);
+							const shortDesc = getThreatShortDesc(threat);
+							return `
+              <div class="testudo-threat-item">
+                <div class="testudo-threat-icon">
+                  <span class="testudo-material-icon">${getThreatIcon(threat)}</span>
+                </div>
+                <div class="testudo-threat-content">
+                  <span class="testudo-threat-name">${escapeHtml(formatted)}</span>
+                  <span class="testudo-threat-desc">${escapeHtml(shortDesc)}</span>
+                </div>
               </div>
-              <p style="color: #ffcccc; font-size: 13px; line-height: 1.5; margin: 4px 0;">${escapeHtml(warning.description)}</p>
-              ${warning.technical ? `<p style="color: #888; font-size: 11px; font-family: monospace; margin: 4px 0;">${escapeHtml(warning.technical)}</p>` : ''}
-            </div>
-          `,
-						)
+            `;
+						})
 						.join('')}
         </div>
-        `
-						: ''
-				}
 
-        <div class="testudo-address">
-          Contract: ${escapeHtml(analysis.address)}
+        <!-- Contract Address -->
+        <div class="testudo-address-section">
+          <div class="testudo-address-box">
+            <span class="testudo-address-label">Target Contract</span>
+            <div class="testudo-address-value">
+              <span class="testudo-address-text">${escapeHtml(truncatedAddress)}</span>
+              <button class="testudo-copy-btn" id="testudo-copy" title="Copy Address">
+                <span class="testudo-material-icon">content_copy</span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        <p style="color: #ccc; font-size: 14px; line-height: 1.5;">
-          Signing this authorization could give this contract full control over your wallet,
-          including the ability to drain all your ETH, tokens, and NFTs.
-        </p>
-        
+        <!-- Action Buttons -->
         <div class="testudo-buttons">
-          <button class="testudo-btn testudo-btn-cancel" id="testudo-cancel">
-            ✓ Cancel (Safe)
+          <button class="testudo-btn-cancel" id="testudo-cancel">
+            <span class="testudo-material-icon">shield</span>
+            Cancel (Safe)
           </button>
-          <button class="testudo-btn testudo-btn-trust" id="testudo-trust">
-            Trust & Proceed
-          </button>
-          <button class="testudo-btn testudo-btn-proceed" id="testudo-proceed">
-            Proceed Anyway
-          </button>
+          <div class="testudo-secondary-actions">
+            <button class="testudo-btn-link" id="testudo-trust">
+              Trust contract & Proceed
+            </button>
+            <button class="testudo-btn-danger" id="testudo-proceed">
+              <span>Proceed Anyway</span>
+              <span class="testudo-material-icon">arrow_forward</span>
+            </button>
+          </div>
         </div>
       </div>
     `;
 
 		document.body.appendChild(overlay);
 
+		// Handle Escape key to cancel (safe action)
+		const escapeHandler = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') {
+				document.removeEventListener('keydown', escapeHandler);
+				overlay.remove();
+				recordBlocked();
+				resolve(false);
+			}
+		};
+		document.addEventListener('keydown', escapeHandler);
+
+		// Handle copy button
+		document.getElementById('testudo-copy')?.addEventListener('click', async () => {
+			try {
+				await navigator.clipboard.writeText(analysis.address);
+				const copyBtn = document.getElementById('testudo-copy');
+				if (copyBtn) {
+					const iconEl = copyBtn.querySelector('.testudo-material-icon');
+					if (iconEl) {
+						iconEl.textContent = 'check';
+						setTimeout(() => {
+							iconEl.textContent = 'content_copy';
+						}, 2000);
+					}
+				}
+			} catch {
+				console.error('[Testudo] Failed to copy address');
+			}
+		});
+
 		// Handle button clicks
 		document.getElementById('testudo-cancel')?.addEventListener('click', () => {
+			document.removeEventListener('keydown', escapeHandler);
 			overlay.remove();
 			recordBlocked();
 			resolve(false);
@@ -435,6 +828,7 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
 
 			if (success) {
 				console.log('[Testudo] ✅ Address added to whitelist');
+				document.removeEventListener('keydown', escapeHandler);
 				overlay.remove();
 				resolve(true);
 			} else {
@@ -446,6 +840,7 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
 		});
 
 		document.getElementById('testudo-proceed')?.addEventListener('click', () => {
+			document.removeEventListener('keydown', escapeHandler);
 			overlay.remove();
 			resolve(true);
 		});
@@ -453,31 +848,29 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
 }
 
 /**
- * Get color for severity level
+ * Get short description for threat
  */
-function getSeverityColor(severity: WarningSeverity): string {
-	const colors: Record<WarningSeverity, string> = {
-		CRITICAL: '#e74c3c',
-		HIGH: '#e67e22',
-		MEDIUM: '#f39c12',
-		LOW: '#27ae60',
-		INFO: '#3498db',
+function getThreatShortDesc(threat: string): string {
+	const descMap: Record<string, string> = {
+		auto_forwarder: 'Redirects incoming assets to external address',
+		delegate_call: 'Executes code in context of your wallet',
+		self_destruct: 'Can destroy itself after draining funds',
+		unlimited_approval: 'Requests access to all your tokens',
+		create2: 'Can deploy contracts at predictable addresses',
+		metamorphic: 'Code can change while keeping same address',
+		chainid_branching: 'Behavior changes based on network',
+		chainid_comparison: 'May restrict behavior on specific chains',
+		chainid_read: 'Reads network ID for conditional logic',
+		token_drain_fallback: 'Auto-drains tokens on any interaction',
+		token_hardcoded_dest: 'Sends funds to hardcoded attacker address',
+		token_no_auth: 'No signature verification for transfers',
+		token_replay_risk: 'Same signature can be reused multiple times',
+		token_approval_no_auth: 'Unlimited access without verification',
+		token_with_auth: 'Has some security controls in place',
+		ETH_AUTO_FORWARDER: 'Known malicious ETH drainer contract',
+		INFERNO_DRAINER: 'Known Inferno Drainer attack contract',
 	};
-	return colors[severity];
-}
-
-/**
- * Get icon for severity level
- */
-function getSeverityIcon(severity: WarningSeverity): string {
-	const icons: Record<WarningSeverity, string> = {
-		CRITICAL: '🚨',
-		HIGH: '⚠️',
-		MEDIUM: '⚡',
-		LOW: '✓',
-		INFO: 'ℹ️',
-	};
-	return icons[severity];
+	return descMap[threat] || 'Suspicious behavior detected';
 }
 
 /**
@@ -504,35 +897,202 @@ function showInfo(analysis: AnalysisResult): void {
         position: fixed;
         bottom: 20px;
         right: 20px;
-        background: #2d2d44;
-        border: 1px solid #f39c12;
+        background: #1a232e;
+        border: 1px solid rgba(245, 158, 11, 0.4);
         border-radius: 12px;
         padding: 16px 20px;
         color: white;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         z-index: 999998;
         max-width: 400px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-        animation: slideIn 0.3s ease;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        animation: testudo-slide-in 0.3s ease;
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
       }
 
-      @keyframes slideIn {
+      @keyframes testudo-slide-in {
         from { transform: translateX(100%); opacity: 0; }
         to { transform: translateX(0); opacity: 1; }
       }
+
+      .testudo-toast-icon {
+        font-family: 'Material Symbols Outlined';
+        font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        font-size: 24px;
+        color: #f59e0b;
+      }
+
+      .testudo-toast-content {
+        flex: 1;
+      }
+
+      .testudo-toast-title {
+        font-weight: 600;
+        color: #f59e0b;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .testudo-toast-title .testudo-toast-icon-inline {
+        font-family: 'Material Symbols Outlined';
+        font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        font-size: 16px;
+      }
+
+      .testudo-toast-text {
+        font-size: 13px;
+        color: #97adc4;
+        margin-top: 4px;
+        line-height: 1.5;
+      }
+
+      .testudo-toast-dismiss {
+        background: none;
+        border: none;
+        color: #97adc4;
+        cursor: pointer;
+        font-size: 12px;
+        margin-top: 8px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: background 0.2s, color 0.2s;
+      }
+
+      .testudo-toast-dismiss:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+      }
     </style>
-    <div class="testudo-toast">
-      <span style="font-size: 24px;">🛡️</span>
-      <div>
-        <div style="font-weight: 600; color: #f39c12;">⚡ ${escapeHtml(warningTitle)}</div>
-        <div style="font-size: 12px; color: #ccc; margin-top: 4px; line-height: 1.4;">${escapeHtml(warningText)}</div>
+    <div class="testudo-toast" id="testudo-info-toast">
+      <span class="testudo-toast-icon">info</span>
+      <div class="testudo-toast-content">
+        <div class="testudo-toast-title">
+          <span class="testudo-toast-icon-inline">bolt</span>
+          ${escapeHtml(warningTitle)}
+        </div>
+        <div class="testudo-toast-text">${escapeHtml(warningText)}</div>
+        <button class="testudo-toast-dismiss" id="testudo-toast-dismiss">Dismiss</button>
       </div>
     </div>
   `;
 
 	document.body.appendChild(toast);
 
+	document.getElementById('testudo-toast-dismiss')?.addEventListener('click', () => {
+		toast.remove();
+	});
+
 	setTimeout(() => toast.remove(), 7000);
+}
+
+/**
+ * Show notice for unknown/unverified contracts
+ */
+function showUnknownNotice(analysis: AnalysisResult): void {
+	const truncatedAddress = `${analysis.address.slice(0, 10)}...${analysis.address.slice(-6)}`;
+
+	const toast = document.createElement('div');
+	toast.innerHTML = `
+    <style>
+      .testudo-toast-unknown {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: #1a232e;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        border-radius: 12px;
+        padding: 16px 20px;
+        color: white;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        z-index: 999998;
+        max-width: 400px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        animation: testudo-slide-in 0.3s ease;
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+      }
+
+      @keyframes testudo-slide-in {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+
+      .testudo-toast-unknown-icon {
+        font-family: 'Material Symbols Outlined';
+        font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        font-size: 24px;
+        color: #94a3b8;
+      }
+
+      .testudo-toast-unknown-content {
+        flex: 1;
+      }
+
+      .testudo-toast-unknown-title {
+        font-weight: 600;
+        color: #94a3b8;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .testudo-toast-unknown-text {
+        font-size: 13px;
+        color: #97adc4;
+        margin-top: 4px;
+        line-height: 1.5;
+      }
+
+      .testudo-toast-unknown-address {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 6px;
+      }
+
+      .testudo-toast-unknown-dismiss {
+        background: none;
+        border: none;
+        color: #97adc4;
+        cursor: pointer;
+        font-size: 12px;
+        margin-top: 8px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: background 0.2s, color 0.2s;
+      }
+
+      .testudo-toast-unknown-dismiss:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+      }
+    </style>
+    <div class="testudo-toast-unknown" id="testudo-unknown-toast">
+      <span class="testudo-toast-unknown-icon">help_outline</span>
+      <div class="testudo-toast-unknown-content">
+        <div class="testudo-toast-unknown-title">Unverified Contract</div>
+        <div class="testudo-toast-unknown-text">
+          This contract has no bytecode or doesn't exist on-chain. It may be an EOA (regular wallet) or undeployed contract.
+        </div>
+        <div class="testudo-toast-unknown-address">${escapeHtml(truncatedAddress)}</div>
+        <button class="testudo-toast-unknown-dismiss" id="testudo-unknown-dismiss">Dismiss</button>
+      </div>
+    </div>
+  `;
+
+	document.body.appendChild(toast);
+
+	document.getElementById('testudo-unknown-dismiss')?.addEventListener('click', () => {
+		toast.remove();
+	});
+
+	setTimeout(() => toast.remove(), 5000);
 }
 
 /**
@@ -540,23 +1100,23 @@ function showInfo(analysis: AnalysisResult): void {
  */
 function formatThreat(threat: string): string {
 	const threatMap: Record<string, string> = {
-		auto_forwarder: 'Auto-forwards ETH to attacker',
-		delegate_call: 'Uses DELEGATECALL (can execute any code)',
-		self_destruct: 'Can self-destruct after draining',
-		unlimited_approval: 'Requests unlimited token approvals',
-		create2: 'Uses CREATE2 (can deploy additional contracts)',
-		metamorphic: 'Metamorphic contract (can change code at same address)',
-		chainid_branching: 'Cross-chain polymorphism (may behave differently on other chains)',
-		chainid_comparison: 'Compares network ID (may restrict behavior)',
-		chainid_read: 'Reads network ID (behavior may vary by chain)',
-		token_drain_fallback: 'Token transfer in fallback function (auto-drain)',
-		token_hardcoded_dest: 'Funds sent to hardcoded attacker address',
-		token_no_auth: 'Token operations without proper access control',
-		token_replay_risk: 'Signature replay attack risk',
-		token_approval_no_auth: 'Token approvals without access control',
-		token_with_auth: 'Token transfer capability (with security features)',
-		ETH_AUTO_FORWARDER: 'Known ETH drainer contract',
-		INFERNO_DRAINER: 'Known Inferno Drainer exploit',
+		auto_forwarder: 'Auto-forwards ETH',
+		delegate_call: 'Uses DELEGATECALL',
+		self_destruct: 'Can self-destruct',
+		unlimited_approval: 'Unlimited token approval',
+		create2: 'Uses CREATE2',
+		metamorphic: 'Metamorphic contract',
+		chainid_branching: 'Cross-chain behavior',
+		chainid_comparison: 'Network ID comparison',
+		chainid_read: 'Reads network ID',
+		token_drain_fallback: 'Token drain in fallback',
+		token_hardcoded_dest: 'Hardcoded destination',
+		token_no_auth: 'No access control',
+		token_replay_risk: 'Replay attack risk',
+		token_approval_no_auth: 'Unprotected approvals',
+		token_with_auth: 'Token transfers enabled',
+		ETH_AUTO_FORWARDER: 'Known ETH drainer',
+		INFERNO_DRAINER: 'Inferno Drainer',
 	};
 
 	return threatMap[threat] || threat.replace(/_/g, ' ');

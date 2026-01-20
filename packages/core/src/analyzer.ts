@@ -208,14 +208,26 @@ export function deriveRiskFromWarnings(warnings: Warning[]): {
 	const hasHigh = actionableWarnings.some((w) => w.severity === 'HIGH');
 	const multipleThreats = actionableWarnings.length >= 2;
 
-	if (hasCritical || multipleThreats) {
+	// CRITICAL: Any CRITICAL warning OR (HIGH + multiple threats)
+	if (hasCritical) {
 		return { risk: 'CRITICAL', blocked: true };
 	}
 
+	if (hasHigh && multipleThreats) {
+		return { risk: 'CRITICAL', blocked: true };
+	}
+
+	// HIGH: Single HIGH warning OR multiple MEDIUM warnings
+	// (2+ MEDIUMs = HIGH, not CRITICAL - avoids false positives on smart wallets)
 	if (hasHigh) {
 		return { risk: 'HIGH', blocked: true };
 	}
 
+	if (multipleThreats) {
+		return { risk: 'HIGH', blocked: true };
+	}
+
+	// MEDIUM: Single MEDIUM warning (not blocked)
 	return { risk: 'MEDIUM', blocked: false };
 }
 

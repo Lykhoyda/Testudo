@@ -38,7 +38,7 @@ async function updateStats() {
 
 async function loadRecentScans() {
 	try {
-		const { recentScans = [] } = await chrome.storage.local.get('recentScans');
+		const { scanHistory: recentScans = [] } = await chrome.storage.local.get('scanHistory');
 		const listEl = document.getElementById('recent-list');
 
 		if (!listEl) return;
@@ -52,10 +52,17 @@ async function loadRecentScans() {
 			.slice(0, 5)
 			.map(
 				(scan: RecentScan) => `
-        <div class="recent-item">
-          <span class="recent-icon">${getRiskIcon(scan.risk)}</span>
-          <span class="recent-address">${truncateAddress(scan.address)}</span>
-          <span class="recent-risk ${scan.risk.toLowerCase()}">${scan.risk}</span>
+        <div class="activity-item">
+          <div class="activity-icon-wrapper ${scan.risk.toLowerCase()}">
+            <span class="material-symbols-outlined activity-icon">${getRiskIcon(scan.risk)}</span>
+          </div>
+          <div class="activity-content">
+            <div class="activity-row">
+              <span class="activity-badge ${scan.risk.toLowerCase()}">${getRiskLabel(scan.risk)}</span>
+              <span class="activity-time">${formatRelativeTime(scan.timestamp)}</span>
+            </div>
+            <span class="activity-address">${truncateAddress(scan.address)}</span>
+          </div>
         </div>
       `,
 			)
@@ -67,13 +74,40 @@ async function loadRecentScans() {
 
 function getRiskIcon(risk: string): string {
 	const icons: Record<string, string> = {
-		CRITICAL: '🚨',
-		HIGH: '⚠️',
-		MEDIUM: '⚡',
-		LOW: '✓',
-		UNKNOWN: '❓',
+		CRITICAL: 'warning',
+		HIGH: 'error',
+		MEDIUM: 'info',
+		LOW: 'check_circle',
+		UNKNOWN: 'help',
 	};
-	return icons[risk] || '❓';
+	return icons[risk] || 'help';
+}
+
+function getRiskLabel(risk: string): string {
+	const labels: Record<string, string> = {
+		CRITICAL: 'Critical',
+		HIGH: 'High',
+		MEDIUM: 'Medium',
+		LOW: 'Safe',
+		UNKNOWN: 'Unknown',
+	};
+	return labels[risk] || risk;
+}
+
+function formatRelativeTime(timestamp: number): string {
+	const now = Date.now();
+	const diff = now - timestamp;
+
+	const minutes = Math.floor(diff / 60000);
+	const hours = Math.floor(diff / 3600000);
+	const days = Math.floor(diff / 86400000);
+
+	if (minutes < 1) return 'just now';
+	if (minutes < 60) return `${minutes}m ago`;
+	if (hours < 24) return `${hours}h ago`;
+	if (days < 7) return `${days}d ago`;
+
+	return new Date(timestamp).toLocaleDateString();
 }
 
 function truncateAddress(address: string): string {
@@ -82,13 +116,25 @@ function truncateAddress(address: string): string {
 }
 
 function setupEventListeners() {
-	const clearCacheLink = document.getElementById('clear-cache');
-	if (clearCacheLink) {
-		clearCacheLink.addEventListener('click', async (e) => {
-			e.preventDefault();
-			await chrome.storage.local.clear();
-			await updateStats();
-			await loadRecentScans();
+	const settingsBtn = document.getElementById('settings-btn');
+	if (settingsBtn) {
+		settingsBtn.addEventListener('click', () => {
+			chrome.runtime.openOptionsPage();
+		});
+	}
+
+	const viewAllBtn = document.getElementById('view-all-btn');
+	if (viewAllBtn) {
+		viewAllBtn.addEventListener('click', () => {
+			// Open options page directly to History tab
+			chrome.tabs.create({ url: chrome.runtime.getURL('options.html#history') });
+		});
+	}
+
+	const notificationsBtn = document.getElementById('notifications-btn');
+	if (notificationsBtn) {
+		notificationsBtn.addEventListener('click', () => {
+			chrome.runtime.openOptionsPage();
 		});
 	}
 }

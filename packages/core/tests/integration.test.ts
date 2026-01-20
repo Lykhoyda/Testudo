@@ -534,13 +534,15 @@ describe('Risk Derivation from Warnings', () => {
 			expect(blocked).toBe(false);
 		});
 
-		it('returns CRITICAL risk for multiple warnings (2+ threats)', () => {
+		it('returns HIGH risk for multiple MEDIUM warnings (avoids smart wallet false positives)', () => {
+			// 2+ MEDIUM warnings = HIGH (not CRITICAL) to avoid blocking legitimate smart wallets
+			// e.g., Gnosis Safe with TOKEN_WITH_AUTH + CHAINID_COMPARISON
 			const warnings = [
 				createWarning('MEDIUM', 'CREATE2'),
 				createWarning('MEDIUM', 'CHAINID_READ'),
 			];
 			const { risk, blocked } = deriveRiskFromWarnings(warnings);
-			expect(risk).toBe('CRITICAL');
+			expect(risk).toBe('HIGH');
 			expect(blocked).toBe(true);
 		});
 

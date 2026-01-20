@@ -64,30 +64,42 @@ function getRiskIcon(risk: string): string {
 // TAB NAVIGATION
 // ============================================================================
 
-function initTabs(): void {
+function switchToTab(tabId: string): void {
 	const tabs = document.querySelectorAll('.tab');
 	const contents = document.querySelectorAll('.tab-content');
+
+	tabs.forEach((t) => t.classList.remove('active'));
+	contents.forEach((c) => c.classList.remove('active'));
+
+	const targetTab = document.querySelector(`.tab[data-tab="${tabId}"]`);
+	targetTab?.classList.add('active');
+	document.getElementById(`tab-${tabId}`)?.classList.add('active');
+
+	// Refresh content when switching tabs
+	if (tabId === 'whitelist') loadWhitelist();
+	if (tabId === 'history') loadHistory();
+	if (tabId === 'advanced') loadStorageInfo();
+}
+
+function initTabs(): void {
+	const tabs = document.querySelectorAll('.tab');
 
 	tabs.forEach((tab) => {
 		tab.addEventListener('click', () => {
 			const targetId = tab.getAttribute('data-tab');
-
-			tabs.forEach((t) => {
-				t.classList.remove('active');
-			});
-			contents.forEach((c) => {
-				c.classList.remove('active');
-			});
-
-			tab.classList.add('active');
-			document.getElementById(`tab-${targetId}`)?.classList.add('active');
-
-			// Refresh content when switching tabs
-			if (targetId === 'whitelist') loadWhitelist();
-			if (targetId === 'history') loadHistory();
-			if (targetId === 'advanced') loadStorageInfo();
+			if (targetId) {
+				switchToTab(targetId);
+				// Update URL hash without triggering navigation
+				history.replaceState(null, '', `#${targetId}`);
+			}
 		});
 	});
+
+	// Check for URL hash to open specific tab (e.g., #history)
+	const hash = window.location.hash.slice(1);
+	if (hash && ['general', 'whitelist', 'history', 'advanced'].includes(hash)) {
+		switchToTab(hash);
+	}
 }
 
 // ============================================================================
