@@ -16,4 +16,10 @@ export default defineConfig({
 			use: {},
 		},
 	],
+	webServer: {
+		command: 'yarn workspace @testudo/mock-dapp run preview --port 4173',
+		url: 'http://localhost:4173',
+		reuseExistingServer: !process.env.CI,
+		cwd: '../..',
+	},
 });
