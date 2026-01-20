@@ -76,8 +76,8 @@ export interface KnownMaliciousContract {
 export interface TokenSelector {
 	selector: string;
 	name: string;
-	standard: 'ERC20' | 'ERC721' | 'ERC1155';
-	type: 'transfer' | 'approval' | 'batch';
+	standard: 'ERC20' | 'ERC721' | 'ERC1155' | 'Permit2';
+	type: 'transfer' | 'approval' | 'batch' | 'permit';
 }
 
 export interface TokenTransferAnalysis {

@@ -28,6 +28,8 @@ export const TOKEN_SELECTORS = {
 	transferFrom: '23b872dd',
 	approve: '095ea7b3',
 	increaseAllowance: '39509351',
+	// ERC20 Permit (EIP-2612)
+	permit: 'd505accf',
 	// ERC721
 	safeTransferFrom: '42842e0e',
 	safeTransferFromWithData: 'b88d4fde',
@@ -35,12 +37,21 @@ export const TOKEN_SELECTORS = {
 	// ERC1155
 	safeTransferFrom1155: 'f242432a',
 	safeBatchTransferFrom: '2eb2c2d6',
+	// Permit2 (Uniswap)
+	permitTransferFrom: '30f28b7a',
+	permitTransferFromBatch: 'edd9444b',
 } as const;
 
 export const APPROVAL_SELECTORS = [
 	TOKEN_SELECTORS.approve,
 	TOKEN_SELECTORS.increaseAllowance,
 	TOKEN_SELECTORS.setApprovalForAll,
+	TOKEN_SELECTORS.permit,
+] as const;
+
+export const PERMIT2_SELECTORS = [
+	TOKEN_SELECTORS.permitTransferFrom,
+	TOKEN_SELECTORS.permitTransferFromBatch,
 ] as const;
 
 export const BATCH_SELECTORS = [TOKEN_SELECTORS.safeBatchTransferFrom] as const;
