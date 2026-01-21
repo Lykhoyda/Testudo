@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Testudo",
   "version": "0.2.0",
-  "description": "Shield your wallet from malicious EIP-7702 delegations. Detects dangerous delegation contracts before you sign.",
+  "description": "Protect your wallet from malicious EIP-7702 delegations. Real-time bytecode analysis warns you before signing dangerous contracts.",
 
   "icons": {
     "16": "icon-16.png",
@@ -19,8 +19,7 @@
   "options_page": "options.html",
   
   "host_permissions": [
-    "https://*/*",
-    "http://localhost/*"
+    "https://*/*"
   ],
 
   "background": {

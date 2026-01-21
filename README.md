@@ -1,11 +1,15 @@
 <p align="center">
-  <img src="docs/icon.png" alt="Testudo" width="128" height="128">
+  <img src="packages/extension/store-assets/icon.png" alt="Testudo" width="128" height="128">
 </p>
 
 <h1 align="center">Testudo</h1>
 
 <p align="center">
   EIP-7702 Security Auditor - Browser extension that detects malicious delegation contracts before users sign them.
+</p>
+
+<p align="center">
+  <strong>Status: In Development</strong> - Not yet available on Chrome Web Store
 </p>
 
 ## Problem
