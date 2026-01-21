@@ -74,7 +74,7 @@ function App() {
 	return (
 		<div className="app">
 			<header className="header">
-				<div className="header-icon">🛡️</div>
+				<img src="/favicon.png" alt="Testudo" className="header-icon" />
 				<div>
 					<h1>Testudo Test dApp</h1>
 					<p className="subtitle">Test EIP-7702 delegation detection</p>
