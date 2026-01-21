@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "rolldown -c",
+    "build": "node scripts/extract-icon.mjs && rolldown -c",
+    "build:icons": "node scripts/extract-icon.mjs",
     "watch": "rolldown -c --watch"
   },
   "dependencies": {
@@ -14,6 +15,7 @@
     "@types/chrome": "^0.0.287",
     "@types/node": "^25.0.7",
     "rolldown": "^1.0.0-beta.9",
+    "sharp": "^0.34.5",
     "typescript": "^5.9.3"
   }
 }

@@ -4,6 +4,13 @@
   "version": "0.2.0",
   "description": "Shield your wallet from malicious EIP-7702 delegations. Detects dangerous delegation contracts before you sign.",
 
+  "icons": {
+    "16": "icon-16.png",
+    "32": "icon-32.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
+
   "permissions": [
     "storage",
     "activeTab"
@@ -38,6 +45,11 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Testudo - EIP-7702 Protection"
+    "default_title": "Testudo - EIP-7702 Protection",
+    "default_icon": {
+      "16": "icon-16.png",
+      "32": "icon-32.png",
+      "48": "icon-48.png"
+    }
   }
 }

@@ -1,6 +1,12 @@
-# Testudo
+<p align="center">
+  <img src="docs/icon.png" alt="Testudo" width="128" height="128">
+</p>
 
-EIP-7702 Security Auditor - Browser extension that detects malicious delegation contracts before users sign them.
+<h1 align="center">Testudo</h1>
+
+<p align="center">
+  EIP-7702 Security Auditor - Browser extension that detects malicious delegation contracts before users sign them.
+</p>
 
 ## Problem
 
