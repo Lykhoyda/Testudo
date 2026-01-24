@@ -1,0 +1,26 @@
+{
+	"name": "@testudo/api",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "tsx watch src/index.ts",
+		"build": "tsc",
+		"start": "node dist/index.js",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "drizzle-kit migrate",
+		"db:studio": "drizzle-kit studio"
+	},
+	"dependencies": {
+		"@hono/node-server": "^1.14.1",
+		"drizzle-orm": "^0.44.1",
+		"hono": "^4.7.6",
+		"postgres": "^3.4.7"
+	},
+	"devDependencies": {
+		"@types/node": "^22.15.18",
+		"drizzle-kit": "^0.31.1",
+		"tsx": "^4.19.4",
+		"typescript": "^5.9.3"
+	}
+}

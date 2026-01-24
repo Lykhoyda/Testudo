@@ -12,6 +12,8 @@
 		"test:e2e:headed": "yarn workspace @testudo/e2e run test:headed",
 		"test:e2e:ui": "yarn workspace @testudo/e2e run test:ui",
 		"dev": "yarn workspace @testudo/extension run watch",
+		"dev:api": "yarn workspace @testudo/api run dev",
+		"build:api": "yarn workspace @testudo/api run build",
 		"dev:dapp": "yarn workspace @testudo/mock-dapp run dev",
 		"build:dapp": "yarn workspace @testudo/mock-dapp run build",
 		"lint": "biome check .",

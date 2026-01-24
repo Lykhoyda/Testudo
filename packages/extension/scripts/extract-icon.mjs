@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Generate extension icons from source PNG
+ * Generate extension icons - extract PNG from SVG to preserve transparency
  */
 
 import sharp from 'sharp';
-import { mkdirSync, existsSync } from 'fs';
+import { readFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -20,25 +20,34 @@ async function generateIcons() {
 		mkdirSync(distDir, { recursive: true });
 	}
 
-	// Find source file (prefer SVG)
+	let sourceBuffer;
+	const extractedPng = join(assetsDir, 'extracted-raw.png');
 	const svgFile = join(assetsDir, 'icon-testudo.svg');
-	const pngFile = join(assetsDir, 'icon-testudo.png');
-	const sourceFile = existsSync(svgFile) ? svgFile : pngFile;
 
-	if (!existsSync(sourceFile)) {
-		console.error('✗ Source file not found: icon-testudo.svg or icon-testudo.png');
+	if (existsSync(extractedPng)) {
+		// Use pre-extracted PNG with transparency
+		sourceBuffer = readFileSync(extractedPng);
+		console.log('Using: extracted-raw.png');
+	} else if (existsSync(svgFile)) {
+		// Extract embedded PNG from SVG to preserve transparency
+		const svgContent = readFileSync(svgFile, 'utf-8');
+		const match = svgContent.match(/data:image\/png;base64,([A-Za-z0-9+/=]+)/);
+		if (match) {
+			sourceBuffer = Buffer.from(match[1], 'base64');
+			console.log('Using: extracted from SVG');
+		} else {
+			console.error('✗ No embedded PNG in SVG');
+			process.exit(1);
+		}
+	} else {
+		console.error('✗ No source file found');
 		process.exit(1);
 	}
 
-	// Render SVG at high density, trim transparent edges
-	const isSvg = sourceFile.endsWith('.svg');
-	const input = isSvg ? sharp(sourceFile, { density: 300 }) : sharp(sourceFile);
-	const trimmed = await input.trim().toBuffer();
-
-	// Generate all sizes to dist
+	// Generate all sizes
 	for (const size of sizes) {
-		await sharp(trimmed)
-			.resize(size, size, { fit: 'fill' })
+		await sharp(sourceBuffer)
+			.resize(size, size)
 			.png({ compressionLevel: 9 })
 			.toFile(join(distDir, `icon-${size}.png`));
 		console.log(`✓ icon-${size}.png`);
