@@ -11,16 +11,19 @@
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"db:seed": "tsx scripts/seed.ts",
-		"db:studio": "drizzle-kit studio"
+		"db:studio": "drizzle-kit studio",
+		"sync": "tsx src/sync/orchestrator.ts"
 	},
 	"dependencies": {
 		"@hono/node-server": "^1.14.1",
 		"drizzle-orm": "^0.44.1",
 		"hono": "^4.7.6",
+		"node-cron": "^3.0.3",
 		"postgres": "^3.4.7"
 	},
 	"devDependencies": {
 		"@types/node": "^22.15.18",
+		"@types/node-cron": "^3.0.11",
 		"drizzle-kit": "^0.31.1",
 		"tsx": "^4.19.4",
 		"typescript": "^5.9.3",

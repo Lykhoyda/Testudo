@@ -1,0 +1,83 @@
+{
+	"info": {
+		"_postman_id": "testudo-threat-api",
+		"name": "Testudo Threat Intelligence API",
+		"description": "API collection for the Testudo Threat Intelligence service",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3001",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["health"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Threats",
+			"item": [
+				{
+					"name": "Lookup Address",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/threats/address/0x930fcc37d6042c79211ee18a02857cb1fd7f0d0b",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "threats", "address", "0x930fcc37d6042c79211ee18a02857cb1fd7f0d0b"]
+						},
+						"description": "Check if an Ethereum address is associated with known threats"
+					}
+				},
+				{
+					"name": "Lookup Domain",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/threats/domain/fake-uniswap.com",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "threats", "domain", "fake-uniswap.com"]
+						},
+						"description": "Check if a domain is associated with known phishing threats"
+					}
+				}
+			]
+		},
+		{
+			"name": "Sync",
+			"item": [
+				{
+					"name": "Sync Summary",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/sync/summary",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "sync", "summary"]
+						},
+						"description": "Get aggregation metadata — when sync last ran, what it collected, and source statuses"
+					}
+				}
+			]
+		}
+	]
+}
