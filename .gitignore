@@ -20,6 +20,11 @@ dist
 CLAUDE.MD
 .DS_Store
 
+# Environment files
+.env
+.env.local
+.env.*.local
+
 # Playwright E2E
 test-results/
 playwright-report/

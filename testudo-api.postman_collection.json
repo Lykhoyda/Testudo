@@ -1,0 +1,32 @@
+{
+	"info": {
+		"name": "Testudo API",
+		"description": "Testudo Threat Intelligence API - per ADR-005",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3001",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Root",
+			"request": {
+				"method": "GET",
+				"url": "{{baseUrl}}/",
+				"description": "API info endpoint"
+			}
+		},
+		{
+			"name": "Health Check",
+			"request": {
+				"method": "GET",
+				"url": "{{baseUrl}}/health",
+				"description": "Database connection health check"
+			}
+		}
+	]
+}
