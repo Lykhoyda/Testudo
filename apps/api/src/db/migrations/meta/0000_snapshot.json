@@ -1,0 +1,386 @@
+{
+	"id": "c5d16107-2582-482c-9f88-989a0654b16c",
+	"prevId": "00000000-0000-0000-0000-000000000000",
+	"version": "7",
+	"dialect": "postgresql",
+	"tables": {
+		"public.domains": {
+			"name": "domains",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "serial",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"domain": {
+					"name": "domain",
+					"type": "varchar(255)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"threat_type": {
+					"name": "threat_type",
+					"type": "varchar(50)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"confidence": {
+					"name": "confidence",
+					"type": "numeric(3, 2)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"sources": {
+					"name": "sources",
+					"type": "text[]",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"is_fuzzy_match": {
+					"name": "is_fuzzy_match",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": true,
+					"default": false
+				},
+				"matched_legitimate": {
+					"name": "matched_legitimate",
+					"type": "varchar(255)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"metadata": {
+					"name": "metadata",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"first_seen": {
+					"name": "first_seen",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"last_updated": {
+					"name": "last_updated",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"idx_domains_domain": {
+					"name": "idx_domains_domain",
+					"columns": [
+						{
+							"expression": "domain",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"domains_domain_unique": {
+					"name": "domains_domain_unique",
+					"nullsNotDistinct": false,
+					"columns": ["domain"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.encounters": {
+			"name": "encounters",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "serial",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"address": {
+					"name": "address",
+					"type": "varchar(42)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"domain": {
+					"name": "domain",
+					"type": "varchar(255)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"chain_id": {
+					"name": "chain_id",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 1
+				},
+				"action": {
+					"name": "action",
+					"type": "varchar(20)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"extension_version": {
+					"name": "extension_version",
+					"type": "varchar(20)",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"idx_encounters_address": {
+					"name": "idx_encounters_address",
+					"columns": [
+						{
+							"expression": "address",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"idx_encounters_created_at": {
+					"name": "idx_encounters_created_at",
+					"columns": [
+						{
+							"expression": "created_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.sync_logs": {
+			"name": "sync_logs",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "serial",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"source": {
+					"name": "source",
+					"type": "varchar(50)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "varchar(20)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"records_added": {
+					"name": "records_added",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 0
+				},
+				"records_updated": {
+					"name": "records_updated",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 0
+				},
+				"error_message": {
+					"name": "error_message",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"duration_ms": {
+					"name": "duration_ms",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"synced_at": {
+					"name": "synced_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.threats": {
+			"name": "threats",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "serial",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"address": {
+					"name": "address",
+					"type": "varchar(42)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"chain_id": {
+					"name": "chain_id",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 1
+				},
+				"threat_type": {
+					"name": "threat_type",
+					"type": "varchar(50)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"threat_level": {
+					"name": "threat_level",
+					"type": "varchar(20)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"confidence": {
+					"name": "confidence",
+					"type": "numeric(3, 2)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"sources": {
+					"name": "sources",
+					"type": "text[]",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"metadata": {
+					"name": "metadata",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"first_seen": {
+					"name": "first_seen",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"last_updated": {
+					"name": "last_updated",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"idx_threats_address": {
+					"name": "idx_threats_address",
+					"columns": [
+						{
+							"expression": "address",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"threats_address_unique": {
+					"name": "threats_address_unique",
+					"nullsNotDistinct": false,
+					"columns": ["address"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {
+				"address_lowercase_check": {
+					"name": "address_lowercase_check",
+					"value": "\"threats\".\"address\" = LOWER(\"threats\".\"address\")"
+				}
+			},
+			"isRLSEnabled": false
+		}
+	},
+	"enums": {},
+	"schemas": {},
+	"sequences": {},
+	"roles": {},
+	"policies": {},
+	"views": {},
+	"_meta": {
+		"columns": {},
+		"schemas": {},
+		"tables": {}
+	}
+}

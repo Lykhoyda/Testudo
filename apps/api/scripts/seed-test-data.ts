@@ -1,14 +1,24 @@
+/**
+ * LOCAL DEVELOPMENT ONLY - Test Data Seeder
+ *
+ * This script seeds the database with sample threat data for local testing.
+ * DO NOT run in production - the sync service automatically populates
+ * real threat data from ScamSniffer, eth-phishing-detect, and GoPlus.
+ *
+ * Usage: yarn db:seed-test-data
+ */
+
 import { db } from '../src/db';
 import { threats } from '../src/db/schema.js';
 
-const SEED_THREATS = [
+const TEST_THREATS = [
 	{
 		address: '0x930fcc37d6042c79211ee18a02857cb1fd7f0d0b',
 		chainId: 1,
 		threatType: 'ETH_DRAINER',
 		threatLevel: 'CRITICAL',
 		confidence: '1.00',
-		sources: ['testudo'],
+		sources: ['testudo-test-data'],
 	},
 	{
 		address: '0xa85d90b8febc092e11e75bf8f93a7090e2ed04de',
@@ -16,7 +26,7 @@ const SEED_THREATS = [
 		threatType: 'INFERNO_DRAINER',
 		threatLevel: 'CRITICAL',
 		confidence: '1.00',
-		sources: ['testudo', 'slowmist'],
+		sources: ['testudo-test-data'],
 	},
 	{
 		address: '0x0000db5c8b030ae20308ac975898e09741e70000',
@@ -24,7 +34,7 @@ const SEED_THREATS = [
 		threatType: 'INFERNO_DRAINER',
 		threatLevel: 'CRITICAL',
 		confidence: '1.00',
-		sources: ['testudo', 'slowmist'],
+		sources: ['testudo-test-data'],
 	},
 	{
 		address: '0x00008c22f9f6f3101533f520e229bbb54be90000',
@@ -32,25 +42,26 @@ const SEED_THREATS = [
 		threatType: 'INFERNO_DRAINER',
 		threatLevel: 'CRITICAL',
 		confidence: '1.00',
-		sources: ['testudo', 'slowmist'],
+		sources: ['testudo-test-data'],
 	},
 ];
 
-async function seed() {
-	console.log('Seeding threat data...');
+async function seedTestData() {
+	console.log('⚠️  LOCAL DEVELOPMENT ONLY - Seeding test threat data...');
+	console.log('   (Production uses automated sync service)\n');
 
-	for (const entry of SEED_THREATS) {
+	for (const entry of TEST_THREATS) {
 		await db
 			.insert(threats)
 			.values(entry)
 			.onConflictDoNothing({ target: threats.address });
 	}
 
-	console.log(`Seeded ${SEED_THREATS.length} threat entries (conflicts skipped).`);
+	console.log(`✓ Seeded ${TEST_THREATS.length} test threat entries (conflicts skipped).`);
 	process.exit(0);
 }
 
-seed().catch((error) => {
+seedTestData().catch((error) => {
 	console.error('Seed failed:', error);
 	process.exit(1);
 });

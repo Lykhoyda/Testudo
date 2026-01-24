@@ -1,7 +1,7 @@
 import type { Address } from 'viem';
 import { runAllDetectors } from './detectors';
 import { fetchBytecode } from './fetcher';
-import { checkKnownMalicious, isKnownSafe } from './malicious-db';
+import { isKnownSafe } from './malicious-db';
 import { parseBytecode } from './parser';
 import type { AnalysisResult, DetectionResults, Warning } from './types';
 
@@ -237,6 +237,7 @@ export async function analyzeContract(
 ): Promise<AnalysisResult> {
 	const normalizedAddress = address.toLowerCase() as Address;
 
+	// Fast-path for known safe addresses (legacy, will be merged with Safe Filter)
 	if (isKnownSafe(normalizedAddress)) {
 		return {
 			address: normalizedAddress,
@@ -246,16 +247,8 @@ export async function analyzeContract(
 		};
 	}
 
-	const knownMalicious = checkKnownMalicious(normalizedAddress);
-	if (knownMalicious) {
-		return {
-			address: normalizedAddress,
-			risk: 'CRITICAL',
-			threats: [knownMalicious.type],
-			blocked: true,
-			source: knownMalicious.source,
-		};
-	}
+	// Note: Malicious address checks are now handled by the API layer (ANT-194)
+	// The core analyzer focuses on pure bytecode analysis
 
 	try {
 		const bytecode = await fetchBytecode(normalizedAddress, options?.rpcUrl);

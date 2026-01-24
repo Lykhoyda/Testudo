@@ -22,13 +22,42 @@ test.describe('Extension Loading', () => {
 });
 
 test.describe('EIP-7702 Delegation Detection', () => {
-	test('warning modal appears for malicious delegation', async ({ context }) => {
+	test('warning modal appears for malicious delegation', async ({ context, extensionId }) => {
+		// First verify the background script is responding by checking via popup
+		const verifyPage = await context.newPage();
+		await verifyPage.goto(`chrome-extension://${extensionId}/popup.html`);
+
+		// Try to get stats from background - this will confirm it's running
+		const bgResponding = await verifyPage.evaluate(() => {
+			return new Promise((resolve) => {
+				const timeout = setTimeout(() => resolve({ error: 'timeout' }), 3000);
+				chrome.runtime.sendMessage({ type: 'GET_STATS' }, (response) => {
+					clearTimeout(timeout);
+					resolve(response || { error: 'no response' });
+				});
+			});
+		});
+		console.log('[Test] Background script response:', JSON.stringify(bgResponding));
+		await verifyPage.close();
+
 		const page = await context.newPage();
+
+		// Capture console logs for debugging
+		const consoleLogs: string[] = [];
+		page.on('console', (msg) => {
+			consoleLogs.push(`[${msg.type()}] ${msg.text()}`);
+		});
+
 		await page.goto(MOCK_DAPP_URL);
 
 		await expect(page.locator('#provider-status')).toContainText('Ready');
 
 		await page.click('#sign-malicious');
+
+		// Wait and print console logs for debugging
+		await page.waitForTimeout(5000);
+		console.log('[Test] Console logs from page:');
+		consoleLogs.forEach((log) => console.log('  ', log));
 
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).toBeVisible({ timeout: 10000 });

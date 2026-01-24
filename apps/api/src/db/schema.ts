@@ -52,6 +52,23 @@ export const domains = pgTable(
 	(table) => [index('idx_domains_domain').on(table.domain)],
 );
 
+export const encounters = pgTable(
+	'encounters',
+	{
+		id: serial('id').primaryKey(),
+		address: varchar('address', { length: 42 }),
+		domain: varchar('domain', { length: 255 }),
+		chainId: integer('chain_id').notNull().default(1),
+		action: varchar('action', { length: 20 }).notNull(),
+		extensionVersion: varchar('extension_version', { length: 20 }),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+	},
+	(table) => [
+		index('idx_encounters_address').on(table.address),
+		index('idx_encounters_created_at').on(table.createdAt),
+	],
+);
+
 export const syncLogs = pgTable('sync_logs', {
 	id: serial('id').primaryKey(),
 	source: varchar('source', { length: 50 }).notNull(),
