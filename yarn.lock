@@ -1772,6 +1772,7 @@ __metadata:
     postgres: "npm:^3.4.7"
     tsx: "npm:^4.19.4"
     typescript: "npm:^5.9.3"
+    vitest: "npm:^4.0.16"
   languageName: unknown
   linkType: soft
 
