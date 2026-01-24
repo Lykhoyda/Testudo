@@ -4,7 +4,9 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { healthRoutes } from './routes/health.js';
+import { syncRoutes } from './routes/sync.js';
 import { threatRoutes } from './routes/threats.js';
+import { startScheduler, stopScheduler } from './sync/scheduler.js';
 
 const app = new Hono();
 
@@ -22,6 +24,7 @@ app.get('/', (c) =>
 
 app.route('/health', healthRoutes);
 app.route('/api/v1/threats', threatRoutes);
+app.route('/api/v1/sync', syncRoutes);
 
 app.onError((err, c) => {
 	console.error('[Testudo API] Unhandled error:', err);
@@ -34,8 +37,11 @@ console.log(`Testudo API starting on port ${port}`);
 
 const server = serve({ fetch: app.fetch, port });
 
+startScheduler();
+
 const shutdown = () => {
 	console.log('Shutting down gracefully...');
+	stopScheduler();
 	server.close();
 	process.exit(0);
 };
