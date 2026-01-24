@@ -3,6 +3,8 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
+import { createRateLimiter } from './middleware/rate-limit.js';
+import { encounterRoutes } from './routes/encounters.js';
 import { healthRoutes } from './routes/health.js';
 import { syncRoutes } from './routes/sync.js';
 import { threatRoutes } from './routes/threats.js';
@@ -22,8 +24,12 @@ app.get('/', (c) =>
 	}),
 );
 
+app.use('/api/v1/threats/*', createRateLimiter({ windowMs: 60_000, max: 100 }));
+app.use('/api/v1/encounters/*', createRateLimiter({ windowMs: 60_000, max: 20 }));
+
 app.route('/health', healthRoutes);
 app.route('/api/v1/threats', threatRoutes);
+app.route('/api/v1/encounters', encounterRoutes);
 app.route('/api/v1/sync', syncRoutes);
 
 app.onError((err, c) => {

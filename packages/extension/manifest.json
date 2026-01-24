@@ -13,13 +13,16 @@
 
   "permissions": [
     "storage",
-    "activeTab"
+    "unlimitedStorage",
+    "activeTab",
+    "alarms"
   ],
 
   "options_page": "options.html",
   
   "host_permissions": [
-    "https://*/*"
+    "https://*/*",
+    "http://localhost/*"
   ],
 
   "background": {

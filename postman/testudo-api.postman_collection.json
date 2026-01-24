@@ -62,6 +62,33 @@
 			]
 		},
 		{
+			"name": "Encounters",
+			"item": [
+				{
+					"name": "Log Encounter",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"address\": \"0x930fcc37d6042c79211ee18a02857cb1fd7f0d0b\",\n\t\"chainId\": 1,\n\t\"action\": \"blocked\",\n\t\"extensionVersion\": \"0.1.0\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/encounters",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "encounters"]
+						},
+						"description": "Log an encounter with a malicious address or domain (anonymous, no IP/wallet stored)"
+					}
+				}
+			]
+		},
+		{
 			"name": "Sync",
 			"item": [
 				{

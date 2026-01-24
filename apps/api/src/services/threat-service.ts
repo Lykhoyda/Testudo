@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { domains, threats } from '../db/schema.js';
+import { checkAddress as checkGoPlus } from './goplus-service.js';
 
 export interface ThreatResult {
 	address: string;
@@ -37,7 +38,10 @@ export async function lookupAddress(address: string): Promise<ThreatResult | nul
 		.where(eq(threats.address, address))
 		.limit(1);
 
-	if (result.length === 0) return null;
+	if (result.length === 0) {
+		const goplusResult = await checkGoPlus(address);
+		return goplusResult;
+	}
 	return result[0] as ThreatResult;
 }
 

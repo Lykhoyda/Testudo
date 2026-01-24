@@ -4,13 +4,13 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "tsx watch src/index.ts",
+		"dev": "tsx watch --env-file=.env src/index.ts",
 		"build": "tsc",
 		"start": "node dist/index.js",
 		"test": "vitest run",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
-		"db:seed": "tsx scripts/seed.ts",
+		"db:seed-test-data": "tsx --env-file=.env scripts/seed-test-data.ts",
 		"db:studio": "drizzle-kit studio",
 		"sync": "tsx src/sync/orchestrator.ts"
 	},

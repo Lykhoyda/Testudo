@@ -16,10 +16,19 @@ export default defineConfig({
 			use: {},
 		},
 	],
-	webServer: {
-		command: 'yarn workspace @testudo/mock-dapp run preview --port 4173',
-		url: 'http://localhost:4173',
-		reuseExistingServer: !process.env.CI,
-		cwd: '../..',
-	},
+	webServer: [
+		{
+			command: 'yarn workspace @testudo/mock-dapp run preview --port 4173',
+			url: 'http://localhost:4173',
+			reuseExistingServer: !process.env.CI,
+			cwd: '../..',
+		},
+		{
+			command: 'yarn workspace @testudo/api run dev',
+			url: 'http://localhost:3001/health',
+			reuseExistingServer: !process.env.CI,
+			cwd: '../..',
+			timeout: 30000,
+		},
+	],
 });
