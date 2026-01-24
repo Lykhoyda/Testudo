@@ -27,6 +27,46 @@
 				"url": "{{baseUrl}}/health",
 				"description": "Database connection health check"
 			}
+		},
+		{
+			"name": "Check Address (Malicious)",
+			"request": {
+				"method": "GET",
+				"url": "{{baseUrl}}/api/v1/threats/address/0x930fcc37d6042c79211ee18a02857cb1fd7f0d0b",
+				"description": "Lookup a known malicious address (ETH_DRAINER)"
+			}
+		},
+		{
+			"name": "Check Address (Clean)",
+			"request": {
+				"method": "GET",
+				"url": "{{baseUrl}}/api/v1/threats/address/0x0000000000000000000000000000000000000001",
+				"description": "Lookup an address not in the database (returns isMalicious: false)"
+			}
+		},
+		{
+			"name": "Check Address (Invalid)",
+			"request": {
+				"method": "GET",
+				"url": "{{baseUrl}}/api/v1/threats/address/not-an-address",
+				"description": "Invalid address format (returns 400)"
+			}
+		},
+		{
+			"name": "Check Domain (Clean)",
+			"request": {
+				"method": "GET",
+				"url": "{{baseUrl}}/api/v1/threats/domain/uniswap.org",
+				"description": "Lookup a clean domain (returns isMalicious: false)"
+			}
+		},
+		{
+			"name": "Check Domain (with protocol stripping)",
+			"request": {
+				"method": "GET",
+				"url": "{{baseUrl}}/api/v1/threats/domain/https://fake-uniswap.com",
+				"description": "Domain with protocol prefix (normalized before lookup)"
+			}
 		}
 	]
 }

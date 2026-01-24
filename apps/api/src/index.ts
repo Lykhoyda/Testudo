@@ -1,11 +1,16 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import { secureHeaders } from 'hono/secure-headers';
 import { healthRoutes } from './routes/health.js';
+import { threatRoutes } from './routes/threats.js';
 
 const app = new Hono();
 
 app.use('*', logger());
+app.use('*', secureHeaders());
+app.use('*', cors());
 
 app.get('/', (c) =>
 	c.json({
@@ -16,6 +21,12 @@ app.get('/', (c) =>
 );
 
 app.route('/health', healthRoutes);
+app.route('/api/v1/threats', threatRoutes);
+
+app.onError((err, c) => {
+	console.error('[Testudo API] Unhandled error:', err);
+	return c.json({ error: 'Internal server error', code: 'INTERNAL_ERROR' }, 500);
+});
 
 const port = Number(process.env.PORT) || 3001;
 
