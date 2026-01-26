@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [react()],
-	base: './', // Use relative paths for file:// protocol compatibility
+	base: '/',
 	server: {
 		port: 3000,
 		open: true,
