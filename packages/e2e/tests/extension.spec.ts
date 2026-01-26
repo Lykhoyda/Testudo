@@ -57,7 +57,9 @@ test.describe('EIP-7702 Delegation Detection', () => {
 		// Wait and print console logs for debugging
 		await page.waitForTimeout(5000);
 		console.log('[Test] Console logs from page:');
-		consoleLogs.forEach((log) => console.log('  ', log));
+		for (const log of consoleLogs) {
+			console.log('  ', log);
+		}
 
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).toBeVisible({ timeout: 10000 });
