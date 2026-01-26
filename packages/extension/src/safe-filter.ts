@@ -47,9 +47,7 @@ export class SafeFilter {
 	constructor(cdnUrl?: string) {
 		this.cdnUrl = cdnUrl || DEFAULT_CDN_URL;
 		// Normalize fallback addresses at runtime (defense in depth)
-		this.fallbackSet = new Set(
-			Array.from(FALLBACK_SAFE_ADDRESSES).map((a) => a.toLowerCase()),
-		);
+		this.fallbackSet = new Set(Array.from(FALLBACK_SAFE_ADDRESSES).map((a) => a.toLowerCase()));
 	}
 
 	async load(): Promise<void> {
