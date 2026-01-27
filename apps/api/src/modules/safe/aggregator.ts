@@ -54,6 +54,24 @@ export async function removeStaleEntries(
 	return { removed: staleIds.length, orphaned: deleteResult.length };
 }
 
+function deduplicateEntries(entries: RawSafeAddressEntry[]): RawSafeAddressEntry[] {
+	const seen = new Map<string, RawSafeAddressEntry>();
+	for (const entry of entries) {
+		const key = `${entry.chainId ?? 1}:${entry.address.toLowerCase()}`;
+		const existing = seen.get(key);
+		if (existing) {
+			seen.set(key, {
+				...existing,
+				name: existing.name ?? entry.name,
+				isDelegationSafe: existing.isDelegationSafe || entry.isDelegationSafe,
+			});
+		} else {
+			seen.set(key, entry);
+		}
+	}
+	return Array.from(seen.values());
+}
+
 export async function upsertSafeAddresses(
 	entries: RawSafeAddressEntry[],
 	source: string,
@@ -61,16 +79,18 @@ export async function upsertSafeAddresses(
 	let added = 0;
 	let updated = 0;
 
-	for (let i = 0; i < entries.length; i += BATCH_SIZE) {
-		const batch = entries.slice(i, i + BATCH_SIZE);
+	const deduped = deduplicateEntries(entries);
+
+	for (let i = 0; i < deduped.length; i += BATCH_SIZE) {
+		const batch = deduped.slice(i, i + BATCH_SIZE);
 		const addresses = batch.map((e) => e.address.toLowerCase());
 
-		const existing = await db
-			.select({ address: safeAddresses.address })
+		const existingRows = await db
+			.select({ address: safeAddresses.address, chainId: safeAddresses.chainId })
 			.from(safeAddresses)
 			.where(inArray(safeAddresses.address, addresses));
 
-		const existingSet = new Set(existing.map((r) => r.address));
+		const existingSet = new Set(existingRows.map((r) => `${r.chainId}:${r.address.toLowerCase()}`));
 
 		const values = batch.map((entry) => ({
 			address: entry.address.toLowerCase(),
@@ -97,8 +117,14 @@ export async function upsertSafeAddresses(
 				},
 			});
 
-		added += addresses.filter((a) => !existingSet.has(a)).length;
-		updated += addresses.filter((a) => existingSet.has(a)).length;
+		for (const entry of batch) {
+			const key = `${entry.chainId ?? 1}:${entry.address.toLowerCase()}`;
+			if (existingSet.has(key)) {
+				updated++;
+			} else {
+				added++;
+			}
+		}
 	}
 
 	return { added, updated };
