@@ -1,5 +1,5 @@
-import { db } from '../db/index.js';
-import { syncLogs } from '../db/schema.js';
+import { db } from '../../db/index.js';
+import { syncLogs } from '../../db/schema.js';
 import * as ethPhishingDetect from './adapters/eth-phishing-detect.js';
 import * as scamSniffer from './adapters/scam-sniffer.js';
 import { upsertAddresses, upsertDomains } from './aggregator.js';
@@ -72,7 +72,7 @@ export async function runSyncSafe(): Promise<void> {
 	}
 }
 
-// Allow manual trigger: tsx src/sync/orchestrator.ts
+// Allow manual trigger: tsx src/modules/threats/orchestrator.ts
 if (process.argv[1]?.endsWith('orchestrator.ts') || process.argv[1]?.endsWith('orchestrator.js')) {
 	runSync()
 		.then(() => process.exit(0))

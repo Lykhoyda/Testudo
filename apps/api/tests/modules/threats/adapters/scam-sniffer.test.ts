@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { fetchAddresses, fetchDomains } from '../../../src/sync/adapters/scam-sniffer.js';
+import { fetchAddresses, fetchDomains } from '../../../../src/modules/threats/adapters/scam-sniffer.js';
 
 const originalFetch = globalThis.fetch;
 

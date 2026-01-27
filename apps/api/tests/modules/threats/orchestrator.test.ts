@@ -1,29 +1,29 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 
-vi.mock('../../src/db/index.js', () => ({
+vi.mock('../../../src/db/index.js', () => ({
 	db: {
 		insert: vi.fn().mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) }),
 	},
 }));
 
-vi.mock('../../src/sync/adapters/scam-sniffer.js', () => ({
+vi.mock('../../../src/modules/threats/adapters/scam-sniffer.js', () => ({
 	fetchAddresses: vi.fn(),
 	fetchDomains: vi.fn(),
 }));
 
-vi.mock('../../src/sync/adapters/eth-phishing-detect.js', () => ({
+vi.mock('../../../src/modules/threats/adapters/eth-phishing-detect.js', () => ({
 	fetchDomains: vi.fn(),
 }));
 
-vi.mock('../../src/sync/aggregator.js', () => ({
+vi.mock('../../../src/modules/threats/aggregator.js', () => ({
 	upsertAddresses: vi.fn(),
 	upsertDomains: vi.fn(),
 }));
 
-import { runSync, runSyncSafe } from '../../src/sync/orchestrator.js';
-import * as scamSniffer from '../../src/sync/adapters/scam-sniffer.js';
-import * as ethPhishingDetect from '../../src/sync/adapters/eth-phishing-detect.js';
-import { upsertAddresses, upsertDomains } from '../../src/sync/aggregator.js';
+import { runSync, runSyncSafe } from '../../../src/modules/threats/orchestrator.js';
+import * as scamSniffer from '../../../src/modules/threats/adapters/scam-sniffer.js';
+import * as ethPhishingDetect from '../../../src/modules/threats/adapters/eth-phishing-detect.js';
+import { upsertAddresses, upsertDomains } from '../../../src/modules/threats/aggregator.js';
 
 beforeEach(() => {
 	vi.clearAllMocks();

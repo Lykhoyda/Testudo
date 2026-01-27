@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { lookupAddress, lookupDomain } from '../services/threat-service.js';
+import { lookupAddress, lookupDomain } from '../modules/threats/threat-service.js';
 import {
 	isValidAddress,
 	isValidDomain,

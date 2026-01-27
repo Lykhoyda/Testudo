@@ -1,14 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 
-vi.mock('../../src/db/index.js', () => ({
+vi.mock('../../../src/db/index.js', () => ({
 	db: {
 		select: vi.fn(),
 	},
 }));
 
-import { db } from '../../src/db/index.js';
-import { syncRoutes } from '../../src/routes/sync.js';
+import { db } from '../../../src/db/index.js';
+import { syncRoutes } from '../../../src/routes/sync.js';
 
 const app = new Hono();
 app.route('/api/v1/sync', syncRoutes);

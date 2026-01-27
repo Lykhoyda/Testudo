@@ -10,6 +10,7 @@ import {
 	serial,
 	text,
 	timestamp,
+	unique,
 	varchar,
 } from 'drizzle-orm/pg-core';
 
@@ -68,6 +69,61 @@ export const encounters = pgTable(
 		index('idx_encounters_created_at').on(table.createdAt),
 	],
 );
+
+export const safeAddresses = pgTable(
+	'safe_addresses',
+	{
+		id: serial('id').primaryKey(),
+		address: varchar('address', { length: 42 }).notNull(),
+		chainId: integer('chain_id').notNull().default(1),
+		name: varchar('name', { length: 255 }),
+		category: varchar('category', { length: 50 }).notNull(),
+		isDelegationSafe: boolean('is_delegation_safe').notNull().default(false),
+		sources: text('sources').array().notNull(),
+		confidence: decimal('confidence', { precision: 3, scale: 2 }).notNull(),
+		metadata: jsonb('metadata'),
+		firstSeen: timestamp('first_seen').notNull().defaultNow(),
+		lastUpdated: timestamp('last_updated').notNull().defaultNow(),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+	},
+	(table) => [
+		unique('uq_safe_address_chain').on(table.address, table.chainId),
+		index('idx_safe_address').on(table.address),
+		index('idx_safe_chain_address').on(table.chainId, table.address),
+		check('safe_address_lowercase_check', sql`${table.address} = LOWER(${table.address})`),
+	],
+);
+
+export const revocations = pgTable(
+	'revocations',
+	{
+		id: serial('id').primaryKey(),
+		address: varchar('address', { length: 42 }).notNull(),
+		chainId: integer('chain_id').notNull().default(1),
+		reason: text('reason').notNull(),
+		revokedBy: varchar('revoked_by', { length: 100 }).notNull(),
+		isActive: boolean('is_active').notNull().default(true),
+		createdAt: timestamp('created_at').notNull().defaultNow(),
+	},
+	(table) => [
+		index('idx_revocations_address').on(table.address),
+		index('idx_revocations_active').on(table.isActive),
+	],
+);
+
+export const safeFilterBuilds = pgTable('safe_filter_builds', {
+	id: serial('id').primaryKey(),
+	version: varchar('version', { length: 50 }).notNull(),
+	format: varchar('format', { length: 20 }).notNull().default('json'),
+	entryCount: integer('entry_count').notNull(),
+	fileSizeBytes: integer('file_size_bytes').notNull(),
+	sha256: varchar('sha256', { length: 64 }).notNull(),
+	r2Key: varchar('r2_key', { length: 255 }).notNull(),
+	r2Url: varchar('r2_url', { length: 512 }).notNull(),
+	revocationCount: integer('revocation_count').notNull().default(0),
+	buildDurationMs: integer('build_duration_ms'),
+	createdAt: timestamp('created_at').notNull().defaultNow(),
+});
 
 export const syncLogs = pgTable('sync_logs', {
 	id: serial('id').primaryKey(),

@@ -1,0 +1,27 @@
+[
+	{
+		"address": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+		"name": "WETH",
+		"category": "TOKEN"
+	},
+	{
+		"address": "0x7a250d5630b4cf539739df2c5dacb4c659f2488d",
+		"name": "Uniswap V2 Router",
+		"category": "DEX_ROUTER"
+	},
+	{
+		"address": "0xe592427a0aece92de3edee1f18e0157c05861564",
+		"name": "Uniswap V3 Router",
+		"category": "DEX_ROUTER"
+	},
+	{
+		"address": "0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45",
+		"name": "Uniswap Universal Router",
+		"category": "DEX_ROUTER"
+	},
+	{
+		"address": "0x1111111254eeb25477b68fb85ed929f73a960582",
+		"name": "1inch V5 Router",
+		"category": "DEX_ROUTER"
+	}
+]
