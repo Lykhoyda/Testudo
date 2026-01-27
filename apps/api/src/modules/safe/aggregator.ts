@@ -1,4 +1,4 @@
-import { eq, inArray, sql } from 'drizzle-orm';
+import { inArray, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { safeAddresses } from '../../db/schema.js';
 import type { RawSafeAddressEntry } from './adapters/types.js';
@@ -9,12 +9,15 @@ export async function removeStaleEntries(
 	currentEntries: { address: string; chainId: number }[],
 	source: string,
 ): Promise<{ removed: number; orphaned: number }> {
-	const currentSet = new Set(
-		currentEntries.map((e) => `${e.chainId}:${e.address.toLowerCase()}`),
-	);
+	const currentSet = new Set(currentEntries.map((e) => `${e.chainId}:${e.address.toLowerCase()}`));
 
 	const dbEntries = await db
-		.select({ id: safeAddresses.id, address: safeAddresses.address, chainId: safeAddresses.chainId, sources: safeAddresses.sources })
+		.select({
+			id: safeAddresses.id,
+			address: safeAddresses.address,
+			chainId: safeAddresses.chainId,
+			sources: safeAddresses.sources,
+		})
 		.from(safeAddresses)
 		.where(sql`${source} = ANY(${safeAddresses.sources})`);
 
@@ -43,7 +46,9 @@ export async function removeStaleEntries(
 
 	const deleteResult = await db
 		.delete(safeAddresses)
-		.where(sql`array_length(${safeAddresses.sources}, 1) IS NULL OR array_length(${safeAddresses.sources}, 1) = 0`)
+		.where(
+			sql`array_length(${safeAddresses.sources}, 1) IS NULL OR array_length(${safeAddresses.sources}, 1) = 0`,
+		)
 		.returning({ id: safeAddresses.id });
 
 	return { removed: staleIds.length, orphaned: deleteResult.length };

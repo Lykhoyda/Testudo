@@ -1,27 +1,27 @@
 {
-  "version": "7",
-  "dialect": "postgresql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1769287403174,
-      "tag": "0000_mysterious_millenium_guard",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1769517997363,
-      "tag": "0001_clammy_smasher",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1769604000000,
-      "tag": "0002_add_gin_index_sources",
-      "breakpoints": true
-    }
-  ]
+	"version": "7",
+	"dialect": "postgresql",
+	"entries": [
+		{
+			"idx": 0,
+			"version": "7",
+			"when": 1769287403174,
+			"tag": "0000_mysterious_millenium_guard",
+			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1769517997363,
+			"tag": "0001_clammy_smasher",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1769604000000,
+			"tag": "0002_add_gin_index_sources",
+			"breakpoints": true
+		}
+	]
 }

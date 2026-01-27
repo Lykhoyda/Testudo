@@ -10,7 +10,9 @@ function getClient(): S3Client {
 	const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
 
 	if (!accountId || !accessKeyId || !secretAccessKey) {
-		throw new Error('R2 credentials not configured (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY)');
+		throw new Error(
+			'R2 credentials not configured (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY)',
+		);
 	}
 
 	client = new S3Client({
@@ -31,7 +33,8 @@ export async function uploadToR2(
 	const bucket = process.env.R2_BUCKET_NAME ?? 'testudo-cdn';
 	const publicDomain = process.env.R2_PUBLIC_DOMAIN ?? 'cdn.testudo.security';
 
-	const maxAge = cacheControl ?? (key.includes('revocation') ? 'public, max-age=3600' : 'public, max-age=86400');
+	const maxAge =
+		cacheControl ?? (key.includes('revocation') ? 'public, max-age=3600' : 'public, max-age=86400');
 
 	await getClient().send(
 		new PutObjectCommand({

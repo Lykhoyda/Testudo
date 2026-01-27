@@ -1,11 +1,11 @@
 import { timingSafeEqual } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { db } from '../db/index.js';
 import { revocations, safeAddresses } from '../db/schema.js';
 import { buildFilter, buildRevocations, getManifest } from '../modules/safe/filter-service.js';
-import { isValidAddress, normalizeAddress } from '../utils/validation.js';
 import { runSafeSync } from '../modules/safe/orchestrator.js';
+import { isValidAddress, normalizeAddress } from '../utils/validation.js';
 
 export const safeRoutes = new Hono();
 
