@@ -16,9 +16,15 @@ export function startScheduler(): void {
 		runSyncSafe();
 	}, 5000);
 
-	initialSafeTimeout = setTimeout(() => {
-		console.log('[Scheduler] Running initial safe sync...');
-		runSafeSyncSafe();
+	initialSafeTimeout = setTimeout(async () => {
+		console.log('[Scheduler] Running initial safe sync + filter build...');
+		await runSafeSyncSafe();
+		try {
+			await buildFilter();
+			await buildRevocations();
+		} catch (error) {
+			console.error('[Scheduler] Initial filter build failed:', error);
+		}
 	}, 10000);
 
 	threatSyncTask = cron.schedule('*/30 * * * *', () => {
