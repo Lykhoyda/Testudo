@@ -3137,12 +3137,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@testudo/cdn@workspace:apps/cdn":
-  version: 0.0.0-use.local
-  resolution: "@testudo/cdn@workspace:apps/cdn"
-  languageName: unknown
-  linkType: soft
-
 "@testudo/core@workspace:*, @testudo/core@workspace:packages/core":
   version: 0.0.0-use.local
   resolution: "@testudo/core@workspace:packages/core"
