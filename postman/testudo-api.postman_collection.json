@@ -10,6 +10,11 @@
 			"key": "baseUrl",
 			"value": "http://localhost:3001",
 			"type": "string"
+		},
+		{
+			"key": "adminSecret",
+			"value": "",
+			"type": "string"
 		}
 	],
 	"item": [
@@ -84,6 +89,72 @@
 							"path": ["api", "v1", "encounters"]
 						},
 						"description": "Log an encounter with a malicious address or domain (anonymous, no IP/wallet stored)"
+					}
+				}
+			]
+		},
+		{
+			"name": "Safe Filter",
+			"item": [
+				{
+					"name": "Lookup Safe Address",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/safe/address/0x63c0c19a282a1b52b07dd5a65b58948a07dae32b",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "safe", "address", "0x63c0c19a282a1b52b07dd5a65b58948a07dae32b"]
+						},
+						"description": "Check if an address is in the safe filter set"
+					}
+				},
+				{
+					"name": "Get Manifest",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/safe/manifest",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "safe", "manifest"]
+						},
+						"description": "Get the latest safe filter build metadata"
+					}
+				},
+				{
+					"name": "Create Revocation (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Content-Type", "value": "application/json" },
+							{ "key": "x-admin-secret", "value": "{{adminSecret}}" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n\t\"address\": \"0x930fcc37d6042c79211ee18a02857cb1fd7f0d0b\",\n\t\"reason\": \"Compromised contract\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/safe/revocations",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "safe", "revocations"]
+						},
+						"description": "Revoke an address from the safe filter (admin only)"
+					}
+				},
+				{
+					"name": "Trigger Build (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "x-admin-secret", "value": "{{adminSecret}}" }
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/safe/build",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "safe", "build"]
+						},
+						"description": "Trigger a full safe sync + filter build (admin only)"
 					}
 				}
 			]

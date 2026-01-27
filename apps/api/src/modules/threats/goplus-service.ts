@@ -1,5 +1,5 @@
-import { db } from '../db/index.js';
-import { threats } from '../db/schema.js';
+import { db } from '../../db/index.js';
+import { threats } from '../../db/schema.js';
 import type { ThreatResult } from './threat-service.js';
 
 interface GoPlusAddressResponse {

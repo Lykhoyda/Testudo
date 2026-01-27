@@ -1,6 +1,6 @@
 import { inArray, sql } from 'drizzle-orm';
-import { db } from '../db/index.js';
-import { domains, threats } from '../db/schema.js';
+import { db } from '../../db/index.js';
+import { domains, threats } from '../../db/schema.js';
 import type { RawAddressEntry, RawDomainEntry } from './adapters/types.js';
 
 const BATCH_SIZE = 500;

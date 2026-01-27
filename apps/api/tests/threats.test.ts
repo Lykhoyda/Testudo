@@ -1,13 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
-import type { ThreatResult, DomainResult } from '../src/services/threat-service.js';
+import type { ThreatResult, DomainResult } from '../src/modules/threats/threat-service.js';
 
-vi.mock('../src/services/threat-service.js', () => ({
+vi.mock('../src/modules/threats/threat-service.js', () => ({
 	lookupAddress: vi.fn(),
 	lookupDomain: vi.fn(),
 }));
 
-import { lookupAddress, lookupDomain } from '../src/services/threat-service.js';
+import { lookupAddress, lookupDomain } from '../src/modules/threats/threat-service.js';
 import { threatRoutes } from '../src/routes/threats.js';
 
 const app = new Hono();

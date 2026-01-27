@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
-import { db } from '../db/index.js';
-import { domains, threats } from '../db/schema.js';
+import { db } from '../../db/index.js';
+import { domains, threats } from '../../db/schema.js';
 import { checkAddress as checkGoPlus } from './goplus-service.js';
 
 export interface ThreatResult {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { fetchDomains } from '../../../src/sync/adapters/eth-phishing-detect.js';
+import { fetchDomains } from '../../../../src/modules/threats/adapters/eth-phishing-detect.js';
 
 const originalFetch = globalThis.fetch;
 

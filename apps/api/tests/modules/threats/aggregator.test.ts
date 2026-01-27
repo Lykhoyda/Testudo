@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../src/db/index.js', () => ({
+vi.mock('../../../src/db/index.js', () => ({
 	db: {},
 }));
 
-import { calculateConfidence } from '../../src/sync/aggregator.js';
+import { calculateConfidence } from '../../../src/modules/threats/aggregator.js';
 
 describe('aggregator', () => {
 	describe('calculateConfidence', () => {

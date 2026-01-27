@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('../../src/db/index.js', () => ({
+vi.mock('../../../src/db/index.js', () => ({
 	db: {
 		insert: vi.fn().mockReturnValue({
 			values: vi.fn().mockReturnValue({
@@ -10,8 +10,8 @@ vi.mock('../../src/db/index.js', () => ({
 	},
 }));
 
-import { checkAddress } from '../../src/services/goplus-service.js';
-import { db } from '../../src/db/index.js';
+import { checkAddress } from '../../../src/modules/threats/goplus-service.js';
+import { db } from '../../../src/db/index.js';
 
 beforeEach(() => {
 	vi.clearAllMocks();
