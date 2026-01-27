@@ -1,8 +1,8 @@
 import type { ScheduledTask } from 'node-cron';
 import cron from 'node-cron';
 import { buildFilter, buildRevocations } from '../modules/safe/filter-service.js';
-import { runSyncSafe } from '../modules/threats/orchestrator.js';
 import { runSafeSyncSafe } from '../modules/safe/orchestrator.js';
+import { runSyncSafe } from '../modules/threats/orchestrator.js';
 
 let threatSyncTask: ScheduledTask | null = null;
 let safeSyncTask: ScheduledTask | null = null;
@@ -50,10 +50,25 @@ export function startScheduler(): void {
 }
 
 export function stopScheduler(): void {
-	if (threatSyncTask) { threatSyncTask.stop(); threatSyncTask = null; }
-	if (safeSyncTask) { safeSyncTask.stop(); safeSyncTask = null; }
-	if (revocationTask) { revocationTask.stop(); revocationTask = null; }
-	if (initialThreatTimeout) { clearTimeout(initialThreatTimeout); initialThreatTimeout = null; }
-	if (initialSafeTimeout) { clearTimeout(initialSafeTimeout); initialSafeTimeout = null; }
+	if (threatSyncTask) {
+		threatSyncTask.stop();
+		threatSyncTask = null;
+	}
+	if (safeSyncTask) {
+		safeSyncTask.stop();
+		safeSyncTask = null;
+	}
+	if (revocationTask) {
+		revocationTask.stop();
+		revocationTask = null;
+	}
+	if (initialThreatTimeout) {
+		clearTimeout(initialThreatTimeout);
+		initialThreatTimeout = null;
+	}
+	if (initialSafeTimeout) {
+		clearTimeout(initialSafeTimeout);
+		initialSafeTimeout = null;
+	}
 	console.log('[Scheduler] Stopped');
 }

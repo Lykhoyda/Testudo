@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import { gzip } from 'node:zlib';
 
 const gzipAsync = promisify(gzip);
+
 import { eq, gt, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { revocations, safeAddresses, safeFilterBuilds } from '../../db/schema.js';
@@ -35,7 +36,13 @@ export async function buildFilter(): Promise<{ version: string; url: string; cou
 	const revokedSet = new Set(revokedAddrs.map((r) => `${r.chainId}:${r.address}`));
 
 	const PAGE_SIZE = 10_000;
-	const filtered: { address: string; chainId: number; name: string | null; category: string; isDelegationSafe: boolean }[] = [];
+	const filtered: {
+		address: string;
+		chainId: number;
+		name: string | null;
+		category: string;
+		isDelegationSafe: boolean;
+	}[] = [];
 	let lastSeenId = 0;
 
 	while (true) {
@@ -103,7 +110,9 @@ export async function buildFilter(): Promise<{ version: string; url: string; cou
 		buildDurationMs: durationMs,
 	});
 
-	console.log(`[SafeFilter] Built filter v${version}: ${filtered.length} entries, ${gzipped.length} bytes (${durationMs}ms)`);
+	console.log(
+		`[SafeFilter] Built filter v${version}: ${filtered.length} entries, ${gzipped.length} bytes (${durationMs}ms)`,
+	);
 
 	return { version, url: r2Url, count: filtered.length };
 }
@@ -120,7 +129,12 @@ export async function buildRevocations(): Promise<{ version: string; url: string
 		.where(eq(revocations.isActive, true));
 
 	const version = new Date().toISOString().replace(/[:.]/g, '-');
-	const payload = { version, count: active.length, generatedAt: new Date().toISOString(), entries: active };
+	const payload = {
+		version,
+		count: active.length,
+		generatedAt: new Date().toISOString(),
+		entries: active,
+	};
 	const jsonStr = JSON.stringify(payload);
 	const r2Key = `revocations/${version}.json`;
 

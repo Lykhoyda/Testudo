@@ -15,9 +15,7 @@ const DROP_THRESHOLD = 0.1;
 export async function runSafeSync(): Promise<void> {
 	console.log('[SafeSync] Starting safe address sync...');
 
-	const [countResult] = await db
-		.select({ count: sql<number>`count(*)` })
-		.from(safeAddresses);
+	const [countResult] = await db.select({ count: sql<number>`count(*)` }).from(safeAddresses);
 	const previousCount = Number(countResult?.count ?? 0);
 
 	await syncSafeSource('safe-stablecoins', () => stablecoins.fetchSafeAddresses());
@@ -29,9 +27,7 @@ export async function runSafeSync(): Promise<void> {
 	await syncSafeSource('safe-defillama', () => defillama.fetchSafeAddresses());
 
 	if (previousCount > 0) {
-		const [newCountResult] = await db
-			.select({ count: sql<number>`count(*)` })
-			.from(safeAddresses);
+		const [newCountResult] = await db.select({ count: sql<number>`count(*)` }).from(safeAddresses);
 		const newCount = Number(newCountResult?.count ?? 0);
 		const dropRatio = (previousCount - newCount) / previousCount;
 
@@ -47,7 +43,10 @@ export async function runSafeSync(): Promise<void> {
 
 async function syncSafeSource(
 	sourceName: string,
-	fetchFn: () => Promise<{ source: string; entries: { address: string; category: string; chainId?: number }[] }>,
+	fetchFn: () => Promise<{
+		source: string;
+		entries: { address: string; category: string; chainId?: number }[];
+	}>,
 ): Promise<void> {
 	const startTime = Date.now();
 
@@ -68,7 +67,9 @@ async function syncSafeSource(
 			durationMs,
 		});
 
-		console.log(`[SafeSync] ${sourceName}: +${added} added, ~${updated} updated, -${removed} stale, -${orphaned} orphaned (${durationMs}ms)`);
+		console.log(
+			`[SafeSync] ${sourceName}: +${added} added, ~${updated} updated, -${removed} stale, -${orphaned} orphaned (${durationMs}ms)`,
+		);
 	} catch (error) {
 		const durationMs = Date.now() - startTime;
 		const errorMessage = error instanceof Error ? error.message : String(error);

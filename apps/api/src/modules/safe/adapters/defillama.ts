@@ -42,7 +42,8 @@ export async function fetchSafeAddresses(): Promise<AdapterResult<RawSafeAddress
 
 	const entries: RawSafeAddressEntry[] = (raw as DefiLlamaProtocol[])
 		.filter((p) => {
-			if (!p.address || typeof p.address !== 'string' || !ADDRESS_REGEX.test(p.address)) return false;
+			if (!p.address || typeof p.address !== 'string' || !ADDRESS_REGEX.test(p.address))
+				return false;
 			if (typeof p.tvl !== 'number' || p.tvl < MIN_TVL) return false;
 			if (!CHAIN_ID_MAP[p.chain]) {
 				console.warn(`[DefiLlama] Unknown chain: ${p.chain} (protocol: ${p.name}). Skipping.`);
@@ -51,7 +52,7 @@ export async function fetchSafeAddresses(): Promise<AdapterResult<RawSafeAddress
 			return true;
 		})
 		.map((p) => ({
-			address: p.address!.toLowerCase(),
+			address: (p.address as string).toLowerCase(),
 			chainId: CHAIN_ID_MAP[p.chain],
 			category: 'DEFI_PROTOCOL',
 			name: p.name,
