@@ -125,6 +125,53 @@ test.describe('EIP-7702 Delegation Detection', () => {
 	});
 });
 
+test.describe('CDN Safe Filter Delegation', () => {
+	test('CDN-safe address proceeds without warning', async ({ context, extensionId }) => {
+		const CDN_SAFE_ADDRESS = '0x1111111111111111111111111111111111111111';
+
+		// Pre-populate safe filter in chrome storage (simulates CDN sync)
+		const setupPage = await context.newPage();
+		await setupPage.goto(`chrome-extension://${extensionId}/popup.html`);
+		await setupPage.evaluate((addr) => {
+			return new Promise<void>((resolve) => {
+				chrome.storage.local.set(
+					{
+						safeFilter: {
+							addresses: [addr],
+							count: 1,
+						},
+						safeFilterVersion: 'e2e-test-v1',
+					},
+					() => resolve(),
+				);
+			});
+		}, CDN_SAFE_ADDRESS);
+
+		// Reload background to pick up new storage
+		await setupPage.evaluate(() => {
+			return new Promise((resolve) => {
+				chrome.runtime.sendMessage({ type: 'RELOAD_SAFE_FILTER' }, (response) => {
+					resolve(response);
+				});
+			});
+		});
+		await setupPage.close();
+
+		const page = await context.newPage();
+		await page.goto('http://localhost:4173');
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#sign-cdn-safe');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).not.toBeVisible({ timeout: 5000 });
+
+		await expect(page.locator('#result')).toContainText('Signature received');
+
+		await page.close();
+	});
+});
+
 test.describe('Whitelist from Modal', () => {
 	test('user can trust and whitelist address from warning', async ({ context }) => {
 		const page = await context.newPage();
@@ -140,6 +187,115 @@ test.describe('Whitelist from Modal', () => {
 		await expect(modal).not.toBeVisible({ timeout: 5000 });
 
 		await expect(page.locator('#result')).toContainText('Signature received');
+
+		await page.close();
+	});
+});
+
+test.describe('eth_sendTransaction Detection', () => {
+	test('warning modal appears for transaction to malicious address', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#send-malicious');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await expect(modal.locator('.testudo-title')).toContainText('Malicious Recipient Detected');
+
+		await page.close();
+	});
+
+	test('transaction to safe address proceeds without warning', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#send-safe');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).not.toBeVisible({ timeout: 3000 });
+
+		await expect(page.locator('#result')).toContainText('Transaction sent');
+
+		await page.close();
+	});
+
+	test('user can cancel malicious transaction', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+
+		await page.click('#send-malicious');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await page.click('#testudo-cancel');
+		await expect(modal).not.toBeVisible();
+
+		await expect(page.locator('#result')).toContainText('Blocked');
+
+		await page.close();
+	});
+
+	test('transaction proceeds when API is unavailable (fail-open)', async ({
+		context,
+		extensionId,
+	}) => {
+		// Set API URL to non-existent endpoint to simulate API failure
+		const setupPage = await context.newPage();
+		await setupPage.goto(`chrome-extension://${extensionId}/popup.html`);
+		await setupPage.evaluate(() => {
+			return new Promise<void>((resolve) => {
+				chrome.storage.local.set(
+					{
+						settings: {
+							protectionLevel: 'strict',
+							customRpcUrl: null,
+							apiUrl: 'http://localhost:59999', // Non-existent port
+						},
+					},
+					() => resolve(),
+				);
+			});
+		});
+		await setupPage.close();
+
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		// Send to malicious address - but API is unreachable
+		await page.click('#send-malicious');
+
+		// Modal should NOT appear because API failed and we fail-open
+		// (address-only check returns UNKNOWN when API unavailable)
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).not.toBeVisible({ timeout: 5000 });
+
+		// Transaction should succeed (fail-open behavior)
+		await expect(page.locator('#result')).toContainText('Transaction sent');
+
+		// Restore default API URL
+		const cleanupPage = await context.newPage();
+		await cleanupPage.goto(`chrome-extension://${extensionId}/popup.html`);
+		await cleanupPage.evaluate(() => {
+			return new Promise<void>((resolve) => {
+				chrome.storage.local.set(
+					{
+						settings: {
+							protectionLevel: 'strict',
+							customRpcUrl: null,
+							apiUrl: null, // Restore default
+						},
+					},
+					() => resolve(),
+				);
+			});
+		});
+		await cleanupPage.close();
 
 		await page.close();
 	});

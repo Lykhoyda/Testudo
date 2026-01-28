@@ -10,7 +10,7 @@ const STORAGE_KEYS = {
 const ALARM_NAME = 'sync-safe-filter';
 const SYNC_INTERVAL_MINUTES = 60 * 24 * 7; // 7 days
 
-const DEFAULT_CDN_URL = 'https://cdn.testudo.security';
+const DEFAULT_CDN_URL = 'https://pub-76c6347fe0fc49d7b1497bc741c11d24.r2.dev';
 
 // Fallback safe addresses for development/offline mode
 // These are well-known legitimate contracts that should never be flagged
