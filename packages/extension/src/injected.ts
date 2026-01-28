@@ -72,7 +72,37 @@ function wrapEthereumProvider(): void {
 	// Use try/catch to handle frozen provider objects (Object.freeze)
 	try {
 		window.ethereum.request = async (args: { method: string; params?: unknown[] }) => {
-			// Only intercept eth_signTypedData_v4
+			// Intercept eth_sendTransaction
+			if (args.method === 'eth_sendTransaction') {
+				try {
+					const txParams = (args.params as Record<string, string>[])?.[0];
+					const toAddress = txParams?.to;
+
+					if (toAddress && /^0x[a-fA-F0-9]{40}$/.test(toAddress)) {
+						const analysis = await requestAddressCheck(toAddress);
+
+						if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
+							const userConfirmed = await showWarning(analysis, 'transaction');
+
+							if (!userConfirmed) {
+								throw new Error(
+									'Testudo: Transaction blocked by user - malicious recipient detected',
+								);
+							}
+						}
+					}
+
+					return originalRequest(args);
+				} catch (error) {
+					if (error instanceof Error && error.message.includes('Testudo')) {
+						throw error;
+					}
+					console.error('[Testudo] Error checking transaction:', error);
+					return originalRequest(args);
+				}
+			}
+
+			// Only intercept eth_signTypedData_v4 for EIP-7702
 			if (args.method !== 'eth_signTypedData_v4') {
 				return originalRequest(args);
 			}
@@ -199,15 +229,19 @@ function isEIP7702Authorization(typedData: TypedDataMessage): boolean {
 }
 
 /**
- * Send analysis request to content script → background script
+ * Generic message passing helper for content script communication
  */
-function requestAnalysis(delegateAddress: string): Promise<AnalysisResult> {
+function sendTestudoRequest<T>(
+	requestType: string,
+	responseType: string,
+	payload: Record<string, unknown>,
+	timeoutMs = 10000,
+): Promise<T> {
 	return new Promise((resolve, reject) => {
 		const requestId = Math.random().toString(36).substring(7);
 
-		// Listen for response
 		const handler = (event: MessageEvent) => {
-			if (event.data?.type === 'TESTUDO_ANALYSIS_RESULT' && event.data?.requestId === requestId) {
+			if (event.data?.type === responseType && event.data?.requestId === requestId) {
 				window.removeEventListener('message', handler);
 				resolve(event.data.result);
 			}
@@ -215,21 +249,32 @@ function requestAnalysis(delegateAddress: string): Promise<AnalysisResult> {
 
 		window.addEventListener('message', handler);
 
-		// Send request to content script
-		window.postMessage(
-			{
-				type: 'TESTUDO_ANALYZE_REQUEST',
-				requestId,
-				delegateAddress,
-			},
-			'*',
-		);
+		window.postMessage({ type: requestType, requestId, ...payload }, '*');
 
-		// Timeout after 10 seconds
 		setTimeout(() => {
 			window.removeEventListener('message', handler);
-			reject(new Error('Analysis timeout'));
-		}, 10000);
+			reject(new Error(`${requestType} timeout`));
+		}, timeoutMs);
+	});
+}
+
+/**
+ * Send address check request to content script → background script (for eth_sendTransaction)
+ */
+function requestAddressCheck(address: string): Promise<AnalysisResult> {
+	return sendTestudoRequest<AnalysisResult>(
+		'TESTUDO_CHECK_ADDRESS',
+		'TESTUDO_ADDRESS_CHECK_RESULT',
+		{ address },
+	);
+}
+
+/**
+ * Send analysis request to content script → background script
+ */
+function requestAnalysis(delegateAddress: string): Promise<AnalysisResult> {
+	return sendTestudoRequest<AnalysisResult>('TESTUDO_ANALYZE_REQUEST', 'TESTUDO_ANALYSIS_RESULT', {
+		delegateAddress,
 	});
 }
 
@@ -303,7 +348,10 @@ function getThreatIcon(threat: string): string {
 /**
  * Show warning modal for dangerous contracts
  */
-function showWarning(analysis: AnalysisResult): Promise<boolean> {
+function showWarning(
+	analysis: AnalysisResult,
+	context: 'delegation' | 'transaction' = 'delegation',
+): Promise<boolean> {
 	return new Promise((resolve) => {
 		// Create modal overlay
 		const overlay = document.createElement('div');
@@ -704,9 +752,9 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
             <span class="testudo-material-icon">gpp_maybe</span>
           </div>
           <div class="testudo-header-text">
-            <h2 class="testudo-title">Dangerous Contract Detected</h2>
+            <h2 class="testudo-title">${context === 'transaction' ? 'Malicious Recipient Detected' : 'Dangerous Contract Detected'}</h2>
             <p class="testudo-subtitle">
-              We have intercepted a malicious <strong>EIP-7702</strong> delegation request.
+              ${context === 'transaction' ? 'You are about to send funds to a <strong>known scammer</strong> address.' : 'We have intercepted a malicious <strong>EIP-7702</strong> delegation request.'}
             </p>
           </div>
         </div>
@@ -748,7 +796,7 @@ function showWarning(analysis: AnalysisResult): Promise<boolean> {
         <!-- Contract Address -->
         <div class="testudo-address-section">
           <div class="testudo-address-box">
-            <span class="testudo-address-label">Target Contract</span>
+            <span class="testudo-address-label">${context === 'transaction' ? 'Recipient Address' : 'Target Contract'}</span>
             <div class="testudo-address-value">
               <span class="testudo-address-text">${escapeHtml(truncatedAddress)}</span>
               <button class="testudo-copy-btn" id="testudo-copy" title="Copy Address">

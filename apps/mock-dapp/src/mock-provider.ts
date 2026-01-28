@@ -8,6 +8,7 @@
 // Known addresses from @testudo/core
 export const MALICIOUS_ADDRESS = '0x930fcc37d6042c79211ee18a02857cb1fd7f0d0b';
 export const SAFE_ADDRESS = '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b';
+export const CDN_SAFE_ADDRESS = '0x1111111111111111111111111111111111111111';
 
 // EIP-7702 Authorization typed data structure
 export interface EIP7702TypedData {
@@ -95,6 +96,12 @@ export function initMockProvider(): void {
 				return `0x${'00'.repeat(65)}`;
 			}
 
+			if (args.method === 'eth_sendTransaction') {
+				const txParams = (args.params as Record<string, string>[])?.[0];
+				console.log('[Mock Provider] Transaction:', txParams);
+				return `0x${'ab'.repeat(32)}`;
+			}
+
 			throw new Error(`Unsupported method: ${args.method}`);
 		},
 	};
@@ -105,7 +112,23 @@ export function initMockProvider(): void {
 	console.log('[Mock Provider] Initialized with EIP-7702 support');
 }
 
-// Helper to sign a delegation
+export async function sendTransaction(toAddress: string): Promise<string> {
+	const ethereum = (window as unknown as { ethereum: MockProvider }).ethereum;
+
+	const result = await ethereum.request({
+		method: 'eth_sendTransaction',
+		params: [
+			{
+				from: '0x1234567890123456789012345678901234567890',
+				to: toAddress,
+				value: '0xde0b6b3a7640000',
+			},
+		],
+	});
+
+	return result as string;
+}
+
 export async function signDelegation(delegateAddress: string): Promise<string> {
 	const typedData = createAuthorizationTypedData(delegateAddress);
 	const ethereum = (window as unknown as { ethereum: MockProvider }).ethereum;

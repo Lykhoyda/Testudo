@@ -31,10 +31,10 @@ interface ExtendedAnalysisResult extends AnalysisResult {
 	apiUnavailable?: boolean;
 }
 
-// Get API URL from settings or use default
+// Get API URL from settings or use build-time default
 async function getApiUrl(): Promise<string> {
 	const settings = await getSettings();
-	return settings.apiUrl || 'https://api.testudo.security';
+	return settings.apiUrl || process.env.TESTUDO_API_URL;
 }
 
 // Initialize Safe Filter
@@ -71,6 +71,110 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 	await handleSafeFilterAlarm(alarm, safeFilter);
 });
 
+async function addressCheckWithCache(
+	address: string,
+	url?: string,
+): Promise<ExtendedAnalysisResult> {
+	const normalizedAddress = address.toLowerCase();
+
+	const whitelisted = await isWhitelisted(normalizedAddress);
+	if (whitelisted) {
+		return {
+			risk: 'LOW',
+			threats: [],
+			address: normalizedAddress as `0x${string}`,
+			blocked: false,
+			whitelisted: true,
+			source: 'whitelist',
+		};
+	}
+
+	const cached = analysisCache.get(normalizedAddress);
+	if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+		return { ...cached.result, cached: true };
+	}
+
+	const pending = pendingAnalysis.get(normalizedAddress);
+	if (pending) {
+		return pending;
+	}
+
+	const checkPromise = performAddressOnlyCheck(normalizedAddress, url);
+	pendingAnalysis.set(normalizedAddress, checkPromise);
+
+	try {
+		return await checkPromise;
+	} finally {
+		pendingAnalysis.delete(normalizedAddress);
+	}
+}
+
+async function performAddressOnlyCheck(
+	normalizedAddress: string,
+	url?: string,
+): Promise<ExtendedAnalysisResult> {
+	const baseResult = { address: normalizedAddress as `0x${string}` };
+
+	if (safeFilter.isKnownSafe(normalizedAddress)) {
+		const result: ExtendedAnalysisResult = {
+			...baseResult,
+			risk: 'LOW',
+			threats: [],
+			blocked: false,
+			source: 'safe-filter',
+		};
+		analysisCache.set(normalizedAddress, { result, timestamp: Date.now() });
+		return result;
+	}
+
+	const apiUrl = await getApiUrl();
+	const api = await checkAddressThreat(normalizedAddress, { baseUrl: apiUrl }).catch(
+		() => ({ success: false, error: 'API call failed' }) as ApiClientResult,
+	);
+
+	let result: ExtendedAnalysisResult;
+
+	if (api.success && api.data?.isMalicious) {
+		result = {
+			...baseResult,
+			risk: 'CRITICAL',
+			threats: [api.data.threatType || 'KNOWN_MALICIOUS'],
+			blocked: true,
+			source: 'api',
+		};
+	} else if (api.success) {
+		result = {
+			...baseResult,
+			risk: 'LOW',
+			threats: [],
+			blocked: false,
+			source: 'api',
+		};
+	} else {
+		result = {
+			...baseResult,
+			risk: 'UNKNOWN',
+			threats: [],
+			blocked: false,
+			source: 'fallback',
+			apiUnavailable: true,
+		};
+	}
+
+	analysisCache.set(normalizedAddress, { result, timestamp: Date.now() });
+
+	await recordScan({
+		address: normalizedAddress,
+		risk: result.risk,
+		threats: result.threats,
+		url,
+		blocked: result.blocked,
+	});
+	await incrementScanned();
+
+	return result;
+}
+
 async function analyzeWithCache(address: string, url?: string): Promise<ExtendedAnalysisResult> {
 	const normalizedAddress = address.toLowerCase();
 
@@ -88,11 +192,23 @@ async function analyzeWithCache(address: string, url?: string): Promise<Extended
 		};
 	}
 
-	// Check cache
+	// Check cache - only trust full analysis results or global allows
+	// Address-only checks (source: 'api') should NOT skip bytecode analysis for delegations
 	const cached = analysisCache.get(normalizedAddress);
 	if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-		console.log('[Testudo Background] Cache hit:', normalizedAddress);
-		return { ...cached.result, cached: true };
+		const source = cached.result.source || '';
+		const isFullAnalysis = source.includes('local') || source === 'api+local';
+		const isGlobalAllow = source === 'whitelist' || source === 'safe-filter';
+
+		if (isFullAnalysis || isGlobalAllow) {
+			console.log('[Testudo Background] Cache hit (full analysis):', normalizedAddress);
+			return { ...cached.result, cached: true };
+		}
+		// Address-only cached result - need to run full analysis for delegation
+		console.log(
+			'[Testudo Background] Cache miss (address-only, need bytecode):',
+			normalizedAddress,
+		);
 	}
 
 	// Check if analysis is already in progress for this address (deduplication)
@@ -298,6 +414,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 		return true;
 	}
 
+	if (message.type === 'CHECK_ADDRESS') {
+		const address = (message.address as string).toLowerCase();
+		const url = sender.tab?.url ? new URL(sender.tab.url).origin : undefined;
+
+		addressCheckWithCache(address, url)
+			.then((result) => sendResponse(result))
+			.catch((error) => {
+				console.error('[Testudo Background] Address check error:', error);
+				sendResponse({
+					risk: 'UNKNOWN',
+					threats: [],
+					address,
+					blocked: false,
+				});
+			});
+
+		return true;
+	}
+
 	if (message.type === 'RECORD_BLOCKED') {
 		console.log('[Testudo Background] Recording blocked delegation');
 		incrementBlocked().then(() => sendResponse({ success: true }));
@@ -352,6 +487,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 		console.log('[Testudo Background] Manual Safe Filter sync requested');
 		safeFilter.syncFromCDN().then((success) => {
 			sendResponse({ success });
+		});
+		return true;
+	}
+
+	if (message.type === 'RELOAD_SAFE_FILTER') {
+		console.log('[Testudo Background] Reloading Safe Filter from storage');
+		safeFilter.load().then(() => {
+			sendResponse({ success: true });
 		});
 		return true;
 	}

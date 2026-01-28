@@ -1,4 +1,4 @@
-const DEFAULT_API_URL = 'https://api.testudo.security';
+const DEFAULT_API_URL = process.env.TESTUDO_API_URL;
 const DEFAULT_TIMEOUT = 800; // ms
 const MAX_RETRIES = 1;
 

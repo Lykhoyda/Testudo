@@ -75,6 +75,59 @@ window.addEventListener('message', async (event) => {
 		}
 	}
 
+	// Handle address check request (eth_sendTransaction)
+	if (event.data?.type === 'TESTUDO_CHECK_ADDRESS') {
+		const { requestId, address } = event.data;
+
+		if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+			window.postMessage(
+				{
+					type: 'TESTUDO_ADDRESS_CHECK_RESULT',
+					requestId,
+					result: {
+						risk: 'UNKNOWN',
+						threats: [],
+						address,
+						blocked: false,
+					},
+				},
+				'*',
+			);
+			return;
+		}
+
+		try {
+			const result = await chrome.runtime.sendMessage({
+				type: 'CHECK_ADDRESS',
+				address,
+			});
+
+			window.postMessage(
+				{
+					type: 'TESTUDO_ADDRESS_CHECK_RESULT',
+					requestId,
+					result,
+				},
+				'*',
+			);
+		} catch (error) {
+			console.error('[Testudo Content] Address check error:', error);
+			window.postMessage(
+				{
+					type: 'TESTUDO_ADDRESS_CHECK_RESULT',
+					requestId,
+					result: {
+						risk: 'UNKNOWN',
+						threats: [],
+						address,
+						blocked: false,
+					},
+				},
+				'*',
+			);
+		}
+	}
+
 	// Handle blocked record
 	if (event.data?.type === 'TESTUDO_RECORD_BLOCKED') {
 		console.log('[Testudo Content] Recording blocked delegation');

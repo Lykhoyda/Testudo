@@ -15,12 +15,18 @@ copyFileSync(join(__dirname, 'popup.html'), join(distDir, 'popup.html'));
 copyFileSync(join(__dirname, 'options.html'), join(distDir, 'options.html'));
 console.log('Copied manifest.json, popup.html, and options.html to dist/');
 
+const apiUrl = process.env.TESTUDO_API_URL || 'https://api.testudo.security';
+console.log(`[Testudo Build] API URL: ${apiUrl}`);
+
 const shared = {
 	output: {
 		dir: 'dist',
 		format: 'esm' as const,
 		minify: true,
 		inlineDynamicImports: true,
+	},
+	define: {
+		'process.env.TESTUDO_API_URL': JSON.stringify(apiUrl),
 	},
 };
 

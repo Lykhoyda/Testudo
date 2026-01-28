@@ -9,7 +9,7 @@
  */
 
 import { db } from '../src/db';
-import { threats } from '../src/db/schema.js';
+import { threats, safeAddresses, revocations } from '../src/db/schema.js';
 
 const TEST_THREATS = [
 	{
@@ -46,6 +46,46 @@ const TEST_THREATS = [
 	},
 ];
 
+const TEST_SAFE_ADDRESSES = [
+	{
+		address: '0x1111111111111111111111111111111111111111',
+		chainId: 1,
+		name: 'Test Safe 1',
+		category: 'DEFI_PROTOCOL',
+		sources: ['test-seed'],
+		confidence: '0.95',
+		isDelegationSafe: true,
+	},
+	{
+		address: '0x2222222222222222222222222222222222222222',
+		chainId: 1,
+		name: 'Test Safe 2',
+		category: 'STABLECOIN',
+		sources: ['test-seed'],
+		confidence: '0.90',
+		isDelegationSafe: true,
+	},
+	{
+		address: '0x3333333333333333333333333333333333333333',
+		chainId: 1,
+		name: 'Test Revoked',
+		category: 'DEFI_PROTOCOL',
+		sources: ['test-seed'],
+		confidence: '0.85',
+		isDelegationSafe: true,
+	},
+];
+
+const TEST_REVOCATIONS = [
+	{
+		address: '0x3333333333333333333333333333333333333333',
+		chainId: 1,
+		reason: 'test_revocation',
+		revokedBy: 'test-seed',
+		isActive: true,
+	},
+];
+
 async function seedTestData() {
 	console.log('⚠️  LOCAL DEVELOPMENT ONLY - Seeding test threat data...');
 	console.log('   (Production uses automated sync service)\n');
@@ -56,8 +96,23 @@ async function seedTestData() {
 			.values(entry)
 			.onConflictDoNothing({ target: threats.address });
 	}
-
 	console.log(`✓ Seeded ${TEST_THREATS.length} test threat entries (conflicts skipped).`);
+
+	for (const entry of TEST_SAFE_ADDRESSES) {
+		await db
+			.insert(safeAddresses)
+			.values(entry)
+			.onConflictDoNothing();
+	}
+	console.log(`✓ Seeded ${TEST_SAFE_ADDRESSES.length} safe address entries (conflicts skipped).`);
+
+	for (const entry of TEST_REVOCATIONS) {
+		await db
+			.insert(revocations)
+			.values(entry);
+	}
+	console.log(`✓ Seeded ${TEST_REVOCATIONS.length} revocation entries.`);
+
 	process.exit(0);
 }
 

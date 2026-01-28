@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { MALICIOUS_ADDRESS, SAFE_ADDRESS, signDelegation } from './mock-provider';
+import {
+	CDN_SAFE_ADDRESS,
+	MALICIOUS_ADDRESS,
+	SAFE_ADDRESS,
+	sendTransaction,
+	signDelegation,
+} from './mock-provider';
 import './App.css';
 
 type ResultStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -37,6 +43,23 @@ function App() {
 
 		try {
 			const signature = await signDelegation(SAFE_ADDRESS);
+			setResult({
+				status: 'success',
+				message: `Signature received:\n${signature}`,
+			});
+		} catch (error) {
+			setResult({
+				status: 'error',
+				message: `Error:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+			});
+		}
+	};
+
+	const handleSignCdnSafe = async () => {
+		setResult({ status: 'loading', message: 'Requesting signature for CDN-safe delegation...' });
+
+		try {
+			const signature = await signDelegation(CDN_SAFE_ADDRESS);
 			setResult({
 				status: 'success',
 				message: `Signature received:\n${signature}`,
@@ -111,6 +134,16 @@ function App() {
 						<span className="btn-icon">✓</span>
 						Sign Safe Delegation
 					</button>
+
+					<button
+						type="button"
+						id="sign-cdn-safe"
+						className="btn btn-success"
+						onClick={handleSignCdnSafe}
+					>
+						<span className="btn-icon">✓</span>
+						Sign CDN-Safe Delegation
+					</button>
 				</div>
 
 				<div className="addresses">
@@ -122,6 +155,68 @@ function App() {
 						<span className="address-label success">Safe:</span>
 						<code>{SAFE_ADDRESS}</code>
 					</div>
+					<div className="address-item">
+						<span className="address-label success">CDN Safe:</span>
+						<code>{CDN_SAFE_ADDRESS}</code>
+					</div>
+				</div>
+			</section>
+
+			<section className="card">
+				<h2>Transaction Tests</h2>
+				<p className="description">
+					Test eth_sendTransaction interception. Testudo checks the recipient address against the
+					threat database.
+				</p>
+
+				<div className="button-group">
+					<button
+						type="button"
+						id="send-malicious"
+						className="btn btn-danger"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Sending transaction to MALICIOUS address...',
+							});
+							try {
+								const txHash = await sendTransaction(MALICIOUS_ADDRESS);
+								setResult({
+									status: 'success',
+									message: `Transaction sent (user proceeded):\n${txHash}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Blocked:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">⚠️</span>
+						Send to Malicious Address
+					</button>
+
+					<button
+						type="button"
+						id="send-safe"
+						className="btn btn-success"
+						onClick={async () => {
+							setResult({ status: 'loading', message: 'Sending transaction to SAFE address...' });
+							try {
+								const txHash = await sendTransaction(SAFE_ADDRESS);
+								setResult({ status: 'success', message: `Transaction sent:\n${txHash}` });
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Error:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">✓</span>
+						Send to Safe Address
+					</button>
 				</div>
 			</section>
 
