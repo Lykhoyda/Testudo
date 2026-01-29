@@ -3,7 +3,7 @@ import type { APIRequestContext } from '@playwright/test';
 import { expect, test } from '@playwright/test';
 
 const API_BASE = 'http://localhost:3001';
-const ADMIN_SECRET = process.env.ADMIN_API_SECRET;
+const ADMIN_SECRET = process.env.ADMIN_API_SECRET ?? '';
 const R2_PUBLIC_DOMAIN = process.env.R2_PUBLIC_DOMAIN;
 
 const SEEDED_SAFE_1 = '0x1111111111111111111111111111111111111111';
@@ -71,7 +71,7 @@ test.describe('Filter Build', () => {
 
 	test('POST /api/v1/safe/build succeeds', async ({ request }) => {
 		const res = await request.post(`${API_BASE}/api/v1/safe/build`, {
-			headers: { 'x-admin-secret': ADMIN_SECRET! },
+			headers: { 'x-admin-secret': ADMIN_SECRET },
 		});
 		expect(res.status()).toBe(200);
 		buildResponse = await res.json();
@@ -116,7 +116,7 @@ test.describe('R2 Verification', () => {
 		request,
 	}) => {
 		const buildRes = await request.post(`${API_BASE}/api/v1/safe/build`, {
-			headers: { 'x-admin-secret': ADMIN_SECRET! },
+			headers: { 'x-admin-secret': ADMIN_SECRET },
 		});
 		expect(buildRes.status()).toBe(200);
 		const build = await buildRes.json();
@@ -147,7 +147,7 @@ test.describe('R2 Verification', () => {
 
 	test('revocations URL returns valid data', async ({ request }) => {
 		const buildRes = await request.post(`${API_BASE}/api/v1/safe/build`, {
-			headers: { 'x-admin-secret': ADMIN_SECRET! },
+			headers: { 'x-admin-secret': ADMIN_SECRET },
 		});
 		expect(buildRes.status()).toBe(200);
 		const build = await buildRes.json();
@@ -171,7 +171,7 @@ test.describe('Revocation Flow', () => {
 
 		const revokeRes = await request.post(`${API_BASE}/api/v1/safe/revocations`, {
 			headers: {
-				'x-admin-secret': ADMIN_SECRET!,
+				'x-admin-secret': ADMIN_SECRET,
 				'content-type': 'application/json',
 			},
 			data: {
@@ -184,7 +184,7 @@ test.describe('Revocation Flow', () => {
 		expect((await revokeRes.json()).success).toBe(true);
 
 		const buildRes = await request.post(`${API_BASE}/api/v1/safe/build`, {
-			headers: { 'x-admin-secret': ADMIN_SECRET! },
+			headers: { 'x-admin-secret': ADMIN_SECRET },
 		});
 		expect(buildRes.status()).toBe(200);
 		const build = await buildRes.json();

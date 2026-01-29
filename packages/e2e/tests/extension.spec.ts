@@ -301,6 +301,72 @@ test.describe('eth_sendTransaction Detection', () => {
 	});
 });
 
+test.describe('Permit Signature Detection', () => {
+	test('warning modal appears for permit with malicious spender', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#sign-permit-malicious');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await expect(modal.locator('.testudo-title')).toContainText('Permit Signature Detected');
+
+		await page.close();
+	});
+
+	test('user can cancel malicious permit', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+
+		await page.click('#sign-permit-malicious');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await page.click('#testudo-cancel');
+		await expect(modal).not.toBeVisible();
+
+		await expect(page.locator('#result')).toContainText('Blocked');
+
+		await page.close();
+	});
+
+	test('warning modal appears for PermitTransferFrom with malicious spender', async ({
+		context,
+	}) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#sign-permit-transfer-malicious');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await expect(modal.locator('.testudo-title')).toContainText('Permit Signature Detected');
+
+		await page.close();
+	});
+
+	test('permit2 with safe spender proceeds without warning', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#sign-permit2-safe');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).not.toBeVisible({ timeout: 3000 });
+
+		await expect(page.locator('#result')).toContainText('Permit2 signed');
+
+		await page.close();
+	});
+});
+
 test.describe('Settings Page', () => {
 	test('options page loads correctly', async ({ context, extensionId }) => {
 		const page = await context.newPage();

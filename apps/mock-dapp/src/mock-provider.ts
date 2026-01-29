@@ -129,6 +129,152 @@ export async function sendTransaction(toAddress: string): Promise<string> {
 	return result as string;
 }
 
+export function createPermitTypedData(spenderAddress: string): Record<string, unknown> {
+	return {
+		types: {
+			EIP712Domain: [
+				{ name: 'name', type: 'string' },
+				{ name: 'version', type: 'string' },
+				{ name: 'chainId', type: 'uint256' },
+				{ name: 'verifyingContract', type: 'address' },
+			],
+			Permit: [
+				{ name: 'owner', type: 'address' },
+				{ name: 'spender', type: 'address' },
+				{ name: 'value', type: 'uint256' },
+				{ name: 'nonce', type: 'uint256' },
+				{ name: 'deadline', type: 'uint256' },
+			],
+		},
+		primaryType: 'Permit',
+		domain: {
+			name: 'USD Coin',
+			version: '2',
+			chainId: 1,
+			verifyingContract: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+		},
+		message: {
+			owner: '0x1234567890123456789012345678901234567890',
+			spender: spenderAddress,
+			value: '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+			nonce: '0',
+			deadline: '1735689600',
+		},
+	};
+}
+
+export function createPermit2TypedData(spenderAddress: string): Record<string, unknown> {
+	return {
+		types: {
+			EIP712Domain: [
+				{ name: 'name', type: 'string' },
+				{ name: 'chainId', type: 'uint256' },
+				{ name: 'verifyingContract', type: 'address' },
+			],
+			PermitSingle: [
+				{ name: 'details', type: 'PermitDetails' },
+				{ name: 'spender', type: 'address' },
+				{ name: 'sigDeadline', type: 'uint256' },
+			],
+			PermitDetails: [
+				{ name: 'token', type: 'address' },
+				{ name: 'amount', type: 'uint160' },
+				{ name: 'expiration', type: 'uint48' },
+				{ name: 'nonce', type: 'uint48' },
+			],
+		},
+		primaryType: 'PermitSingle',
+		domain: {
+			name: 'Permit2',
+			chainId: 1,
+			verifyingContract: '0x000000000022D473030F116dDEE9F6B43aC78BA3',
+		},
+		message: {
+			details: {
+				token: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+				amount: '1000000',
+				expiration: '1735689600',
+				nonce: '0',
+			},
+			spender: spenderAddress,
+			sigDeadline: '1735689600',
+		},
+	};
+}
+
+export function createPermitTransferFromTypedData(spenderAddress: string): Record<string, unknown> {
+	return {
+		types: {
+			EIP712Domain: [
+				{ name: 'name', type: 'string' },
+				{ name: 'chainId', type: 'uint256' },
+				{ name: 'verifyingContract', type: 'address' },
+			],
+			PermitTransferFrom: [
+				{ name: 'permitted', type: 'TokenPermissions' },
+				{ name: 'spender', type: 'address' },
+				{ name: 'nonce', type: 'uint256' },
+				{ name: 'deadline', type: 'uint256' },
+			],
+			TokenPermissions: [
+				{ name: 'token', type: 'address' },
+				{ name: 'amount', type: 'uint256' },
+			],
+		},
+		primaryType: 'PermitTransferFrom',
+		domain: {
+			name: 'Permit2',
+			chainId: 1,
+			verifyingContract: '0x000000000022D473030F116dDEE9F6B43aC78BA3',
+		},
+		message: {
+			permitted: {
+				token: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+				amount: '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+			},
+			spender: spenderAddress,
+			nonce: '0',
+			deadline: '1735689600',
+		},
+	};
+}
+
+export async function signPermitTransferFrom(spenderAddress: string): Promise<string> {
+	const typedData = createPermitTransferFromTypedData(spenderAddress);
+	const ethereum = (window as unknown as { ethereum: MockProvider }).ethereum;
+
+	const result = await ethereum.request({
+		method: 'eth_signTypedData_v4',
+		params: ['0x1234567890123456789012345678901234567890', JSON.stringify(typedData)],
+	});
+
+	return result as string;
+}
+
+export async function signPermit(spenderAddress: string): Promise<string> {
+	const typedData = createPermitTypedData(spenderAddress);
+	const ethereum = (window as unknown as { ethereum: MockProvider }).ethereum;
+
+	const result = await ethereum.request({
+		method: 'eth_signTypedData_v4',
+		params: ['0x1234567890123456789012345678901234567890', JSON.stringify(typedData)],
+	});
+
+	return result as string;
+}
+
+export async function signPermit2(spenderAddress: string): Promise<string> {
+	const typedData = createPermit2TypedData(spenderAddress);
+	const ethereum = (window as unknown as { ethereum: MockProvider }).ethereum;
+
+	const result = await ethereum.request({
+		method: 'eth_signTypedData_v4',
+		params: ['0x1234567890123456789012345678901234567890', JSON.stringify(typedData)],
+	});
+
+	return result as string;
+}
+
 export async function signDelegation(delegateAddress: string): Promise<string> {
 	const typedData = createAuthorizationTypedData(delegateAddress);
 	const ethereum = (window as unknown as { ethereum: MockProvider }).ethereum;
