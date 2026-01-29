@@ -14,10 +14,11 @@
 
 import type { Warning } from '@testudo/core';
 
-interface EIP7702Authorization {
-	chainId: string;
-	address: string; // The delegate contract address - THIS IS WHAT WE ANALYZE
-	nonce: string;
+interface TypedDataDomain {
+	name?: string;
+	version?: string;
+	chainId?: number;
+	verifyingContract?: string;
 }
 
 interface TypedDataMessage {
@@ -26,8 +27,23 @@ interface TypedDataMessage {
 		[key: string]: unknown;
 	};
 	primaryType: string;
-	domain: unknown;
-	message: EIP7702Authorization;
+	domain: TypedDataDomain;
+	message: Record<string, unknown>;
+}
+
+interface PermitInfo {
+	type:
+		| 'permit'
+		| 'permit2-single'
+		| 'permit2-batch'
+		| 'permit2-transfer'
+		| 'permit2-witness-transfer'
+		| 'dai-permit';
+	spender: string;
+	value?: string;
+	deadline?: string;
+	token?: string;
+	tokenName?: string;
 }
 
 interface AnalysisResult {
@@ -102,7 +118,7 @@ function wrapEthereumProvider(): void {
 				}
 			}
 
-			// Only intercept eth_signTypedData_v4 for EIP-7702
+			// Only intercept eth_signTypedData_v4 for EIP-7702 and Permit
 			if (args.method !== 'eth_signTypedData_v4') {
 				return originalRequest(args);
 			}
@@ -113,6 +129,36 @@ function wrapEthereumProvider(): void {
 				const typedDataString = params[1];
 				const typedData: TypedDataMessage =
 					typeof typedDataString === 'string' ? JSON.parse(typedDataString) : typedDataString;
+
+				// Check for Permit signatures first
+				if (isPermitSignature(typedData)) {
+					const permitInfo = extractPermitInfo(typedData);
+					if (permitInfo) {
+						console.log('[Testudo] Permit signature detected:', permitInfo.type);
+						const analysis = await requestAddressCheck(permitInfo.spender);
+
+						const unlimited = isUnlimitedValue(permitInfo.value);
+						if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
+							const userConfirmed = await showWarning(analysis, 'permit', permitInfo);
+							if (!userConfirmed) {
+								throw new Error('Testudo: Permit blocked by user - malicious spender detected');
+							}
+						} else if (unlimited) {
+							const syntheticAnalysis: AnalysisResult = {
+								...analysis,
+								risk: 'HIGH',
+								threats: ['unlimited_approval', ...analysis.threats],
+								blocked: true,
+							};
+							const userConfirmed = await showWarning(syntheticAnalysis, 'permit', permitInfo);
+							if (!userConfirmed) {
+								throw new Error('Testudo: Permit blocked by user - unlimited approval');
+							}
+						}
+
+						return originalRequest(args);
+					}
+				}
 
 				// Check if this is an EIP-7702 Authorization
 				if (!isEIP7702Authorization(typedData)) {
@@ -226,6 +272,116 @@ function isEIP7702Authorization(typedData: TypedDataMessage): boolean {
 	}
 
 	return true;
+}
+
+function isPermitSignature(typedData: TypedDataMessage): boolean {
+	const pt = typedData.primaryType;
+	return (
+		pt === 'Permit' ||
+		pt === 'PermitSingle' ||
+		pt === 'PermitBatch' ||
+		pt === 'PermitTransferFrom' ||
+		pt === 'PermitWitnessTransferFrom'
+	);
+}
+
+function validateAddress(value: unknown): string | null {
+	if (typeof value !== 'string') return null;
+	if (!/^0x[a-fA-F0-9]{40}$/.test(value)) return null;
+	return value.toLowerCase();
+}
+
+function isDaiPermit(typedData: TypedDataMessage): boolean {
+	const fields = typedData.types[typedData.primaryType] as Array<{ name: string }> | undefined;
+	if (!Array.isArray(fields)) return false;
+	return fields.some((f) => f.name === 'holder') && fields.some((f) => f.name === 'allowed');
+}
+
+function extractPermitInfo(typedData: TypedDataMessage): PermitInfo | null {
+	const { primaryType, message, domain } = typedData;
+
+	if (primaryType === 'Permit') {
+		const spender = validateAddress(message.spender);
+		if (!spender) return null;
+		const dai = isDaiPermit(typedData);
+		return {
+			type: dai ? 'dai-permit' : 'permit',
+			spender,
+			value: dai ? (message.allowed === true ? 'unlimited' : '0') : String(message.value ?? ''),
+			deadline:
+				message.deadline != null
+					? String(message.deadline)
+					: message.expiry != null
+						? String(message.expiry)
+						: undefined,
+			token: domain?.verifyingContract,
+			tokenName: domain?.name,
+		};
+	}
+
+	if (primaryType === 'PermitSingle') {
+		const spender = validateAddress(message.spender);
+		if (!spender) return null;
+		const details = message.details as Record<string, unknown> | undefined;
+		return {
+			type: 'permit2-single',
+			spender,
+			value: details?.amount != null ? String(details.amount) : undefined,
+			deadline: message.sigDeadline != null ? String(message.sigDeadline) : undefined,
+			token: typeof details?.token === 'string' ? details.token : undefined,
+		};
+	}
+
+	if (primaryType === 'PermitBatch') {
+		const spender = validateAddress(message.spender);
+		if (!spender) return null;
+		const details = message.details as Array<Record<string, unknown>> | undefined;
+		if (!Array.isArray(details) || details.length === 0) return null;
+		const hasUnlimited = details.some((d) =>
+			isUnlimitedValue(d.amount != null ? String(d.amount) : undefined),
+		);
+		return {
+			type: 'permit2-batch',
+			spender,
+			deadline: message.sigDeadline != null ? String(message.sigDeadline) : undefined,
+			token: typeof details[0]?.token === 'string' ? details[0].token : undefined,
+			value: hasUnlimited ? 'unlimited' : 'batch',
+		};
+	}
+
+	if (primaryType === 'PermitTransferFrom' || primaryType === 'PermitWitnessTransferFrom') {
+		const spender = validateAddress(message.spender);
+		if (!spender) return null;
+		const permitted = message.permitted as Record<string, unknown> | undefined;
+		return {
+			type: primaryType === 'PermitTransferFrom' ? 'permit2-transfer' : 'permit2-witness-transfer',
+			spender,
+			value: permitted?.amount != null ? String(permitted.amount) : undefined,
+			deadline: message.deadline != null ? String(message.deadline) : undefined,
+			token: typeof permitted?.token === 'string' ? permitted.token : undefined,
+		};
+	}
+
+	return null;
+}
+
+const MAX_UINT256 = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+const MAX_UINT160 = '0xffffffffffffffffffffffffffffffffffffffff';
+
+function isUnlimitedValue(value?: string): boolean {
+	if (!value) return false;
+	const normalized = value.toLowerCase();
+	if (normalized === MAX_UINT256 || normalized === MAX_UINT160 || normalized === 'unlimited')
+		return true;
+	if (/[eE]/.test(value)) {
+		const num = Number(value);
+		if (!Number.isNaN(num) && num > 1e30) return true;
+	}
+	try {
+		return BigInt(value) > BigInt(10) ** BigInt(30);
+	} catch {
+		return false;
+	}
 }
 
 /**
@@ -350,7 +506,8 @@ function getThreatIcon(threat: string): string {
  */
 function showWarning(
 	analysis: AnalysisResult,
-	context: 'delegation' | 'transaction' = 'delegation',
+	context: 'delegation' | 'transaction' | 'permit' = 'delegation',
+	permitInfo?: PermitInfo,
 ): Promise<boolean> {
 	return new Promise((resolve) => {
 		// Create modal overlay
@@ -752,9 +909,9 @@ function showWarning(
             <span class="testudo-material-icon">gpp_maybe</span>
           </div>
           <div class="testudo-header-text">
-            <h2 class="testudo-title">${context === 'transaction' ? 'Malicious Recipient Detected' : 'Dangerous Contract Detected'}</h2>
+            <h2 class="testudo-title">${context === 'permit' ? 'Permit Signature Detected' : context === 'transaction' ? 'Malicious Recipient Detected' : 'Dangerous Contract Detected'}</h2>
             <p class="testudo-subtitle">
-              ${context === 'transaction' ? 'You are about to send funds to a <strong>known scammer</strong> address.' : 'We have intercepted a malicious <strong>EIP-7702</strong> delegation request.'}
+              ${context === 'permit' ? 'This signature grants <strong>token spending rights</strong>!' : context === 'transaction' ? 'You are about to send funds to a <strong>known scammer</strong> address.' : 'We have intercepted a malicious <strong>EIP-7702</strong> delegation request.'}
             </p>
           </div>
         </div>
@@ -769,6 +926,19 @@ function showWarning(
             ${escapeHtml(criticalDescription)}
           </p>
         </div>
+
+        ${
+					permitInfo
+						? `
+        <!-- Permit Details -->
+        <div class="testudo-address-section">
+          ${permitInfo.tokenName ? `<div class="testudo-address-box" style="margin-bottom:6px"><span class="testudo-address-label">Token</span><span class="testudo-address-text">${escapeHtml(permitInfo.tokenName)}${permitInfo.token ? ` (${permitInfo.token.slice(0, 8)}...)` : ''}</span></div>` : ''}
+          <div class="testudo-address-box" style="margin-bottom:6px"><span class="testudo-address-label">Amount</span><span class="testudo-address-text" style="${isUnlimitedValue(permitInfo.value) ? 'color:#e74c3c;font-weight:700' : ''}">${isUnlimitedValue(permitInfo.value) ? 'UNLIMITED' : permitInfo.value === 'batch' ? 'Batch (multiple tokens)' : (permitInfo.value || 'Unknown')}</span></div>
+          ${permitInfo.deadline ? `<div class="testudo-address-box"><span class="testudo-address-label">Deadline</span><span class="testudo-address-text">${escapeHtml(String(permitInfo.deadline))}</span></div>` : ''}
+        </div>
+        `
+						: ''
+				}
 
         <!-- Threats List -->
         <div class="testudo-threats">
@@ -796,7 +966,7 @@ function showWarning(
         <!-- Contract Address -->
         <div class="testudo-address-section">
           <div class="testudo-address-box">
-            <span class="testudo-address-label">${context === 'transaction' ? 'Recipient Address' : 'Target Contract'}</span>
+            <span class="testudo-address-label">${context === 'permit' ? 'Spender Address' : context === 'transaction' ? 'Recipient Address' : 'Target Contract'}</span>
             <div class="testudo-address-value">
               <span class="testudo-address-text">${escapeHtml(truncatedAddress)}</span>
               <button class="testudo-copy-btn" id="testudo-copy" title="Copy Address">

@@ -5,6 +5,9 @@ import {
 	SAFE_ADDRESS,
 	sendTransaction,
 	signDelegation,
+	signPermit,
+	signPermit2,
+	signPermitTransferFrom,
 } from './mock-provider';
 import './App.css';
 
@@ -216,6 +219,97 @@ function App() {
 					>
 						<span className="btn-icon">✓</span>
 						Send to Safe Address
+					</button>
+				</div>
+			</section>
+
+			<section className="card">
+				<h2>Permit Signature Tests</h2>
+				<p className="description">
+					Test Permit and Permit2 signature interception. Testudo checks the spender address against
+					the threat database and warns about unlimited approvals.
+				</p>
+
+				<div className="button-group">
+					<button
+						type="button"
+						id="sign-permit-malicious"
+						className="btn btn-danger"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Requesting Permit signature with MALICIOUS spender...',
+							});
+							try {
+								const sig = await signPermit(MALICIOUS_ADDRESS);
+								setResult({
+									status: 'success',
+									message: `Permit signed (user proceeded):\n${sig}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Blocked:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">⚠️</span>
+						Sign Permit (Malicious Spender)
+					</button>
+
+					<button
+						type="button"
+						id="sign-permit2-safe"
+						className="btn btn-success"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Requesting Permit2 signature with SAFE spender...',
+							});
+							try {
+								const sig = await signPermit2(SAFE_ADDRESS);
+								setResult({
+									status: 'success',
+									message: `Permit2 signed:\n${sig}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Error:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">✓</span>
+						Sign Permit2 (Safe Spender)
+					</button>
+
+					<button
+						type="button"
+						id="sign-permit-transfer-malicious"
+						className="btn btn-danger"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Requesting PermitTransferFrom with MALICIOUS spender...',
+							});
+							try {
+								const sig = await signPermitTransferFrom(MALICIOUS_ADDRESS);
+								setResult({
+									status: 'success',
+									message: `PermitTransferFrom signed (user proceeded):\n${sig}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Blocked:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">⚠️</span>
+						Sign PermitTransferFrom (Malicious)
 					</button>
 				</div>
 			</section>
