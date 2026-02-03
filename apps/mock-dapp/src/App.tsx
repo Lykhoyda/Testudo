@@ -3,6 +3,9 @@ import {
 	CDN_SAFE_ADDRESS,
 	MALICIOUS_ADDRESS,
 	SAFE_ADDRESS,
+	sendApproval,
+	sendApprovalRevocation,
+	sendIncreaseAllowance,
 	sendTransaction,
 	signDelegation,
 	signPermit,
@@ -219,6 +222,170 @@ function App() {
 					>
 						<span className="btn-icon">✓</span>
 						Send to Safe Address
+					</button>
+				</div>
+			</section>
+
+			<section className="card">
+				<h2>Token Approval Tests</h2>
+				<p className="description">
+					Test ERC20 approve() and increaseAllowance() interception. Testudo parses calldata to
+					check the spender address against the threat database and warns about unlimited approvals.
+				</p>
+
+				<div className="button-group">
+					<button
+						type="button"
+						id="approve-malicious-unlimited"
+						className="btn btn-danger"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Sending approve() with MALICIOUS spender (unlimited)...',
+							});
+							try {
+								const txHash = await sendApproval(
+									'0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+									MALICIOUS_ADDRESS,
+									true,
+								);
+								setResult({
+									status: 'success',
+									message: `Approval sent (user proceeded):\n${txHash}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Blocked:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">⚠️</span>
+						Approve Malicious (Unlimited)
+					</button>
+
+					<button
+						type="button"
+						id="approve-safe-limited"
+						className="btn btn-success"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Sending approve() with SAFE spender (limited)...',
+							});
+							try {
+								const txHash = await sendApproval(
+									'0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+									SAFE_ADDRESS,
+									false,
+								);
+								setResult({
+									status: 'success',
+									message: `Approval sent:\n${txHash}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Error:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">✓</span>
+						Approve Safe (Limited)
+					</button>
+
+					<button
+						type="button"
+						id="increase-allowance-malicious"
+						className="btn btn-danger"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Sending increaseAllowance() with MALICIOUS spender...',
+							});
+							try {
+								const txHash = await sendIncreaseAllowance(
+									'0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+									MALICIOUS_ADDRESS,
+									true,
+								);
+								setResult({
+									status: 'success',
+									message: `increaseAllowance sent (user proceeded):\n${txHash}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Blocked:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">⚠️</span>
+						increaseAllowance (Malicious)
+					</button>
+
+					<button
+						type="button"
+						id="approve-unknown-unlimited"
+						className="btn btn-warning"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Sending approve() with UNKNOWN spender (unlimited)...',
+							});
+							try {
+								const txHash = await sendApproval(
+									'0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+									'0x2222222222222222222222222222222222222222',
+									true,
+								);
+								setResult({
+									status: 'success',
+									message: `Approval sent (user proceeded):\n${txHash}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Blocked:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">⚠️</span>
+						Approve Unknown (Unlimited)
+					</button>
+
+					<button
+						type="button"
+						id="revoke-approval"
+						className="btn btn-success"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Sending approve() with amount=0 (revocation)...',
+							});
+							try {
+								const txHash = await sendApprovalRevocation(
+									'0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+									MALICIOUS_ADDRESS,
+								);
+								setResult({
+									status: 'success',
+									message: `Revocation sent (silent pass):\n${txHash}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Error:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">✓</span>
+						Revoke Approval (amount=0)
 					</button>
 				</div>
 			</section>

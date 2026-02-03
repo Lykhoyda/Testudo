@@ -134,6 +134,15 @@
 	background: #059669;
 }
 
+.btn-warning {
+	background: var(--warning);
+	color: white;
+}
+
+.btn-warning:hover {
+	background: #d97706;
+}
+
 .addresses {
 	display: flex;
 	flex-direction: column;

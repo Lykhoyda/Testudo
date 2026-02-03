@@ -286,3 +286,81 @@ export async function signDelegation(delegateAddress: string): Promise<string> {
 
 	return result as string;
 }
+
+export async function sendApproval(
+	tokenAddress: string,
+	spenderAddress: string,
+	unlimited = true,
+): Promise<string> {
+	const amount = unlimited
+		? 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+		: '0000000000000000000000000000000000000000000000000de0b6b3a7640000';
+
+	const data = `0x095ea7b3${spenderAddress.slice(2).toLowerCase().padStart(64, '0')}${amount}`;
+
+	const ethereum = (window as unknown as { ethereum: MockProvider }).ethereum;
+
+	const result = await ethereum.request({
+		method: 'eth_sendTransaction',
+		params: [
+			{
+				from: '0x1234567890123456789012345678901234567890',
+				to: tokenAddress,
+				data,
+			},
+		],
+	});
+
+	return result as string;
+}
+
+export async function sendIncreaseAllowance(
+	tokenAddress: string,
+	spenderAddress: string,
+	unlimited = true,
+): Promise<string> {
+	const amount = unlimited
+		? 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+		: '0000000000000000000000000000000000000000000000000de0b6b3a7640000';
+
+	const data = `0x39509351${spenderAddress.slice(2).toLowerCase().padStart(64, '0')}${amount}`;
+
+	const ethereum = (window as unknown as { ethereum: MockProvider }).ethereum;
+
+	const result = await ethereum.request({
+		method: 'eth_sendTransaction',
+		params: [
+			{
+				from: '0x1234567890123456789012345678901234567890',
+				to: tokenAddress,
+				data,
+			},
+		],
+	});
+
+	return result as string;
+}
+
+export async function sendApprovalRevocation(
+	tokenAddress: string,
+	spenderAddress: string,
+): Promise<string> {
+	const zeroAmount = '0000000000000000000000000000000000000000000000000000000000000000';
+
+	const data = `0x095ea7b3${spenderAddress.slice(2).toLowerCase().padStart(64, '0')}${zeroAmount}`;
+
+	const ethereum = (window as unknown as { ethereum: MockProvider }).ethereum;
+
+	const result = await ethereum.request({
+		method: 'eth_sendTransaction',
+		params: [
+			{
+				from: '0x1234567890123456789012345678901234567890',
+				to: tokenAddress,
+				data,
+			},
+		],
+	});
+
+	return result as string;
+}

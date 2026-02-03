@@ -46,6 +46,67 @@ interface PermitInfo {
 	tokenName?: string;
 }
 
+interface ApprovalInfo {
+	type: 'approve' | 'increaseAllowance' | 'decreaseAllowance';
+	spender: string;
+	amount: string;
+	tokenAddress: string;
+}
+
+const APPROVAL_SELECTORS = {
+	approve: '0x095ea7b3',
+	increaseAllowance: '0x39509351',
+	decreaseAllowance: '0xa457c2d7',
+} as const;
+
+function isApprovalTransaction(data: string | undefined): boolean {
+	if (!data || data.length < 10) return false;
+	const selector = data.slice(0, 10).toLowerCase();
+	return Object.values(APPROVAL_SELECTORS).includes(
+		selector as (typeof APPROVAL_SELECTORS)[keyof typeof APPROVAL_SELECTORS],
+	);
+}
+
+function parseApprovalData(data: string, tokenAddress: string): ApprovalInfo | null {
+	const selector = data.slice(0, 10).toLowerCase();
+	if (data.length < 138) return null;
+
+	const spenderPadded = data.slice(10, 74);
+	const amountHex = data.slice(74, 138);
+
+	const spender = `0x${spenderPadded.slice(24).toLowerCase()}`;
+	if (!/^0x[a-fA-F0-9]{40}$/.test(spender)) return null;
+
+	const type =
+		selector === APPROVAL_SELECTORS.approve
+			? 'approve'
+			: selector === APPROVAL_SELECTORS.increaseAllowance
+				? 'increaseAllowance'
+				: 'decreaseAllowance';
+
+	return { type, spender, amount: `0x${amountHex}`, tokenAddress: tokenAddress.toLowerCase() };
+}
+
+function formatApprovalAmount(hexAmount: string): string {
+	if (isUnlimitedValue(hexAmount)) {
+		return 'UNLIMITED';
+	}
+	try {
+		const amount = BigInt(hexAmount);
+		return amount.toLocaleString();
+	} catch {
+		return 'Invalid Amount Data';
+	}
+}
+
+function isZeroApproval(hexAmount: string): boolean {
+	try {
+		return BigInt(hexAmount) === BigInt(0);
+	} catch {
+		return false;
+	}
+}
+
 interface AnalysisResult {
 	risk: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
 	threats: string[];
@@ -93,7 +154,56 @@ function wrapEthereumProvider(): void {
 				try {
 					const txParams = (args.params as Record<string, string>[])?.[0];
 					const toAddress = txParams?.to;
+					const data = txParams?.data;
 
+					// Check for approval transactions (approve, increaseAllowance, decreaseAllowance)
+					if (toAddress && data && isApprovalTransaction(data)) {
+						const approvalInfo = parseApprovalData(data, toAddress);
+						if (approvalInfo) {
+							console.log('[Testudo] Token approval detected:', approvalInfo.type);
+
+							// Silent pass for revocations (amount = 0) - no security risk
+							if (isZeroApproval(approvalInfo.amount)) {
+								console.log('[Testudo] Approval revocation detected, passing through');
+								return originalRequest(args);
+							}
+
+							const analysis = await requestAddressCheck(approvalInfo.spender);
+							const unlimited = isUnlimitedValue(approvalInfo.amount);
+
+							if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
+								const userConfirmed = await showWarning(
+									analysis,
+									'approval',
+									undefined,
+									approvalInfo,
+								);
+								if (!userConfirmed) {
+									throw new Error('Testudo: Approval blocked by user - malicious spender detected');
+								}
+							} else if (unlimited) {
+								const syntheticAnalysis: AnalysisResult = {
+									...analysis,
+									risk: 'HIGH',
+									threats: ['unlimited_approval', ...analysis.threats],
+									blocked: true,
+								};
+								const userConfirmed = await showWarning(
+									syntheticAnalysis,
+									'approval',
+									undefined,
+									approvalInfo,
+								);
+								if (!userConfirmed) {
+									throw new Error('Testudo: Approval blocked by user - unlimited amount');
+								}
+							}
+
+							return originalRequest(args);
+						}
+					}
+
+					// Check recipient address for non-approval transactions
 					if (toAddress && /^0x[a-fA-F0-9]{40}$/.test(toAddress)) {
 						const analysis = await requestAddressCheck(toAddress);
 
@@ -506,8 +616,9 @@ function getThreatIcon(threat: string): string {
  */
 function showWarning(
 	analysis: AnalysisResult,
-	context: 'delegation' | 'transaction' | 'permit' = 'delegation',
+	context: 'delegation' | 'transaction' | 'permit' | 'approval' = 'delegation',
 	permitInfo?: PermitInfo,
+	approvalInfo?: ApprovalInfo,
 ): Promise<boolean> {
 	return new Promise((resolve) => {
 		// Create modal overlay
@@ -909,9 +1020,9 @@ function showWarning(
             <span class="testudo-material-icon">gpp_maybe</span>
           </div>
           <div class="testudo-header-text">
-            <h2 class="testudo-title">${context === 'permit' ? 'Permit Signature Detected' : context === 'transaction' ? 'Malicious Recipient Detected' : 'Dangerous Contract Detected'}</h2>
+            <h2 class="testudo-title">${context === 'approval' ? 'Token Approval Detected' : context === 'permit' ? 'Permit Signature Detected' : context === 'transaction' ? 'Malicious Recipient Detected' : 'Dangerous Contract Detected'}</h2>
             <p class="testudo-subtitle">
-              ${context === 'permit' ? 'This signature grants <strong>token spending rights</strong>!' : context === 'transaction' ? 'You are about to send funds to a <strong>known scammer</strong> address.' : 'We have intercepted a malicious <strong>EIP-7702</strong> delegation request.'}
+              ${context === 'approval' ? 'You are granting <strong>token spending rights</strong> to another address.' : context === 'permit' ? 'This signature grants <strong>token spending rights</strong>!' : context === 'transaction' ? 'You are about to send funds to a <strong>known scammer</strong> address.' : 'We have intercepted a malicious <strong>EIP-7702</strong> delegation request.'}
             </p>
           </div>
         </div>
@@ -935,6 +1046,19 @@ function showWarning(
           ${permitInfo.tokenName ? `<div class="testudo-address-box" style="margin-bottom:6px"><span class="testudo-address-label">Token</span><span class="testudo-address-text">${escapeHtml(permitInfo.tokenName)}${permitInfo.token ? ` (${permitInfo.token.slice(0, 8)}...)` : ''}</span></div>` : ''}
           <div class="testudo-address-box" style="margin-bottom:6px"><span class="testudo-address-label">Amount</span><span class="testudo-address-text" style="${isUnlimitedValue(permitInfo.value) ? 'color:#e74c3c;font-weight:700' : ''}">${isUnlimitedValue(permitInfo.value) ? 'UNLIMITED' : permitInfo.value === 'batch' ? 'Batch (multiple tokens)' : (permitInfo.value || 'Unknown')}</span></div>
           ${permitInfo.deadline ? `<div class="testudo-address-box"><span class="testudo-address-label">Deadline</span><span class="testudo-address-text">${escapeHtml(String(permitInfo.deadline))}</span></div>` : ''}
+        </div>
+        `
+						: ''
+				}
+
+        ${
+					approvalInfo
+						? `
+        <!-- Approval Details -->
+        <div class="testudo-address-section">
+          <div class="testudo-address-box" style="margin-bottom:6px"><span class="testudo-address-label">Token Contract</span><span class="testudo-address-text">${approvalInfo.tokenAddress.slice(0, 10)}...${approvalInfo.tokenAddress.slice(-6)}</span></div>
+          <div class="testudo-address-box" style="margin-bottom:6px"><span class="testudo-address-label">Amount</span><span class="testudo-address-text" style="${isUnlimitedValue(approvalInfo.amount) ? 'color:#e74c3c;font-weight:700' : ''}">${formatApprovalAmount(approvalInfo.amount)}</span></div>
+          <div class="testudo-address-box"><span class="testudo-address-label">Operation</span><span class="testudo-address-text">${approvalInfo.type === 'approve' ? 'approve()' : approvalInfo.type === 'increaseAllowance' ? 'increaseAllowance()' : 'decreaseAllowance()'}</span></div>
         </div>
         `
 						: ''
@@ -966,7 +1090,7 @@ function showWarning(
         <!-- Contract Address -->
         <div class="testudo-address-section">
           <div class="testudo-address-box">
-            <span class="testudo-address-label">${context === 'permit' ? 'Spender Address' : context === 'transaction' ? 'Recipient Address' : 'Target Contract'}</span>
+            <span class="testudo-address-label">${context === 'approval' ? 'Spender Address' : context === 'permit' ? 'Spender Address' : context === 'transaction' ? 'Recipient Address' : 'Target Contract'}</span>
             <div class="testudo-address-value">
               <span class="testudo-address-text">${escapeHtml(truncatedAddress)}</span>
               <button class="testudo-copy-btn" id="testudo-copy" title="Copy Address">

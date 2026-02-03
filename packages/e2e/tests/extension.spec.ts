@@ -301,6 +301,104 @@ test.describe('eth_sendTransaction Detection', () => {
 	});
 });
 
+test.describe('Token Approval Detection', () => {
+	test('warning modal appears for approve() with malicious spender', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#approve-malicious-unlimited');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await expect(modal.locator('.testudo-title')).toContainText('Token Approval Detected');
+
+		await page.close();
+	});
+
+	test('warning appears for unlimited approval to unknown spender', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#approve-unknown-unlimited');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await expect(modal.locator('.testudo-title')).toContainText('Token Approval Detected');
+
+		await expect(modal.getByText('UNLIMITED')).toBeVisible();
+
+		await page.close();
+	});
+
+	test('limited approval to safe address proceeds without warning', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#approve-safe-limited');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).not.toBeVisible({ timeout: 3000 });
+
+		await expect(page.locator('#result')).toContainText('Approval sent');
+
+		await page.close();
+	});
+
+	test('user can cancel malicious approval', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+
+		await page.click('#approve-malicious-unlimited');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await page.click('#testudo-cancel');
+		await expect(modal).not.toBeVisible();
+
+		await expect(page.locator('#result')).toContainText('Blocked');
+
+		await page.close();
+	});
+
+	test('warning modal appears for increaseAllowance() with malicious spender', async ({
+		context,
+	}) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#increase-allowance-malicious');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await expect(modal.locator('.testudo-title')).toContainText('Token Approval Detected');
+
+		await page.close();
+	});
+
+	test('revocation (amount=0) passes silently without warning', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#revoke-approval');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).not.toBeVisible({ timeout: 3000 });
+
+		await expect(page.locator('#result')).toContainText('Revocation sent');
+
+		await page.close();
+	});
+});
+
 test.describe('Permit Signature Detection', () => {
 	test('warning modal appears for permit with malicious spender', async ({ context }) => {
 		const page = await context.newPage();
