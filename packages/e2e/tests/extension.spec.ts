@@ -329,7 +329,7 @@ test.describe('Token Approval Detection', () => {
 
 		await expect(modal.locator('.testudo-title')).toContainText('Token Approval Detected');
 
-		await expect(modal.getByText('UNLIMITED')).toBeVisible();
+		await expect(modal.locator('.testudo-address-text', { hasText: 'UNLIMITED' })).toBeVisible();
 
 		await page.close();
 	});
@@ -429,7 +429,9 @@ test.describe('NFT setApprovalForAll Detection', () => {
 
 		await expect(modal.locator('.testudo-title')).toContainText('NFT Collection Approval Detected');
 
-		await expect(modal.getByText('FULL COLLECTION')).toBeVisible();
+		await expect(
+			modal.locator('.testudo-address-text', { hasText: 'FULL COLLECTION' }),
+		).toBeVisible();
 
 		await page.close();
 	});
