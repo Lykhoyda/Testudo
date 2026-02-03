@@ -6,6 +6,7 @@ import {
 	sendApproval,
 	sendApprovalRevocation,
 	sendIncreaseAllowance,
+	sendSetApprovalForAll,
 	sendTransaction,
 	signDelegation,
 	signPermit,
@@ -386,6 +387,140 @@ function App() {
 					>
 						<span className="btn-icon">✓</span>
 						Revoke Approval (amount=0)
+					</button>
+				</div>
+			</section>
+
+			<section className="card">
+				<h2>NFT setApprovalForAll Tests</h2>
+				<p className="description">
+					Test ERC721/ERC1155 setApprovalForAll() interception. Testudo checks the operator address
+					against the threat database and known marketplaces.
+				</p>
+
+				<div className="button-group">
+					<button
+						type="button"
+						id="nft-approval-malicious"
+						className="btn btn-danger"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Sending setApprovalForAll() with MALICIOUS operator...',
+							});
+							try {
+								const txHash = await sendSetApprovalForAll(
+									'0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d',
+									MALICIOUS_ADDRESS,
+									true,
+								);
+								setResult({
+									status: 'success',
+									message: `setApprovalForAll sent (user proceeded):\n${txHash}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Blocked:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">⚠️</span>
+						setApprovalForAll (Malicious Operator)
+					</button>
+
+					<button
+						type="button"
+						id="nft-approval-opensea"
+						className="btn btn-success"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Sending setApprovalForAll() with OpenSea Seaport...',
+							});
+							try {
+								const txHash = await sendSetApprovalForAll(
+									'0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d',
+									'0x1e0049783f008a0085193e00003d00cd54003c71',
+									true,
+								);
+								setResult({
+									status: 'success',
+									message: `setApprovalForAll sent (OpenSea trusted):\n${txHash}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Error:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">✓</span>
+						setApprovalForAll (OpenSea)
+					</button>
+
+					<button
+						type="button"
+						id="nft-approval-unknown"
+						className="btn btn-warning"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Sending setApprovalForAll() with UNKNOWN operator...',
+							});
+							try {
+								const txHash = await sendSetApprovalForAll(
+									'0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d',
+									'0x3333333333333333333333333333333333333333',
+									true,
+								);
+								setResult({
+									status: 'success',
+									message: `setApprovalForAll sent (user proceeded):\n${txHash}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Blocked:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">⚠️</span>
+						setApprovalForAll (Unknown Operator)
+					</button>
+
+					<button
+						type="button"
+						id="nft-approval-revoke"
+						className="btn btn-success"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Sending setApprovalForAll(approved=false) revocation...',
+							});
+							try {
+								const txHash = await sendSetApprovalForAll(
+									'0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d',
+									MALICIOUS_ADDRESS,
+									false,
+								);
+								setResult({
+									status: 'success',
+									message: `Revocation sent (silent pass):\n${txHash}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Error:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">✓</span>
+						Revoke setApprovalForAll
 					</button>
 				</div>
 			</section>

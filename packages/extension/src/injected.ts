@@ -53,11 +53,33 @@ interface ApprovalInfo {
 	tokenAddress: string;
 }
 
+interface NftApprovalInfo {
+	type: 'setApprovalForAll';
+	operator: string;
+	approved: boolean;
+	collectionAddress: string;
+}
+
 const APPROVAL_SELECTORS = {
 	approve: '0x095ea7b3',
 	increaseAllowance: '0x39509351',
 	decreaseAllowance: '0xa457c2d7',
 } as const;
+
+const NFT_APPROVAL_SELECTORS = {
+	setApprovalForAll: '0xa22cb465',
+} as const;
+
+const KNOWN_MARKETPLACES: Record<string, string> = {
+	'0x1e0049783f008a0085193e00003d00cd54003c71': 'OpenSea Seaport 1.1',
+	'0x00000000000001ad428e4906ae43d8f9852d0dd6': 'OpenSea Seaport 1.4',
+	'0x00000000000000adc04c56bf30ac9d3c0aaf14dc': 'OpenSea Seaport 1.5',
+	'0x00000000000000adc04c56bf30ac9d3c0aaf14dd': 'OpenSea Seaport 1.6',
+	'0x000000000000ad05ccc4f10045630fb830b95127': 'Blur',
+	'0x59728544b08ab483533076417fbbb2fd0b17ce3a': 'LooksRare Exchange',
+	'0x74312363e45dcaba76c59ec49a7aa8a65a67eed3': 'X2Y2 Exchange',
+	'0x2b2e8cda09bba9660dca5cb6233787738ad68329': 'Sudoswap',
+};
 
 function isApprovalTransaction(data: string | undefined): boolean {
 	if (!data || data.length < 10) return false;
@@ -107,12 +129,42 @@ function isZeroApproval(hexAmount: string): boolean {
 	}
 }
 
+function isNftApprovalTransaction(data: string | undefined): boolean {
+	if (!data || data.length < 10) return false;
+	const selector = data.slice(0, 10).toLowerCase();
+	return selector === NFT_APPROVAL_SELECTORS.setApprovalForAll;
+}
+
+function parseNftApprovalData(data: string, collectionAddress: string): NftApprovalInfo | null {
+	if (data.length < 138) return null;
+
+	const operatorPadded = data.slice(10, 74);
+	const approvedHex = data.slice(74, 138);
+
+	const operator = `0x${operatorPadded.slice(24).toLowerCase()}`;
+	if (!/^0x[a-fA-F0-9]{40}$/.test(operator)) return null;
+
+	const approved = BigInt(`0x${approvedHex}`) !== BigInt(0);
+
+	return {
+		type: 'setApprovalForAll',
+		operator,
+		approved,
+		collectionAddress: collectionAddress.toLowerCase(),
+	};
+}
+
+function isKnownMarketplace(address: string): string | null {
+	return KNOWN_MARKETPLACES[address.toLowerCase()] || null;
+}
+
 interface AnalysisResult {
 	risk: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
 	threats: string[];
 	warnings?: Warning[];
 	address: string;
 	blocked: boolean;
+	whitelisted?: boolean;
 }
 
 // Inject Google Fonts for Material Symbols
@@ -155,6 +207,73 @@ function wrapEthereumProvider(): void {
 					const txParams = (args.params as Record<string, string>[])?.[0];
 					const toAddress = txParams?.to;
 					const data = txParams?.data;
+
+					// Check for NFT approval transactions (setApprovalForAll)
+					if (toAddress && data && isNftApprovalTransaction(data)) {
+						const nftApprovalInfo = parseNftApprovalData(data, toAddress);
+						if (nftApprovalInfo) {
+							console.log('[Testudo] NFT setApprovalForAll detected');
+
+							// Silent pass for revocations (approved = false) - user is removing access
+							if (!nftApprovalInfo.approved) {
+								console.log('[Testudo] NFT approval revocation detected, passing through');
+								return originalRequest(args);
+							}
+
+							// Check operator against threat database FIRST (defense-in-depth)
+							const analysis = await requestAddressCheck(nftApprovalInfo.operator);
+
+							// If malicious, always show warning (even for known marketplaces)
+							if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
+								const userConfirmed = await showWarning(
+									analysis,
+									'nft-approval',
+									undefined,
+									undefined,
+									nftApprovalInfo,
+								);
+								if (!userConfirmed) {
+									throw new Error(
+										'Testudo: NFT approval blocked by user - malicious operator detected',
+									);
+								}
+								return originalRequest(args);
+							}
+
+							// If user has whitelisted this operator, pass through
+							if (analysis.whitelisted) {
+								console.log('[Testudo] Operator is whitelisted, passing through');
+								return originalRequest(args);
+							}
+
+							// If operator is a known marketplace (trusted), pass through
+							const marketplaceName = isKnownMarketplace(nftApprovalInfo.operator);
+							if (marketplaceName) {
+								console.log(`[Testudo] Known marketplace: ${marketplaceName}`);
+								return originalRequest(args);
+							}
+
+							// Unknown operator - show HIGH warning (granting full collection access)
+							const syntheticAnalysis: AnalysisResult = {
+								...analysis,
+								risk: 'HIGH',
+								threats: ['nft_full_collection_access', ...analysis.threats],
+								blocked: true,
+							};
+							const userConfirmed = await showWarning(
+								syntheticAnalysis,
+								'nft-approval',
+								undefined,
+								undefined,
+								nftApprovalInfo,
+							);
+							if (!userConfirmed) {
+								throw new Error('Testudo: NFT approval blocked by user - unknown operator');
+							}
+
+							return originalRequest(args);
+						}
+					}
 
 					// Check for approval transactions (approve, increaseAllowance, decreaseAllowance)
 					if (toAddress && data && isApprovalTransaction(data)) {
@@ -276,10 +395,11 @@ function wrapEthereumProvider(): void {
 				}
 
 				console.log('[Testudo] 🔍 EIP-7702 authorization detected!');
-				console.log('[Testudo] Delegate address:', typedData.message.address);
+				const delegateAddress = typedData.message.address as string;
+				console.log('[Testudo] Delegate address:', delegateAddress);
 
 				// Request analysis from background script
-				const analysis = await requestAnalysis(typedData.message.address);
+				const analysis = await requestAnalysis(delegateAddress);
 
 				console.log('[Testudo] Analysis result:', analysis);
 
@@ -605,6 +725,7 @@ function getThreatIcon(threat: string): string {
 		token_replay_risk: 'replay',
 		token_approval_no_auth: 'token',
 		token_with_auth: 'token',
+		nft_full_collection_access: 'collections',
 		ETH_AUTO_FORWARDER: 'currency_exchange',
 		INFERNO_DRAINER: 'local_fire_department',
 	};
@@ -616,9 +737,10 @@ function getThreatIcon(threat: string): string {
  */
 function showWarning(
 	analysis: AnalysisResult,
-	context: 'delegation' | 'transaction' | 'permit' | 'approval' = 'delegation',
+	context: 'delegation' | 'transaction' | 'permit' | 'approval' | 'nft-approval' = 'delegation',
 	permitInfo?: PermitInfo,
 	approvalInfo?: ApprovalInfo,
+	nftApprovalInfo?: NftApprovalInfo,
 ): Promise<boolean> {
 	return new Promise((resolve) => {
 		// Create modal overlay
@@ -1020,9 +1142,9 @@ function showWarning(
             <span class="testudo-material-icon">gpp_maybe</span>
           </div>
           <div class="testudo-header-text">
-            <h2 class="testudo-title">${context === 'approval' ? 'Token Approval Detected' : context === 'permit' ? 'Permit Signature Detected' : context === 'transaction' ? 'Malicious Recipient Detected' : 'Dangerous Contract Detected'}</h2>
+            <h2 class="testudo-title">${context === 'nft-approval' ? 'NFT Collection Approval Detected' : context === 'approval' ? 'Token Approval Detected' : context === 'permit' ? 'Permit Signature Detected' : context === 'transaction' ? 'Malicious Recipient Detected' : 'Dangerous Contract Detected'}</h2>
             <p class="testudo-subtitle">
-              ${context === 'approval' ? 'You are granting <strong>token spending rights</strong> to another address.' : context === 'permit' ? 'This signature grants <strong>token spending rights</strong>!' : context === 'transaction' ? 'You are about to send funds to a <strong>known scammer</strong> address.' : 'We have intercepted a malicious <strong>EIP-7702</strong> delegation request.'}
+              ${context === 'nft-approval' ? 'You are granting <strong>full collection access</strong> to another address.' : context === 'approval' ? 'You are granting <strong>token spending rights</strong> to another address.' : context === 'permit' ? 'This signature grants <strong>token spending rights</strong>!' : context === 'transaction' ? 'You are about to send funds to a <strong>known scammer</strong> address.' : 'We have intercepted a malicious <strong>EIP-7702</strong> delegation request.'}
             </p>
           </div>
         </div>
@@ -1064,6 +1186,18 @@ function showWarning(
 						: ''
 				}
 
+        ${
+					nftApprovalInfo
+						? `
+        <!-- NFT Approval Details -->
+        <div class="testudo-address-section">
+          <div class="testudo-address-box" style="margin-bottom:6px"><span class="testudo-address-label">Collection</span><span class="testudo-address-text">${nftApprovalInfo.collectionAddress.slice(0, 10)}...${nftApprovalInfo.collectionAddress.slice(-6)}</span></div>
+          <div class="testudo-address-box"><span class="testudo-address-label">Access Level</span><span class="testudo-address-text" style="color:#e74c3c;font-weight:700">FULL COLLECTION</span></div>
+        </div>
+        `
+						: ''
+				}
+
         <!-- Threats List -->
         <div class="testudo-threats">
           <h3 class="testudo-threats-title">Threats Detected</h3>
@@ -1090,7 +1224,7 @@ function showWarning(
         <!-- Contract Address -->
         <div class="testudo-address-section">
           <div class="testudo-address-box">
-            <span class="testudo-address-label">${context === 'approval' ? 'Spender Address' : context === 'permit' ? 'Spender Address' : context === 'transaction' ? 'Recipient Address' : 'Target Contract'}</span>
+            <span class="testudo-address-label">${context === 'nft-approval' ? 'Operator Address' : context === 'approval' ? 'Spender Address' : context === 'permit' ? 'Spender Address' : context === 'transaction' ? 'Recipient Address' : 'Target Contract'}</span>
             <div class="testudo-address-value">
               <span class="testudo-address-text">${escapeHtml(truncatedAddress)}</span>
               <button class="testudo-copy-btn" id="testudo-copy" title="Copy Address">
@@ -1209,6 +1343,7 @@ function getThreatShortDesc(threat: string): string {
 		token_replay_risk: 'Same signature can be reused multiple times',
 		token_approval_no_auth: 'Unlimited access without verification',
 		token_with_auth: 'Has some security controls in place',
+		nft_full_collection_access: 'Grants control over ALL NFTs in this collection',
 		ETH_AUTO_FORWARDER: 'Known malicious ETH drainer contract',
 		INFERNO_DRAINER: 'Known Inferno Drainer attack contract',
 	};
@@ -1457,6 +1592,7 @@ function formatThreat(threat: string): string {
 		token_replay_risk: 'Replay attack risk',
 		token_approval_no_auth: 'Unprotected approvals',
 		token_with_auth: 'Token transfers enabled',
+		nft_full_collection_access: 'Full NFT collection access',
 		ETH_AUTO_FORWARDER: 'Known ETH drainer',
 		INFERNO_DRAINER: 'Inferno Drainer',
 	};

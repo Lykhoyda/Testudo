@@ -399,6 +399,89 @@ test.describe('Token Approval Detection', () => {
 	});
 });
 
+test.describe('NFT setApprovalForAll Detection', () => {
+	test('warning modal appears for setApprovalForAll with malicious operator', async ({
+		context,
+	}) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#nft-approval-malicious');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await expect(modal.locator('.testudo-title')).toContainText('NFT Collection Approval Detected');
+
+		await page.close();
+	});
+
+	test('warning appears for unknown operator', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#nft-approval-unknown');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await expect(modal.locator('.testudo-title')).toContainText('NFT Collection Approval Detected');
+
+		await expect(modal.getByText('FULL COLLECTION')).toBeVisible();
+
+		await page.close();
+	});
+
+	test('OpenSea (known marketplace) proceeds without warning', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#nft-approval-opensea');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).not.toBeVisible({ timeout: 3000 });
+
+		await expect(page.locator('#result')).toContainText('setApprovalForAll sent');
+
+		await page.close();
+	});
+
+	test('revocation (approved=false) passes silently', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#nft-approval-revoke');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).not.toBeVisible({ timeout: 3000 });
+
+		await expect(page.locator('#result')).toContainText('Revocation sent');
+
+		await page.close();
+	});
+
+	test('user can cancel malicious NFT approval', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+
+		await page.click('#nft-approval-malicious');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await page.click('#testudo-cancel');
+		await expect(modal).not.toBeVisible();
+
+		await expect(page.locator('#result')).toContainText('Blocked');
+
+		await page.close();
+	});
+});
+
 test.describe('Permit Signature Detection', () => {
 	test('warning modal appears for permit with malicious spender', async ({ context }) => {
 		const page = await context.newPage();

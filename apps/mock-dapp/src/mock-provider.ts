@@ -364,3 +364,30 @@ export async function sendApprovalRevocation(
 
 	return result as string;
 }
+
+export async function sendSetApprovalForAll(
+	collectionAddress: string,
+	operatorAddress: string,
+	approved = true,
+): Promise<string> {
+	const approvedValue = approved
+		? '0000000000000000000000000000000000000000000000000000000000000001'
+		: '0000000000000000000000000000000000000000000000000000000000000000';
+
+	const data = `0xa22cb465${operatorAddress.slice(2).toLowerCase().padStart(64, '0')}${approvedValue}`;
+
+	const ethereum = (window as unknown as { ethereum: MockProvider }).ethereum;
+
+	const result = await ethereum.request({
+		method: 'eth_sendTransaction',
+		params: [
+			{
+				from: '0x1234567890123456789012345678901234567890',
+				to: collectionAddress,
+				data,
+			},
+		],
+	});
+
+	return result as string;
+}
