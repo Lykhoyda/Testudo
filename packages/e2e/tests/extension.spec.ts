@@ -589,23 +589,6 @@ test.describe('Blind Signature Detection (ANT-222)', () => {
 		await page.close();
 	});
 
-	test('warning modal appears for eth_sign', async ({ context }) => {
-		const page = await context.newPage();
-		await page.goto(MOCK_DAPP_URL);
-		await expect(page.locator('#provider-status')).toContainText('Ready');
-
-		await page.click('#eth-sign');
-
-		const modal = page.locator('#testudo-warning-overlay');
-		await expect(modal).toBeVisible({ timeout: 10000 });
-
-		await expect(modal.locator('.testudo-title')).toContainText('Blind Signature Request');
-
-		await expect(modal.locator('.testudo-address-text', { hasText: 'eth_sign' })).toBeVisible();
-
-		await page.close();
-	});
-
 	test('user can proceed with blind signature after warning', async ({ context }) => {
 		const page = await context.newPage();
 		await page.goto(MOCK_DAPP_URL);
@@ -734,6 +717,99 @@ test.describe('Typed Data Address Scanning (ANT-222)', () => {
 		await expect(modal).not.toBeVisible({ timeout: 3000 });
 
 		await expect(page.locator('#result')).toContainText('Seaport order signed');
+
+		await page.close();
+	});
+});
+
+test.describe('eth_sign Hard Block (ANT-223)', () => {
+	test('CRITICAL warning always shown for eth_sign', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#eth-sign');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await expect(modal.locator('.testudo-title')).toContainText('Dangerous: eth_sign Detected');
+
+		await expect(modal.locator('.testudo-alert-title')).toContainText('CRITICAL');
+
+		await page.close();
+	});
+
+	test('cancel blocks eth_sign', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+
+		await page.click('#eth-sign');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await page.click('#testudo-cancel');
+		await expect(modal).not.toBeVisible();
+
+		await expect(page.locator('#result')).toContainText('Blocked');
+
+		await page.close();
+	});
+
+	test('typed confirmation flow — proceed button disabled until correct input', async ({
+		context,
+	}) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+
+		await page.click('#eth-sign');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		// Proceed Anyway and Trust buttons should NOT be present
+		await expect(modal.locator('#testudo-proceed')).not.toBeVisible();
+		await expect(modal.locator('#testudo-trust')).not.toBeVisible();
+
+		// eth_sign proceed button should be disabled initially
+		const proceedBtn = modal.locator('#testudo-eth-sign-proceed');
+		await expect(proceedBtn).toBeVisible();
+		await expect(proceedBtn).toBeDisabled();
+
+		// Partial input keeps button disabled
+		const input = modal.locator('#testudo-confirm-input');
+		await input.fill('I ACCEPT');
+		await expect(proceedBtn).toBeDisabled();
+
+		// Full correct input enables the button
+		await input.fill('I ACCEPT THE RISK');
+		await expect(proceedBtn).toBeEnabled();
+
+		// Click proceed
+		await proceedBtn.click();
+		await expect(modal).not.toBeVisible();
+
+		await expect(page.locator('#result')).toContainText('eth_sign completed');
+
+		await page.close();
+	});
+
+	test('typed confirmation is case-insensitive', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+
+		await page.click('#eth-sign');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		const proceedBtn = modal.locator('#testudo-eth-sign-proceed');
+		const input = modal.locator('#testudo-confirm-input');
+
+		// Lowercase should also work
+		await input.fill('i accept the risk');
+		await expect(proceedBtn).toBeEnabled();
 
 		await page.close();
 	});

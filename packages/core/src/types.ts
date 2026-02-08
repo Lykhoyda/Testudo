@@ -19,7 +19,8 @@ export type WarningType =
 	| 'EIP712_SAFE'
 	| 'BLIND_SIGNATURE'
 	| 'PHISHING_PATTERN'
-	| 'TYPED_DATA_MALICIOUS_ADDRESS';
+	| 'TYPED_DATA_MALICIOUS_ADDRESS'
+	| 'ETH_SIGN_DEPRECATED';
 
 export type WarningSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
 

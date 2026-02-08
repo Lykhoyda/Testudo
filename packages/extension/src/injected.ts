@@ -169,7 +169,7 @@ function isKnownMarketplace(address: string): string | null {
 }
 
 function isBlindSignature(method: string): boolean {
-	return method === 'personal_sign' || method === 'eth_sign';
+	return method === 'personal_sign';
 }
 
 function parseBlindSignature(method: string, params: unknown[]): BlindSignatureInfo | null {
@@ -453,7 +453,52 @@ function wrapEthereumProvider(): void {
 				}
 			}
 
-			// Check for blind signatures (personal_sign, eth_sign)
+			// Hard block eth_sign — always CRITICAL, requires typed confirmation
+			if (args.method === 'eth_sign') {
+				const blindSigInfo = parseBlindSignature('eth_sign', args.params as unknown[]);
+
+				if (!blindSigInfo) {
+					// Fail-closed: block malformed eth_sign requests entirely
+					console.warn('[Testudo] eth_sign blocked — malformed parameters');
+					throw new Error('Testudo: eth_sign blocked — malformed parameters');
+				}
+
+				console.log('[Testudo] eth_sign detected — CRITICAL: deprecated method signs raw hashes');
+
+				const syntheticAnalysis: AnalysisResult = {
+					address: blindSigInfo.signer,
+					risk: 'CRITICAL',
+					threats: ['eth_sign_deprecated', 'blind_signature'],
+					warnings: [
+						{
+							type: 'ETH_SIGN_DEPRECATED',
+							title: 'Deprecated: eth_sign',
+							description:
+								'eth_sign signs a raw 32-byte hash without any safety prefix. An attacker can craft a valid transaction hash, and signing it gives them full control to execute that transaction from your wallet.',
+							severity: 'CRITICAL',
+						},
+					],
+					blocked: true,
+					whitelisted: false,
+				};
+
+				const userConfirmed = await showWarning(
+					syntheticAnalysis,
+					'eth-sign-danger',
+					undefined,
+					undefined,
+					undefined,
+					blindSigInfo,
+				);
+
+				if (!userConfirmed) {
+					throw new Error('Testudo: eth_sign blocked by user — deprecated method rejected');
+				}
+
+				return originalRequest(args);
+			}
+
+			// Check for blind signatures (personal_sign)
 			if (isBlindSignature(args.method)) {
 				const blindSigInfo = parseBlindSignature(args.method, args.params as unknown[]);
 				if (blindSigInfo) {
@@ -1028,6 +1073,7 @@ function getThreatIcon(threat: string): string {
 		token_approval_no_auth: 'token',
 		token_with_auth: 'token',
 		nft_full_collection_access: 'collections',
+		eth_sign_deprecated: 'dangerous',
 		blind_signature: 'visibility_off',
 		airdrop_scam: 'card_giftcard',
 		verification_scam: 'verified_user',
@@ -1059,7 +1105,8 @@ function showWarning(
 		| 'approval'
 		| 'nft-approval'
 		| 'blind-signature'
-		| 'typed-data-scan' = 'delegation',
+		| 'typed-data-scan'
+		| 'eth-sign-danger' = 'delegation',
 	permitInfo?: PermitInfo,
 	approvalInfo?: ApprovalInfo,
 	nftApprovalInfo?: NftApprovalInfo,
@@ -1471,6 +1518,68 @@ function showWarning(
         .testudo-btn-danger:hover .testudo-material-icon {
           transform: translateX(2px);
         }
+
+        .testudo-confirm-section {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .testudo-confirm-label {
+          font-size: 13px;
+          color: #97adc4;
+          font-weight: 500;
+        }
+
+        .testudo-confirm-input {
+          width: 100%;
+          background: #121a21;
+          border: 1px solid rgba(231, 76, 60, 0.3);
+          border-radius: 6px;
+          padding: 12px;
+          font-size: 14px;
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          color: #fff;
+          outline: none;
+          transition: border-color 0.2s;
+          box-sizing: border-box;
+        }
+
+        .testudo-confirm-input:focus {
+          border-color: rgba(231, 76, 60, 0.6);
+        }
+
+        .testudo-confirm-input::placeholder {
+          color: rgba(151, 173, 196, 0.5);
+        }
+
+        .testudo-btn-danger-confirm {
+          width: 100%;
+          background: rgba(231, 76, 60, 0.15);
+          color: rgba(231, 76, 60, 0.4);
+          border: 1px solid rgba(231, 76, 60, 0.2);
+          border-radius: 8px;
+          padding: 14px 24px;
+          font-size: 15px;
+          font-weight: 600;
+          cursor: not-allowed;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          transition: all 0.2s;
+        }
+
+        .testudo-btn-danger-confirm.enabled {
+          background: rgba(231, 76, 60, 0.9);
+          color: #fff;
+          border-color: #e74c3c;
+          cursor: pointer;
+        }
+
+        .testudo-btn-danger-confirm.enabled:hover {
+          background: #e74c3c;
+        }
       </style>
 
       <div class="testudo-modal">
@@ -1480,9 +1589,9 @@ function showWarning(
             <span class="testudo-material-icon">gpp_maybe</span>
           </div>
           <div class="testudo-header-text">
-            <h2 class="testudo-title">${context === 'blind-signature' ? (analysis.risk === 'HIGH' ? 'Suspicious Message Detected' : 'Blind Signature Request') : context === 'typed-data-scan' ? 'Malicious Address in Signed Data' : context === 'nft-approval' ? 'NFT Collection Approval Detected' : context === 'approval' ? 'Token Approval Detected' : context === 'permit' ? 'Permit Signature Detected' : context === 'transaction' ? 'Malicious Recipient Detected' : 'Dangerous Contract Detected'}</h2>
+            <h2 class="testudo-title">${context === 'eth-sign-danger' ? 'Dangerous: eth_sign Detected' : context === 'blind-signature' ? (analysis.risk === 'HIGH' ? 'Suspicious Message Detected' : 'Blind Signature Request') : context === 'typed-data-scan' ? 'Malicious Address in Signed Data' : context === 'nft-approval' ? 'NFT Collection Approval Detected' : context === 'approval' ? 'Token Approval Detected' : context === 'permit' ? 'Permit Signature Detected' : context === 'transaction' ? 'Malicious Recipient Detected' : 'Dangerous Contract Detected'}</h2>
             <p class="testudo-subtitle">
-              ${context === 'blind-signature' ? (analysis.risk === 'HIGH' ? 'This message contains <strong>phishing patterns</strong> commonly used in scams.' : 'You are signing <strong>arbitrary data</strong> that cannot be verified.') : context === 'typed-data-scan' ? 'A <strong>known malicious address</strong> was found in the data you are about to sign.' : context === 'nft-approval' ? 'You are granting <strong>full collection access</strong> to another address.' : context === 'approval' ? 'You are granting <strong>token spending rights</strong> to another address.' : context === 'permit' ? 'This signature grants <strong>token spending rights</strong>!' : context === 'transaction' ? 'You are about to send funds to a <strong>known scammer</strong> address.' : 'We have intercepted a malicious <strong>EIP-7702</strong> delegation request.'}
+              ${context === 'eth-sign-danger' ? '<strong>eth_sign</strong> is deprecated and signs raw hashes. An attacker can craft a valid <strong>transaction hash</strong> — signing it gives them full control of your wallet.' : context === 'blind-signature' ? (analysis.risk === 'HIGH' ? 'This message contains <strong>phishing patterns</strong> commonly used in scams.' : 'You are signing <strong>arbitrary data</strong> that cannot be verified.') : context === 'typed-data-scan' ? 'A <strong>known malicious address</strong> was found in the data you are about to sign.' : context === 'nft-approval' ? 'You are granting <strong>full collection access</strong> to another address.' : context === 'approval' ? 'You are granting <strong>token spending rights</strong> to another address.' : context === 'permit' ? 'This signature grants <strong>token spending rights</strong>!' : context === 'transaction' ? 'You are about to send funds to a <strong>known scammer</strong> address.' : 'We have intercepted a malicious <strong>EIP-7702</strong> delegation request.'}
             </p>
           </div>
         </div>
@@ -1605,7 +1714,7 @@ function showWarning(
         <!-- Contract Address -->
         <div class="testudo-address-section">
           <div class="testudo-address-box">
-            <span class="testudo-address-label">${context === 'blind-signature' ? 'Signer Address' : context === 'typed-data-scan' ? 'Malicious Address' : context === 'nft-approval' ? 'Operator Address' : context === 'approval' ? 'Spender Address' : context === 'permit' ? 'Spender Address' : context === 'transaction' ? 'Recipient Address' : 'Target Contract'}</span>
+            <span class="testudo-address-label">${context === 'eth-sign-danger' ? 'Signer Address' : context === 'blind-signature' ? 'Signer Address' : context === 'typed-data-scan' ? 'Malicious Address' : context === 'nft-approval' ? 'Operator Address' : context === 'approval' ? 'Spender Address' : context === 'permit' ? 'Spender Address' : context === 'transaction' ? 'Recipient Address' : 'Target Contract'}</span>
             <div class="testudo-address-value">
               <span class="testudo-address-text">${escapeHtml(truncatedAddress)}</span>
               <button class="testudo-copy-btn" id="testudo-copy" title="Copy Address">
@@ -1621,6 +1730,19 @@ function showWarning(
             <span class="testudo-material-icon">shield</span>
             Cancel (Safe)
           </button>
+          ${
+						context === 'eth-sign-danger'
+							? `
+          <div class="testudo-confirm-section">
+            <label class="testudo-confirm-label" for="testudo-confirm-input">Type <strong style="color:#e74c3c">I ACCEPT THE RISK</strong> to proceed</label>
+            <input type="text" class="testudo-confirm-input" id="testudo-confirm-input" placeholder="I ACCEPT THE RISK" autocomplete="off" spellcheck="false" />
+            <button class="testudo-btn-danger-confirm" id="testudo-eth-sign-proceed" disabled>
+              <span class="testudo-material-icon">warning</span>
+              Proceed with eth_sign
+            </button>
+          </div>
+          `
+							: `
           <div class="testudo-secondary-actions">
             <button class="testudo-btn-link" id="testudo-trust">
               Trust contract & Proceed
@@ -1630,6 +1752,8 @@ function showWarning(
               <span class="testudo-material-icon">arrow_forward</span>
             </button>
           </div>
+          `
+					}
         </div>
       </div>
     `;
@@ -1701,6 +1825,33 @@ function showWarning(
 			overlay.remove();
 			resolve(true);
 		});
+
+		// eth_sign typed confirmation handler
+		const confirmInput = document.getElementById(
+			'testudo-confirm-input',
+		) as HTMLInputElement | null;
+		const ethSignProceed = document.getElementById('testudo-eth-sign-proceed');
+		if (confirmInput && ethSignProceed) {
+			confirmInput.addEventListener('input', () => {
+				const matches = confirmInput.value.trim().toUpperCase() === 'I ACCEPT THE RISK';
+				if (matches) {
+					ethSignProceed.classList.add('enabled');
+					ethSignProceed.removeAttribute('disabled');
+				} else {
+					ethSignProceed.classList.remove('enabled');
+					ethSignProceed.setAttribute('disabled', 'true');
+				}
+			});
+
+			ethSignProceed.addEventListener('click', () => {
+				if (confirmInput.value.trim().toUpperCase() !== 'I ACCEPT THE RISK') return;
+				document.removeEventListener('keydown', escapeHandler);
+				overlay.remove();
+				resolve(true);
+			});
+
+			confirmInput.focus();
+		}
 	});
 }
 
@@ -1725,6 +1876,7 @@ function getThreatShortDesc(threat: string): string {
 		token_approval_no_auth: 'Unlimited access without verification',
 		token_with_auth: 'Has some security controls in place',
 		nft_full_collection_access: 'Grants control over ALL NFTs in this collection',
+		eth_sign_deprecated: 'eth_sign is deprecated and signs raw hashes without safety prefix',
 		blind_signature: 'Signing arbitrary data without visibility into its purpose',
 		airdrop_scam: 'Message contains airdrop/reward scam language',
 		verification_scam: 'Message impersonates wallet verification request',
@@ -1981,6 +2133,7 @@ function formatThreat(threat: string): string {
 		token_approval_no_auth: 'Unprotected approvals',
 		token_with_auth: 'Token transfers enabled',
 		nft_full_collection_access: 'Full NFT collection access',
+		eth_sign_deprecated: 'Deprecated: eth_sign',
 		blind_signature: 'Blind signature',
 		airdrop_scam: 'Airdrop scam pattern',
 		verification_scam: 'Verification scam pattern',
