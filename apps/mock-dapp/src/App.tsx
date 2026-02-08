@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import {
 	CDN_SAFE_ADDRESS,
+	createSeaportOrderTypedData,
+	createTypedDataCleanAddresses,
+	createTypedDataWithMaliciousAddress,
 	MALICIOUS_ADDRESS,
 	SAFE_ADDRESS,
 	sendApproval,
@@ -9,9 +12,12 @@ import {
 	sendSetApprovalForAll,
 	sendTransaction,
 	signDelegation,
+	signEthMessage,
+	signGenericTypedData,
 	signPermit,
 	signPermit2,
 	signPermitTransferFrom,
+	signPersonalMessage,
 } from './mock-provider';
 import './App.css';
 
@@ -612,6 +618,257 @@ function App() {
 					>
 						<span className="btn-icon">⚠️</span>
 						Sign PermitTransferFrom (Malicious)
+					</button>
+				</div>
+			</section>
+
+			<section className="card">
+				<h2>Blind Signature Tests</h2>
+				<p className="description">
+					Test personal_sign and eth_sign interception. These are "blind signatures" where users
+					sign arbitrary data without structured information about what they're authorizing.
+				</p>
+
+				<div className="button-group">
+					<button
+						type="button"
+						id="personal-sign-hex"
+						className="btn btn-warning"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Requesting personal_sign with hex message...',
+							});
+							try {
+								const sig = await signPersonalMessage('0x48656c6c6f20576f726c64');
+								setResult({
+									status: 'success',
+									message: `personal_sign completed (user proceeded):\n${sig}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Blocked:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">⚠️</span>
+						personal_sign (Hex Message)
+					</button>
+
+					<button
+						type="button"
+						id="personal-sign-text"
+						className="btn btn-warning"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Requesting personal_sign with text message...',
+							});
+							try {
+								const sig = await signPersonalMessage('Hello, please sign this message');
+								setResult({
+									status: 'success',
+									message: `personal_sign completed (user proceeded):\n${sig}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Blocked:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">⚠️</span>
+						personal_sign (Text Message)
+					</button>
+
+					<button
+						type="button"
+						id="eth-sign"
+						className="btn btn-danger"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Requesting eth_sign (legacy - dangerous)...',
+							});
+							try {
+								const sig = await signEthMessage('0xdeadbeef');
+								setResult({
+									status: 'success',
+									message: `eth_sign completed (user proceeded):\n${sig}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Blocked:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">⚠️</span>
+						eth_sign (Legacy - Dangerous)
+					</button>
+				</div>
+			</section>
+
+			<section className="card">
+				<h2>Phishing Pattern Tests</h2>
+				<p className="description">
+					Test phishing pattern detection in personal_sign messages. Messages containing airdrop
+					scams, verification tricks, or urgency language are escalated to HIGH severity.
+				</p>
+
+				<div className="button-group">
+					<button
+						type="button"
+						id="personal-sign-login"
+						className="btn btn-success"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Requesting personal_sign with login message...',
+							});
+							try {
+								const sig = await signPersonalMessage('Login to OpenSea');
+								setResult({
+									status: 'success',
+									message: `personal_sign completed:\n${sig}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Blocked:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">✓</span>
+						personal_sign &quot;Login to OpenSea&quot;
+					</button>
+
+					<button
+						type="button"
+						id="personal-sign-airdrop"
+						className="btn btn-danger"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Requesting personal_sign with phishing message...',
+							});
+							try {
+								const sig = await signPersonalMessage(
+									'Claim your free airdrop reward now! Act now, limited time offer!',
+								);
+								setResult({
+									status: 'success',
+									message: `personal_sign completed (user proceeded):\n${sig}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Blocked:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">⚠️</span>
+						personal_sign Phishing (Airdrop)
+					</button>
+				</div>
+			</section>
+
+			<section className="card">
+				<h2>Typed Data Address Scanning Tests</h2>
+				<p className="description">
+					Test recursive address extraction from eth_signTypedData_v4. All addresses found in the
+					typed data are checked against the threat database.
+				</p>
+
+				<div className="button-group">
+					<button
+						type="button"
+						id="typed-data-malicious-recipient"
+						className="btn btn-danger"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Signing typed data with malicious recipient...',
+							});
+							try {
+								const typedData = createTypedDataWithMaliciousAddress();
+								const sig = await signGenericTypedData(typedData);
+								setResult({
+									status: 'success',
+									message: `Typed data signed (user proceeded):\n${sig}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Blocked:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">⚠️</span>
+						Transfer to Malicious Address
+					</button>
+
+					<button
+						type="button"
+						id="typed-data-clean"
+						className="btn btn-success"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Signing typed data with clean addresses...',
+							});
+							try {
+								const typedData = createTypedDataCleanAddresses();
+								const sig = await signGenericTypedData(typedData);
+								setResult({
+									status: 'success',
+									message: `Typed data signed:\n${sig}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Error:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">✓</span>
+						Transfer to Safe Address
+					</button>
+
+					<button
+						type="button"
+						id="typed-data-seaport"
+						className="btn btn-success"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Signing Seaport order with known addresses...',
+							});
+							try {
+								const typedData = createSeaportOrderTypedData();
+								const sig = await signGenericTypedData(typedData);
+								setResult({
+									status: 'success',
+									message: `Seaport order signed:\n${sig}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Error:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">✓</span>
+						Seaport Order (Clean)
 					</button>
 				</div>
 			</section>

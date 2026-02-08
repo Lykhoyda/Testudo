@@ -550,6 +550,195 @@ test.describe('Permit Signature Detection', () => {
 	});
 });
 
+test.describe('Blind Signature Detection (ANT-222)', () => {
+	test('warning modal appears for personal_sign with hex message', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#personal-sign-hex');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await expect(modal.locator('.testudo-title')).toContainText('Blind Signature Request');
+
+		await expect(
+			modal.locator('.testudo-address-text', { hasText: 'personal_sign' }),
+		).toBeVisible();
+
+		await page.close();
+	});
+
+	test('warning modal appears for personal_sign with text message', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#personal-sign-text');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await expect(modal.locator('.testudo-title')).toContainText('Blind Signature Request');
+
+		await expect(
+			modal.locator('.testudo-address-text', { hasText: 'Hello, please sign this message' }),
+		).toBeVisible();
+
+		await page.close();
+	});
+
+	test('warning modal appears for eth_sign', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#eth-sign');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await expect(modal.locator('.testudo-title')).toContainText('Blind Signature Request');
+
+		await expect(modal.locator('.testudo-address-text', { hasText: 'eth_sign' })).toBeVisible();
+
+		await page.close();
+	});
+
+	test('user can proceed with blind signature after warning', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+
+		await page.click('#personal-sign-hex');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await page.click('#testudo-proceed');
+		await expect(modal).not.toBeVisible();
+
+		await expect(page.locator('#result')).toContainText('personal_sign completed');
+
+		await page.close();
+	});
+
+	test('user can cancel blind signature', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+
+		await page.click('#personal-sign-hex');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await page.click('#testudo-cancel');
+		await expect(modal).not.toBeVisible();
+
+		await expect(page.locator('#result')).toContainText('Blocked');
+
+		await page.close();
+	});
+
+	test('hex message is decoded to readable text when possible', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		// 0x48656c6c6f20576f726c64 = "Hello World" in hex
+		await page.click('#personal-sign-hex');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		// Should show decoded text "Hello World" instead of raw hex
+		await expect(modal.locator('.testudo-address-text', { hasText: 'Hello World' })).toBeVisible();
+
+		await page.close();
+	});
+});
+
+test.describe('Phishing Pattern Detection (ANT-222)', () => {
+	test('personal_sign "Login to OpenSea" shows standard blind signature warning', async ({
+		context,
+	}) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#personal-sign-login');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await expect(modal.locator('.testudo-title')).toContainText('Blind Signature Request');
+
+		await page.close();
+	});
+
+	test('personal_sign "Claim airdrop" shows elevated phishing warning', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#personal-sign-airdrop');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await expect(modal.locator('.testudo-title')).toContainText('Suspicious Message Detected');
+
+		await page.close();
+	});
+});
+
+test.describe('Typed Data Address Scanning (ANT-222)', () => {
+	test('warning modal for typed data with malicious recipient', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#typed-data-malicious-recipient');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		await expect(modal.locator('.testudo-title')).toContainText('Malicious Address');
+
+		await page.close();
+	});
+
+	test('typed data with all clean addresses passes through', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#typed-data-clean');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).not.toBeVisible({ timeout: 3000 });
+
+		await expect(page.locator('#result')).toContainText('Typed data signed');
+
+		await page.close();
+	});
+
+	test('Seaport order with known marketplace passes through', async ({ context }) => {
+		const page = await context.newPage();
+		await page.goto(MOCK_DAPP_URL);
+		await expect(page.locator('#provider-status')).toContainText('Ready');
+
+		await page.click('#typed-data-seaport');
+
+		const modal = page.locator('#testudo-warning-overlay');
+		await expect(modal).not.toBeVisible({ timeout: 3000 });
+
+		await expect(page.locator('#result')).toContainText('Seaport order signed');
+
+		await page.close();
+	});
+});
+
 test.describe('Settings Page', () => {
 	test('options page loads correctly', async ({ context, extensionId }) => {
 		const page = await context.newPage();

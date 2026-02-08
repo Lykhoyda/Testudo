@@ -6,7 +6,7 @@
  *
  * Flow:
  * 1. Wrap window.ethereum.request
- * 2. Detect eth_signTypedData_v4 with Authorization type
+ * 2. Detect eth_signTypedData_v3/v4 with Authorization type
  * 3. Send delegate address to content script for analysis
  * 4. Wait for risk assessment
  * 5. Block or allow based on result
@@ -58,6 +58,16 @@ interface NftApprovalInfo {
 	operator: string;
 	approved: boolean;
 	collectionAddress: string;
+	collectionName?: string;
+}
+
+interface BlindSignatureInfo {
+	type: 'personal_sign' | 'eth_sign';
+	message: string;
+	decodedMessage: string;
+	messagePreview: string;
+	signer: string;
+	isHex: boolean;
 }
 
 const APPROVAL_SELECTORS = {
@@ -156,6 +166,102 @@ function parseNftApprovalData(data: string, collectionAddress: string): NftAppro
 
 function isKnownMarketplace(address: string): string | null {
 	return KNOWN_MARKETPLACES[address.toLowerCase()] || null;
+}
+
+function isBlindSignature(method: string): boolean {
+	return method === 'personal_sign' || method === 'eth_sign';
+}
+
+function parseBlindSignature(method: string, params: unknown[]): BlindSignatureInfo | null {
+	if (!Array.isArray(params) || params.length < 2) return null;
+
+	const [first, second] = params;
+	const message = method === 'personal_sign' ? String(first) : String(second);
+	const signer = method === 'personal_sign' ? String(second) : String(first);
+
+	if (!/^0x[a-fA-F0-9]{40}$/.test(signer)) return null;
+
+	const isHex = /^0x[a-fA-F0-9]+$/.test(message);
+
+	let decodedMessage = message;
+	if (isHex && message.length > 2) {
+		try {
+			// Decode up to 4000 hex chars (2000 bytes) for phishing detection
+			const hexToDecode = message.slice(2, 4002);
+			const bytes = hexToDecode.match(/.{1,2}/g);
+			if (bytes) {
+				const decoded = bytes.map((b) => String.fromCharCode(parseInt(b, 16))).join('');
+				if (/^[\x20-\x7E\s]+$/.test(decoded)) {
+					decodedMessage = decoded;
+				}
+			}
+		} catch {
+			// Keep original hex
+		}
+	}
+
+	let messagePreview = decodedMessage;
+	if (messagePreview.length > 100) {
+		messagePreview = `${messagePreview.slice(0, 97)}...`;
+	}
+
+	return {
+		type: method as 'personal_sign' | 'eth_sign',
+		message,
+		decodedMessage,
+		messagePreview,
+		signer: signer.toLowerCase(),
+		isHex,
+	};
+}
+
+interface PhishingPattern {
+	category: string;
+	regex: RegExp;
+	score: number;
+}
+
+const PHISHING_PATTERNS: PhishingPattern[] = [
+	{ category: 'airdrop_scam', regex: /claim\s+(your\s+)?airdrop/i, score: 3 },
+	{ category: 'airdrop_scam', regex: /free\s+tokens?/i, score: 3 },
+	{ category: 'airdrop_scam', regex: /claim\s+(your\s+)?reward/i, score: 3 },
+	{ category: 'verification_scam', regex: /verify\s+(your\s+)?wallet/i, score: 3 },
+	{ category: 'verification_scam', regex: /confirm\s+(your\s+)?ownership/i, score: 3 },
+	{ category: 'verification_scam', regex: /security\s+(check|verification)/i, score: 3 },
+	{ category: 'urgency', regex: /expires?\s+in/i, score: 2 },
+	{ category: 'urgency', regex: /act\s+now/i, score: 2 },
+	{ category: 'urgency', regex: /limited\s+time/i, score: 2 },
+	{ category: 'urgency', regex: /within\s+\d+\s+(hour|minute)/i, score: 2 },
+	{ category: 'impersonation', regex: /opensea/i, score: 2 },
+	{ category: 'impersonation', regex: /metamask/i, score: 2 },
+	{ category: 'impersonation', regex: /uniswap/i, score: 2 },
+	{ category: 'impersonation', regex: /coinbase/i, score: 2 },
+	{ category: 'financial_lure', regex: /you\s+(have\s+)?won/i, score: 2 },
+	{ category: 'financial_lure', regex: /prize/i, score: 2 },
+	{ category: 'financial_lure', regex: /bonus\s+token/i, score: 2 },
+];
+
+interface PhishingResult {
+	score: number;
+	patterns: string[];
+	risk: 'INFO' | 'MEDIUM' | 'HIGH';
+}
+
+function detectPhishingPatterns(messageText: string): PhishingResult {
+	let score = 0;
+	const matchedCategories = new Set<string>();
+
+	for (const pattern of PHISHING_PATTERNS) {
+		if (pattern.regex.test(messageText)) {
+			score += pattern.score;
+			matchedCategories.add(pattern.category);
+		}
+	}
+
+	const patterns = Array.from(matchedCategories);
+	const risk: PhishingResult['risk'] = score >= 3 ? 'HIGH' : score >= 1 ? 'MEDIUM' : 'INFO';
+
+	return { score, patterns, risk };
 }
 
 interface AnalysisResult {
@@ -347,8 +453,58 @@ function wrapEthereumProvider(): void {
 				}
 			}
 
-			// Only intercept eth_signTypedData_v4 for EIP-7702 and Permit
-			if (args.method !== 'eth_signTypedData_v4') {
+			// Check for blind signatures (personal_sign, eth_sign)
+			if (isBlindSignature(args.method)) {
+				const blindSigInfo = parseBlindSignature(args.method, args.params as unknown[]);
+				if (blindSigInfo) {
+					console.log(`[Testudo] Blind signature detected: ${blindSigInfo.type}`);
+
+					const phishing = detectPhishingPatterns(blindSigInfo.decodedMessage);
+
+					const isPhishing = phishing.risk === 'HIGH';
+					const threats: string[] = isPhishing
+						? [...phishing.patterns, 'blind_signature']
+						: ['blind_signature'];
+
+					const syntheticAnalysis: AnalysisResult = {
+						address: blindSigInfo.signer,
+						risk: isPhishing ? 'HIGH' : 'MEDIUM',
+						threats,
+						warnings: [
+							{
+								type: isPhishing ? 'PHISHING_PATTERN' : 'BLIND_SIGNATURE',
+								title: isPhishing ? 'Suspicious Message Detected' : 'Blind Signature Request',
+								description: isPhishing
+									? 'This message contains patterns commonly used in phishing attacks.'
+									: 'You are signing data that cannot be verified. This could authorize actions you cannot see.',
+								severity: isPhishing ? 'HIGH' : 'MEDIUM',
+							},
+						],
+						blocked: isPhishing,
+						whitelisted: false,
+					};
+
+					const userConfirmed = await showWarning(
+						syntheticAnalysis,
+						'blind-signature',
+						undefined,
+						undefined,
+						undefined,
+						blindSigInfo,
+					);
+
+					if (!userConfirmed) {
+						throw new Error(
+							`Testudo: ${blindSigInfo.type} blocked by user - blind signature rejected`,
+						);
+					}
+				}
+
+				return originalRequest(args);
+			}
+
+			// Intercept eth_signTypedData v3/v4 for EIP-7702, Permit, and address scanning
+			if (args.method !== 'eth_signTypedData_v4' && args.method !== 'eth_signTypedData_v3') {
 				return originalRequest(args);
 			}
 
@@ -391,6 +547,57 @@ function wrapEthereumProvider(): void {
 
 				// Check if this is an EIP-7702 Authorization
 				if (!isEIP7702Authorization(typedData)) {
+					try {
+						const addresses = extractTypedDataAddresses(typedData);
+						if (addresses.length > 0) {
+							const { malicious, results } = await batchCheckAddresses(addresses);
+							if (malicious.length > 0) {
+								const worstAddr = malicious[0].address.toLowerCase();
+								const worstResult = results.get(worstAddr);
+								const syntheticAnalysis: AnalysisResult = {
+									address: worstAddr,
+									risk: 'CRITICAL',
+									threats: ['typed_data_malicious_address', ...(worstResult?.threats || [])],
+									warnings: [
+										{
+											type: 'TYPED_DATA_MALICIOUS_ADDRESS',
+											title: 'Malicious Address in Signed Data',
+											description:
+												'A known malicious address was found in the data you are about to sign.',
+											severity: 'CRITICAL',
+										},
+									],
+									blocked: true,
+									whitelisted: false,
+								};
+
+								const scanInfo: TypedDataScanInfo = {
+									maliciousAddresses: malicious,
+									primaryType: typedData.primaryType,
+									domainName: typedData.domain?.name,
+								};
+
+								const userConfirmed = await showWarning(
+									syntheticAnalysis,
+									'typed-data-scan',
+									undefined,
+									undefined,
+									undefined,
+									undefined,
+									scanInfo,
+								);
+
+								if (!userConfirmed) {
+									throw new Error(
+										'Testudo: Typed data blocked by user - malicious address in signed data',
+									);
+								}
+							}
+						}
+					} catch (error) {
+						if (error instanceof Error && error.message.includes('Testudo')) throw error;
+						console.error('[Testudo] Error scanning typed data:', error);
+					}
 					return originalRequest(args);
 				}
 
@@ -519,6 +726,68 @@ function validateAddress(value: unknown): string | null {
 	if (typeof value !== 'string') return null;
 	if (!/^0x[a-fA-F0-9]{40}$/.test(value)) return null;
 	return value.toLowerCase();
+}
+
+interface ExtractedAddress {
+	address: string;
+	fieldPath: string;
+}
+
+function extractTypedDataAddresses(typedData: TypedDataMessage): ExtractedAddress[] {
+	const results: ExtractedAddress[] = [];
+	const seen = new Set<string>();
+	const MAX_DEPTH = 10;
+	const MAX_ADDRESSES = 100;
+
+	const verifyingContract = validateAddress(typedData.domain?.verifyingContract);
+	if (verifyingContract) {
+		seen.add(verifyingContract);
+		results.push({ address: verifyingContract, fieldPath: 'domain.verifyingContract' });
+	}
+
+	const typeMap = typedData.types as Record<string, Array<{ name: string; type: string }>>;
+
+	function walk(value: unknown, typeName: string, path: string, depth: number): void {
+		if (depth > MAX_DEPTH || results.length >= MAX_ADDRESSES) return;
+		if (typeName === 'EIP712Domain') return;
+
+		const fields = typeMap[typeName];
+		if (!Array.isArray(fields) || typeof value !== 'object' || value === null) return;
+
+		for (const field of fields) {
+			const fieldValue = (value as Record<string, unknown>)[field.name];
+			const fieldPath = path ? `${path}.${field.name}` : field.name;
+
+			if (field.type === 'address') {
+				const addr = validateAddress(fieldValue);
+				if (addr && !seen.has(addr)) {
+					seen.add(addr);
+					results.push({ address: addr, fieldPath });
+				}
+			} else if (field.type === 'address[]' && Array.isArray(fieldValue)) {
+				for (let i = 0; i < fieldValue.length && results.length < MAX_ADDRESSES; i++) {
+					const addr = validateAddress(fieldValue[i]);
+					if (addr && !seen.has(addr)) {
+						seen.add(addr);
+						results.push({ address: addr, fieldPath: `${fieldPath}[${i}]` });
+					}
+				}
+			} else if (field.type.endsWith('[]')) {
+				const baseType = field.type.slice(0, -2);
+				if (typeMap[baseType] && Array.isArray(fieldValue)) {
+					for (let i = 0; i < fieldValue.length && results.length < MAX_ADDRESSES; i++) {
+						walk(fieldValue[i], baseType, `${fieldPath}[${i}]`, depth + 1);
+					}
+				}
+			} else if (typeMap[field.type]) {
+				walk(fieldValue, field.type, fieldPath, depth + 1);
+			}
+		}
+	}
+
+	walk(typedData.message, typedData.primaryType, 'message', 0);
+
+	return results;
 }
 
 function isDaiPermit(typedData: TypedDataMessage): boolean {
@@ -655,6 +924,39 @@ function requestAddressCheck(address: string): Promise<AnalysisResult> {
 	);
 }
 
+interface BatchCheckResult {
+	malicious: ExtractedAddress[];
+	results: Map<string, AnalysisResult>;
+}
+
+async function batchCheckAddresses(addresses: ExtractedAddress[]): Promise<BatchCheckResult> {
+	const uniqueMap = new Map<string, ExtractedAddress[]>();
+	for (const entry of addresses) {
+		const key = entry.address.toLowerCase();
+		if (!uniqueMap.has(key)) uniqueMap.set(key, []);
+		uniqueMap.get(key)?.push(entry);
+	}
+
+	const results = new Map<string, AnalysisResult>();
+	const malicious: ExtractedAddress[] = [];
+
+	const checks = Array.from(uniqueMap.entries()).map(async ([addr, entries]) => {
+		try {
+			const result = await requestAddressCheck(addr);
+			results.set(addr, result);
+			if (result.risk === 'CRITICAL' || result.risk === 'HIGH') {
+				malicious.push(...entries);
+			}
+		} catch {
+			// fail-open: treat check failure as UNKNOWN
+		}
+	});
+
+	await Promise.all(checks);
+
+	return { malicious, results };
+}
+
 /**
  * Send analysis request to content script → background script
  */
@@ -726,6 +1028,13 @@ function getThreatIcon(threat: string): string {
 		token_approval_no_auth: 'token',
 		token_with_auth: 'token',
 		nft_full_collection_access: 'collections',
+		blind_signature: 'visibility_off',
+		airdrop_scam: 'card_giftcard',
+		verification_scam: 'verified_user',
+		urgency: 'timer',
+		impersonation: 'person_alert',
+		financial_lure: 'payments',
+		typed_data_malicious_address: 'gpp_bad',
 		ETH_AUTO_FORWARDER: 'currency_exchange',
 		INFERNO_DRAINER: 'local_fire_department',
 	};
@@ -735,12 +1044,27 @@ function getThreatIcon(threat: string): string {
 /**
  * Show warning modal for dangerous contracts
  */
+interface TypedDataScanInfo {
+	maliciousAddresses: ExtractedAddress[];
+	primaryType: string;
+	domainName?: string;
+}
+
 function showWarning(
 	analysis: AnalysisResult,
-	context: 'delegation' | 'transaction' | 'permit' | 'approval' | 'nft-approval' = 'delegation',
+	context:
+		| 'delegation'
+		| 'transaction'
+		| 'permit'
+		| 'approval'
+		| 'nft-approval'
+		| 'blind-signature'
+		| 'typed-data-scan' = 'delegation',
 	permitInfo?: PermitInfo,
 	approvalInfo?: ApprovalInfo,
 	nftApprovalInfo?: NftApprovalInfo,
+	blindSignatureInfo?: BlindSignatureInfo,
+	typedDataScanInfo?: TypedDataScanInfo,
 ): Promise<boolean> {
 	return new Promise((resolve) => {
 		// Create modal overlay
@@ -908,6 +1232,20 @@ function showWarning(
           font-weight: 700;
           letter-spacing: 0.05em;
           text-transform: uppercase;
+        }
+
+        /* Medium severity alert (amber instead of red) */
+        .testudo-alert-medium {
+          border-color: rgba(245, 158, 11, 0.4);
+          background: rgba(245, 158, 11, 0.1);
+        }
+
+        .testudo-alert-medium::before {
+          background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, transparent 100%);
+        }
+
+        .testudo-alert-medium .testudo-alert-header {
+          color: #f59e0b;
         }
 
         .testudo-alert-description {
@@ -1142,18 +1480,18 @@ function showWarning(
             <span class="testudo-material-icon">gpp_maybe</span>
           </div>
           <div class="testudo-header-text">
-            <h2 class="testudo-title">${context === 'nft-approval' ? 'NFT Collection Approval Detected' : context === 'approval' ? 'Token Approval Detected' : context === 'permit' ? 'Permit Signature Detected' : context === 'transaction' ? 'Malicious Recipient Detected' : 'Dangerous Contract Detected'}</h2>
+            <h2 class="testudo-title">${context === 'blind-signature' ? (analysis.risk === 'HIGH' ? 'Suspicious Message Detected' : 'Blind Signature Request') : context === 'typed-data-scan' ? 'Malicious Address in Signed Data' : context === 'nft-approval' ? 'NFT Collection Approval Detected' : context === 'approval' ? 'Token Approval Detected' : context === 'permit' ? 'Permit Signature Detected' : context === 'transaction' ? 'Malicious Recipient Detected' : 'Dangerous Contract Detected'}</h2>
             <p class="testudo-subtitle">
-              ${context === 'nft-approval' ? 'You are granting <strong>full collection access</strong> to another address.' : context === 'approval' ? 'You are granting <strong>token spending rights</strong> to another address.' : context === 'permit' ? 'This signature grants <strong>token spending rights</strong>!' : context === 'transaction' ? 'You are about to send funds to a <strong>known scammer</strong> address.' : 'We have intercepted a malicious <strong>EIP-7702</strong> delegation request.'}
+              ${context === 'blind-signature' ? (analysis.risk === 'HIGH' ? 'This message contains <strong>phishing patterns</strong> commonly used in scams.' : 'You are signing <strong>arbitrary data</strong> that cannot be verified.') : context === 'typed-data-scan' ? 'A <strong>known malicious address</strong> was found in the data you are about to sign.' : context === 'nft-approval' ? 'You are granting <strong>full collection access</strong> to another address.' : context === 'approval' ? 'You are granting <strong>token spending rights</strong> to another address.' : context === 'permit' ? 'This signature grants <strong>token spending rights</strong>!' : context === 'transaction' ? 'You are about to send funds to a <strong>known scammer</strong> address.' : 'We have intercepted a malicious <strong>EIP-7702</strong> delegation request.'}
             </p>
           </div>
         </div>
 
-        <!-- Critical Alert Box -->
-        <div class="testudo-alert">
+        <!-- Alert Box -->
+        <div class="testudo-alert${analysis.risk === 'MEDIUM' ? ' testudo-alert-medium' : ''}">
           <div class="testudo-alert-header">
-            <span class="testudo-material-icon">error</span>
-            <span class="testudo-alert-title">CRITICAL: ${escapeHtml(criticalTitle)}</span>
+            <span class="testudo-material-icon">${analysis.risk === 'MEDIUM' ? 'info' : 'error'}</span>
+            <span class="testudo-alert-title">${analysis.risk}: ${escapeHtml(criticalTitle)}</span>
           </div>
           <p class="testudo-alert-description">
             ${escapeHtml(criticalDescription)}
@@ -1198,6 +1536,49 @@ function showWarning(
 						: ''
 				}
 
+        ${
+					blindSignatureInfo
+						? `
+        <!-- Blind Signature Details -->
+        <div class="testudo-address-section">
+          <div class="testudo-address-box" style="margin-bottom:6px">
+            <span class="testudo-address-label">Method</span>
+            <span class="testudo-address-text">${blindSignatureInfo.type}</span>
+          </div>
+          <div class="testudo-address-box" style="margin-bottom:6px">
+            <span class="testudo-address-label">Message${blindSignatureInfo.isHex ? ' (hex)' : ''}</span>
+            <span class="testudo-address-text" style="font-family:monospace;font-size:12px;word-break:break-all">${escapeHtml(blindSignatureInfo.messagePreview)}</span>
+          </div>
+        </div>
+        `
+						: ''
+				}
+
+        ${
+					typedDataScanInfo
+						? `
+        <!-- Typed Data Scan Details -->
+        <div class="testudo-address-section">
+          <div class="testudo-address-box" style="margin-bottom:6px">
+            <span class="testudo-address-label">Primary Type</span>
+            <span class="testudo-address-text">${escapeHtml(typedDataScanInfo.primaryType)}</span>
+          </div>
+          ${typedDataScanInfo.domainName ? `<div class="testudo-address-box" style="margin-bottom:6px"><span class="testudo-address-label">Domain</span><span class="testudo-address-text">${escapeHtml(typedDataScanInfo.domainName)}</span></div>` : ''}
+          ${typedDataScanInfo.maliciousAddresses
+						.slice(0, 3)
+						.map(
+							(a) => `
+            <div class="testudo-address-box" style="margin-bottom:6px">
+              <span class="testudo-address-label">Found in: ${escapeHtml(a.fieldPath)}</span>
+              <span class="testudo-address-text" style="color:#e74c3c">${a.address.slice(0, 10)}...${a.address.slice(-6)}</span>
+            </div>`,
+						)
+						.join('')}
+        </div>
+        `
+						: ''
+				}
+
         <!-- Threats List -->
         <div class="testudo-threats">
           <h3 class="testudo-threats-title">Threats Detected</h3>
@@ -1224,7 +1605,7 @@ function showWarning(
         <!-- Contract Address -->
         <div class="testudo-address-section">
           <div class="testudo-address-box">
-            <span class="testudo-address-label">${context === 'nft-approval' ? 'Operator Address' : context === 'approval' ? 'Spender Address' : context === 'permit' ? 'Spender Address' : context === 'transaction' ? 'Recipient Address' : 'Target Contract'}</span>
+            <span class="testudo-address-label">${context === 'blind-signature' ? 'Signer Address' : context === 'typed-data-scan' ? 'Malicious Address' : context === 'nft-approval' ? 'Operator Address' : context === 'approval' ? 'Spender Address' : context === 'permit' ? 'Spender Address' : context === 'transaction' ? 'Recipient Address' : 'Target Contract'}</span>
             <div class="testudo-address-value">
               <span class="testudo-address-text">${escapeHtml(truncatedAddress)}</span>
               <button class="testudo-copy-btn" id="testudo-copy" title="Copy Address">
@@ -1344,6 +1725,13 @@ function getThreatShortDesc(threat: string): string {
 		token_approval_no_auth: 'Unlimited access without verification',
 		token_with_auth: 'Has some security controls in place',
 		nft_full_collection_access: 'Grants control over ALL NFTs in this collection',
+		blind_signature: 'Signing arbitrary data without visibility into its purpose',
+		airdrop_scam: 'Message contains airdrop/reward scam language',
+		verification_scam: 'Message impersonates wallet verification request',
+		urgency: 'Message uses urgency pressure tactics',
+		impersonation: 'Message impersonates a known brand or protocol',
+		financial_lure: 'Message contains financial lure language',
+		typed_data_malicious_address: 'A known malicious address is embedded in the signed data',
 		ETH_AUTO_FORWARDER: 'Known malicious ETH drainer contract',
 		INFERNO_DRAINER: 'Known Inferno Drainer attack contract',
 	};
@@ -1593,6 +1981,13 @@ function formatThreat(threat: string): string {
 		token_approval_no_auth: 'Unprotected approvals',
 		token_with_auth: 'Token transfers enabled',
 		nft_full_collection_access: 'Full NFT collection access',
+		blind_signature: 'Blind signature',
+		airdrop_scam: 'Airdrop scam pattern',
+		verification_scam: 'Verification scam pattern',
+		urgency: 'Urgency pressure tactic',
+		impersonation: 'Brand impersonation',
+		financial_lure: 'Financial lure',
+		typed_data_malicious_address: 'Malicious address in signed data',
 		ETH_AUTO_FORWARDER: 'Known ETH drainer',
 		INFERNO_DRAINER: 'Inferno Drainer',
 	};

@@ -102,6 +102,18 @@ export function initMockProvider(): void {
 				return `0x${'ab'.repeat(32)}`;
 			}
 
+			if (args.method === 'personal_sign') {
+				const params = args.params as [string, string];
+				console.log('[Mock Provider] personal_sign:', { message: params[0], address: params[1] });
+				return `0x${'cd'.repeat(65)}`;
+			}
+
+			if (args.method === 'eth_sign') {
+				const params = args.params as [string, string];
+				console.log('[Mock Provider] eth_sign:', { address: params[0], message: params[1] });
+				return `0x${'ef'.repeat(65)}`;
+			}
+
 			throw new Error(`Unsupported method: ${args.method}`);
 		},
 	};
@@ -387,6 +399,145 @@ export async function sendSetApprovalForAll(
 				data,
 			},
 		],
+	});
+
+	return result as string;
+}
+
+export async function signPersonalMessage(message: string): Promise<string> {
+	const ethereum = (window as unknown as { ethereum: MockProvider }).ethereum;
+	const accounts = (await ethereum.request({ method: 'eth_requestAccounts' })) as string[];
+
+	const result = await ethereum.request({
+		method: 'personal_sign',
+		params: [message, accounts[0] || '0x1234567890123456789012345678901234567890'],
+	});
+
+	return result as string;
+}
+
+export async function signEthMessage(message: string): Promise<string> {
+	const ethereum = (window as unknown as { ethereum: MockProvider }).ethereum;
+	const accounts = (await ethereum.request({ method: 'eth_requestAccounts' })) as string[];
+
+	const result = await ethereum.request({
+		method: 'eth_sign',
+		params: [accounts[0] || '0x1234567890123456789012345678901234567890', message],
+	});
+
+	return result as string;
+}
+
+export function createTypedDataWithMaliciousAddress(): Record<string, unknown> {
+	return {
+		types: {
+			EIP712Domain: [
+				{ name: 'name', type: 'string' },
+				{ name: 'version', type: 'string' },
+				{ name: 'chainId', type: 'uint256' },
+				{ name: 'verifyingContract', type: 'address' },
+			],
+			Transfer: [
+				{ name: 'from', type: 'address' },
+				{ name: 'to', type: 'address' },
+				{ name: 'amount', type: 'uint256' },
+				{ name: 'nonce', type: 'uint256' },
+			],
+		},
+		primaryType: 'Transfer',
+		domain: {
+			name: 'Test Token',
+			version: '1',
+			chainId: 1,
+			verifyingContract: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+		},
+		message: {
+			from: '0x1234567890123456789012345678901234567890',
+			to: MALICIOUS_ADDRESS,
+			amount: '1000000000000000000',
+			nonce: '0',
+		},
+	};
+}
+
+export function createTypedDataCleanAddresses(): Record<string, unknown> {
+	return {
+		types: {
+			EIP712Domain: [
+				{ name: 'name', type: 'string' },
+				{ name: 'version', type: 'string' },
+				{ name: 'chainId', type: 'uint256' },
+				{ name: 'verifyingContract', type: 'address' },
+			],
+			Transfer: [
+				{ name: 'from', type: 'address' },
+				{ name: 'to', type: 'address' },
+				{ name: 'amount', type: 'uint256' },
+				{ name: 'nonce', type: 'uint256' },
+			],
+		},
+		primaryType: 'Transfer',
+		domain: {
+			name: 'Test Token',
+			version: '1',
+			chainId: 1,
+			verifyingContract: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+		},
+		message: {
+			from: '0x1234567890123456789012345678901234567890',
+			to: SAFE_ADDRESS,
+			amount: '1000000000000000000',
+			nonce: '0',
+		},
+	};
+}
+
+export function createSeaportOrderTypedData(): Record<string, unknown> {
+	return {
+		types: {
+			EIP712Domain: [
+				{ name: 'name', type: 'string' },
+				{ name: 'version', type: 'string' },
+				{ name: 'chainId', type: 'uint256' },
+				{ name: 'verifyingContract', type: 'address' },
+			],
+			OrderComponents: [
+				{ name: 'offerer', type: 'address' },
+				{ name: 'zone', type: 'address' },
+				{ name: 'orderType', type: 'uint8' },
+				{ name: 'startTime', type: 'uint256' },
+				{ name: 'endTime', type: 'uint256' },
+				{ name: 'salt', type: 'uint256' },
+				{ name: 'conduitKey', type: 'bytes32' },
+				{ name: 'counter', type: 'uint256' },
+			],
+		},
+		primaryType: 'OrderComponents',
+		domain: {
+			name: 'Seaport',
+			version: '1.5',
+			chainId: 1,
+			verifyingContract: '0x00000000000000adc04c56bf30ac9d3c0aaf14dc',
+		},
+		message: {
+			offerer: '0x1234567890123456789012345678901234567890',
+			zone: '0x0000000000000000000000000000000000000000',
+			orderType: 0,
+			startTime: '1700000000',
+			endTime: '1800000000',
+			salt: '12345',
+			conduitKey: '0x0000000000000000000000000000000000000000000000000000000000000000',
+			counter: '0',
+		},
+	};
+}
+
+export async function signGenericTypedData(typedData: Record<string, unknown>): Promise<string> {
+	const ethereum = (window as unknown as { ethereum: MockProvider }).ethereum;
+
+	const result = await ethereum.request({
+		method: 'eth_signTypedData_v4',
+		params: ['0x1234567890123456789012345678901234567890', JSON.stringify(typedData)],
 	});
 
 	return result as string;

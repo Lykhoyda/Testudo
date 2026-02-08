@@ -16,7 +16,10 @@ export type WarningType =
 	| 'TOKEN_REPLAY_RISK'
 	| 'TOKEN_APPROVAL_NO_AUTH'
 	| 'TOKEN_WITH_AUTH'
-	| 'EIP712_SAFE';
+	| 'EIP712_SAFE'
+	| 'BLIND_SIGNATURE'
+	| 'PHISHING_PATTERN'
+	| 'TYPED_DATA_MALICIOUS_ADDRESS';
 
 export type WarningSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
 
