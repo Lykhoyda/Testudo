@@ -459,76 +459,7 @@
   </style>
 </head>
 <body>
-  <!-- Header -->
-  <header class="header">
-    <div class="header-left">
-      <img src="icon-128.png" alt="Testudo" class="header-icon">
-      <h1 class="header-title">Testudo</h1>
-    </div>
-    <div class="header-actions">
-      <button class="header-btn" title="Notifications" id="notifications-btn">
-        <span class="material-symbols-outlined" style="font-size: 20px;">notifications</span>
-      </button>
-    </div>
-  </header>
-
-  <!-- Main Content -->
-  <main class="main">
-    <!-- Hero Status Card -->
-    <div class="hero-card">
-      <div class="hero-icon-wrapper">
-        <span class="material-symbols-outlined hero-icon">verified_user</span>
-      </div>
-      <div class="hero-content">
-        <h2 class="hero-title" id="status-title">Protection Active</h2>
-        <p class="hero-subtitle" id="status-description">System Operational</p>
-      </div>
-    </div>
-
-    <!-- Stats Grid -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-header">
-          <span class="material-symbols-outlined stat-icon">security</span>
-          <span class="stat-label">Blocked</span>
-        </div>
-        <p class="stat-value" id="stat-blocked">0</p>
-      </div>
-      <div class="stat-card">
-        <div class="stat-header">
-          <span class="material-symbols-outlined stat-icon">find_in_page</span>
-          <span class="stat-label">Scanned</span>
-        </div>
-        <p class="stat-value" id="stat-scanned">0</p>
-      </div>
-    </div>
-
-    <!-- Recent Activity -->
-    <div class="activity-section">
-      <div class="activity-header">
-        <h3 class="activity-title">Recent Activity</h3>
-        <button class="activity-view-all" id="view-all-btn">View All</button>
-      </div>
-      <div class="activity-list" id="recent-list">
-        <div class="empty-state">No recent scans</div>
-      </div>
-    </div>
-  </main>
-
-  <!-- Footer -->
-  <footer class="footer">
-    <div class="footer-content">
-      <button class="footer-link" id="settings-btn">
-        <span class="material-symbols-outlined footer-icon">settings</span>
-        <span>Settings</span>
-      </button>
-      <a class="footer-link" href="https://github.com/Lykhoyda/Testudo" target="_blank">
-        <span>GitHub</span>
-        <span class="material-symbols-outlined footer-icon">code</span>
-      </a>
-    </div>
-  </footer>
-
+  <div id="app"></div>
   <script src="popup.js" type="module"></script>
 </body>
 </html>

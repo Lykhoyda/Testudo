@@ -9,7 +9,9 @@
     "watch": "rolldown -c --watch"
   },
   "dependencies": {
-    "@testudo/core": "workspace:*"
+    "@preact/signals": "^2.7.0",
+    "@testudo/core": "workspace:*",
+    "preact": "^10.28.3"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.287",

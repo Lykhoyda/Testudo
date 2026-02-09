@@ -28,11 +28,14 @@ const shared = {
 	define: {
 		'process.env.TESTUDO_API_URL': JSON.stringify(apiUrl),
 	},
+	transform: {
+		jsx: { mode: 'automatic' as const, importSource: 'preact' },
+	},
 };
 
 export default defineConfig([
 	{
-		input: 'src/injected.ts',
+		input: 'src/injected.tsx',
 		...shared,
 	},
 	{
@@ -44,11 +47,11 @@ export default defineConfig([
 		...shared,
 	},
 	{
-		input: 'src/popup.ts',
+		input: 'src/popup.tsx',
 		...shared,
 	},
 	{
-		input: 'src/options.ts',
+		input: 'src/options.tsx',
 		...shared,
 	},
 ]);
