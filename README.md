@@ -70,11 +70,12 @@ packages/
   e2e/              # End-to-end tests (Playwright)
 
 apps/
-  api/              # @testudo/api - Threat Intelligence API (Hono + PostgreSQL)
   mock-dapp/        # Demo playground for testing extension
 
 docs/               # Documentation
 ```
+
+> **Note**: The Threat Intelligence API lives in a [separate private repository](https://github.com/Lykhoyda/testudo-api).
 
 ## Usage
 
