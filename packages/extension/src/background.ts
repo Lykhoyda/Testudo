@@ -1,5 +1,5 @@
 import type { AnalysisResult } from '@testudo/core';
-import { analyzeContract, KNOWN_MALICIOUS, KNOWN_SAFE } from '@testudo/core';
+import { analyzeContract, checkKnownMalicious, KNOWN_MALICIOUS, KNOWN_SAFE } from '@testudo/core';
 import type { ApiClientResult } from './api-client';
 import { checkAddressThreat } from './api-client';
 import {
@@ -122,6 +122,19 @@ async function performAddressOnlyCheck(
 			threats: [],
 			blocked: false,
 			source: 'safe-filter',
+		};
+		analysisCache.set(normalizedAddress, { result, timestamp: Date.now() });
+		return result;
+	}
+
+	const knownMalicious = checkKnownMalicious(normalizedAddress);
+	if (knownMalicious) {
+		const result: ExtendedAnalysisResult = {
+			...baseResult,
+			risk: 'CRITICAL',
+			threats: [knownMalicious.type],
+			blocked: true,
+			source: 'local-malicious-db',
 		};
 		analysisCache.set(normalizedAddress, { result, timestamp: Date.now() });
 		return result;

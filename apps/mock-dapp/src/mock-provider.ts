@@ -9,6 +9,7 @@
 export const MALICIOUS_ADDRESS = '0x930fcc37d6042c79211ee18a02857cb1fd7f0d0b';
 export const SAFE_ADDRESS = '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b';
 export const CDN_SAFE_ADDRESS = '0x1111111111111111111111111111111111111111';
+export const API_ONLY_MALICIOUS_ADDRESS = '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef';
 
 // EIP-7702 Authorization typed data structure
 export interface EIP7702TypedData {

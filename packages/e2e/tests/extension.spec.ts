@@ -267,11 +267,10 @@ test.describe('eth_sendTransaction Detection', () => {
 		await page.goto(MOCK_DAPP_URL);
 		await expect(page.locator('#provider-status')).toContainText('Ready');
 
-		// Send to malicious address - but API is unreachable
-		await page.click('#send-malicious');
+		// Send to address only known to the API (not in local KNOWN_MALICIOUS DB)
+		await page.click('#send-api-only-malicious');
 
-		// Modal should NOT appear because API failed and we fail-open
-		// (address-only check returns UNKNOWN when API unavailable)
+		// Modal should NOT appear because API failed and local DB has no match — fail-open
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).not.toBeVisible({ timeout: 5000 });
 

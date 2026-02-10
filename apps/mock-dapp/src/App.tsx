@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+	API_ONLY_MALICIOUS_ADDRESS,
 	CDN_SAFE_ADDRESS,
 	createSeaportOrderTypedData,
 	createTypedDataCleanAddresses,
@@ -229,6 +230,33 @@ function App() {
 					>
 						<span className="btn-icon">✓</span>
 						Send to Safe Address
+					</button>
+
+					<button
+						type="button"
+						id="send-api-only-malicious"
+						className="btn btn-warning"
+						onClick={async () => {
+							setResult({
+								status: 'loading',
+								message: 'Sending transaction to API-only malicious address...',
+							});
+							try {
+								const txHash = await sendTransaction(API_ONLY_MALICIOUS_ADDRESS);
+								setResult({
+									status: 'success',
+									message: `Transaction sent (API-only threat):\n${txHash}`,
+								});
+							} catch (error) {
+								setResult({
+									status: 'error',
+									message: `Blocked:\n${error instanceof Error ? error.message : 'Unknown error'}`,
+								});
+							}
+						}}
+					>
+						<span className="btn-icon">⚠️</span>
+						Send to API-Only Malicious
 					</button>
 				</div>
 			</section>
