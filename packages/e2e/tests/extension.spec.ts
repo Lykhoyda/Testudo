@@ -64,7 +64,7 @@ test.describe('EIP-7702 Delegation Detection', () => {
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).toBeVisible({ timeout: 10000 });
 
-		await expect(modal.locator('.testudo-title')).toContainText('Dangerous Contract Detected');
+		await expect(modal.locator('.testudo-title')).toContainText('Wallet Delegation Request');
 
 		const threatsList = modal.locator('.testudo-threat-item');
 		await expect(threatsList.first()).toBeVisible();
@@ -203,7 +203,7 @@ test.describe('eth_sendTransaction Detection', () => {
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).toBeVisible({ timeout: 10000 });
 
-		await expect(modal.locator('.testudo-title')).toContainText('Malicious Recipient Detected');
+		await expect(modal.locator('.testudo-title')).toContainText('Suspicious Transaction');
 
 		await page.close();
 	});
@@ -311,7 +311,7 @@ test.describe('Token Approval Detection', () => {
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).toBeVisible({ timeout: 10000 });
 
-		await expect(modal.locator('.testudo-title')).toContainText('Token Approval Detected');
+		await expect(modal.locator('.testudo-title')).toContainText('Unlimited USDC Approval');
 
 		await page.close();
 	});
@@ -326,7 +326,7 @@ test.describe('Token Approval Detection', () => {
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).toBeVisible({ timeout: 10000 });
 
-		await expect(modal.locator('.testudo-title')).toContainText('Token Approval Detected');
+		await expect(modal.locator('.testudo-title')).toContainText('Unlimited USDC Approval');
 
 		await expect(modal.locator('.testudo-address-text', { hasText: 'UNLIMITED' })).toBeVisible();
 
@@ -377,7 +377,7 @@ test.describe('Token Approval Detection', () => {
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).toBeVisible({ timeout: 10000 });
 
-		await expect(modal.locator('.testudo-title')).toContainText('Token Approval Detected');
+		await expect(modal.locator('.testudo-title')).toContainText('Unlimited USDC Approval');
 
 		await page.close();
 	});
@@ -411,7 +411,7 @@ test.describe('NFT setApprovalForAll Detection', () => {
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).toBeVisible({ timeout: 10000 });
 
-		await expect(modal.locator('.testudo-title')).toContainText('NFT Collection Approval Detected');
+		await expect(modal.locator('.testudo-title')).toContainText('NFT Collection Approval');
 
 		await page.close();
 	});
@@ -426,7 +426,7 @@ test.describe('NFT setApprovalForAll Detection', () => {
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).toBeVisible({ timeout: 10000 });
 
-		await expect(modal.locator('.testudo-title')).toContainText('NFT Collection Approval Detected');
+		await expect(modal.locator('.testudo-title')).toContainText('NFT Collection Approval');
 
 		await expect(
 			modal.locator('.testudo-address-text', { hasText: 'FULL COLLECTION' }),
@@ -494,7 +494,7 @@ test.describe('Permit Signature Detection', () => {
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).toBeVisible({ timeout: 10000 });
 
-		await expect(modal.locator('.testudo-title')).toContainText('Permit Signature Detected');
+		await expect(modal.locator('.testudo-title')).toContainText('Unlimited USDC Permit');
 
 		await page.close();
 	});
@@ -528,7 +528,7 @@ test.describe('Permit Signature Detection', () => {
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).toBeVisible({ timeout: 10000 });
 
-		await expect(modal.locator('.testudo-title')).toContainText('Permit Signature Detected');
+		await expect(modal.locator('.testudo-title')).toContainText('Unlimited USDC Permit');
 
 		await page.close();
 	});
@@ -668,7 +668,7 @@ test.describe('Phishing Pattern Detection (ANT-222)', () => {
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).toBeVisible({ timeout: 10000 });
 
-		await expect(modal.locator('.testudo-title')).toContainText('Suspicious Message Detected');
+		await expect(modal.locator('.testudo-title')).toContainText('Blind Signature Request');
 
 		await page.close();
 	});
