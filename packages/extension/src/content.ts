@@ -147,10 +147,7 @@ window.addEventListener('message', async (event) => {
 				);
 			})
 			.catch(() => {
-				window.postMessage(
-					{ type: 'TESTUDO_TOKEN_RESULT', requestId, result: nullResult },
-					'*',
-				);
+				window.postMessage({ type: 'TESTUDO_TOKEN_RESULT', requestId, result: nullResult }, '*');
 			});
 	}
 
@@ -166,10 +163,7 @@ window.addEventListener('message', async (event) => {
 				);
 			})
 			.catch(() => {
-				window.postMessage(
-					{ type: 'TESTUDO_SETTINGS_RESULT', requestId, result: {} },
-					'*',
-				);
+				window.postMessage({ type: 'TESTUDO_SETTINGS_RESULT', requestId, result: {} }, '*');
 			});
 	}
 

@@ -33,8 +33,9 @@ function getBlindSignatureTitle(risk: string): string {
 }
 
 export function ModalHeader({ context, analysis, intent }: Props) {
-	const title = intent?.headline
-		?? (context === 'blind-signature' ? getBlindSignatureTitle(analysis.risk) : getTitle(context));
+	const title =
+		intent?.headline ??
+		(context === 'blind-signature' ? getBlindSignatureTitle(analysis.risk) : getTitle(context));
 
 	return (
 		<div class="testudo-header">

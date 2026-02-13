@@ -110,11 +110,12 @@ export function buildApprovalIntent(
 		},
 		{
 			label: 'Operation',
-			value: info.type === 'approve'
-				? 'approve()'
-				: info.type === 'increaseAllowance'
-					? 'increaseAllowance()'
-					: 'decreaseAllowance()',
+			value:
+				info.type === 'approve'
+					? 'approve()'
+					: info.type === 'increaseAllowance'
+						? 'increaseAllowance()'
+						: 'decreaseAllowance()',
 			emphasis: 'info',
 		},
 	];

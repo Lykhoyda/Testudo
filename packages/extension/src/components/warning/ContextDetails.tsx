@@ -68,9 +68,7 @@ function IntentDisplay({ intent }: { intent: HumanReadableIntent }) {
 					mb={i < intent.details.length - 1}
 				/>
 			))}
-			{intent.chainName && (
-				<AddressRow label="Network" value={intent.chainName} mb={false} />
-			)}
+			{intent.chainName && <AddressRow label="Network" value={intent.chainName} mb={false} />}
 		</div>
 	);
 }
