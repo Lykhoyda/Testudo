@@ -4,6 +4,8 @@ import { InfoToast } from './components/warning/InfoToast';
 import { UnknownToast } from './components/warning/UnknownToast';
 import { WarningModal } from './components/warning/WarningModal';
 import { injectWarningStyles } from './components/warning/warning-styles';
+import { buildIntent } from './decoder';
+import { getCachedToken, resolveToken } from './decoder/token-resolver';
 import * as warningVM from './hooks/warningVM';
 import { isBlindSignature, parseBlindSignature } from './parsers/blind-signature';
 import { detectPhishingPatterns } from './parsers/phishing';
@@ -31,13 +33,10 @@ import {
 } from './services/messaging';
 import type {
 	AnalysisResult,
-	ApprovalInfo,
-	BlindSignatureInfo,
-	NftApprovalInfo,
-	PermitInfo,
+	TokenInfo,
 	TypedDataMessage,
 	TypedDataScanInfo,
-	WarningContext,
+	WarningOptions,
 } from './utils/types';
 
 // ============================================================================
@@ -78,25 +77,27 @@ function ensureModalRoot(): void {
 // PUBLIC API — replaces imperative showWarning/showInfo/showUnknownNotice
 // ============================================================================
 
-function showWarning(
-	analysis: AnalysisResult,
-	context: WarningContext = 'delegation',
-	permitInfo?: PermitInfo,
-	approvalInfo?: ApprovalInfo,
-	nftApprovalInfo?: NftApprovalInfo,
-	blindSignatureInfo?: BlindSignatureInfo,
-	typedDataScanInfo?: TypedDataScanInfo,
-): Promise<boolean> {
+async function resolveTokenWithTimeout(address: string, timeoutMs = 2000): Promise<TokenInfo | null> {
+	const cached = getCachedToken(address);
+	if (cached) return cached;
+	try {
+		return await Promise.race([
+			resolveToken(address),
+			new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+		]);
+	} catch {
+		return null;
+	}
+}
+
+async function showWarningWithIntent(opts: WarningOptions, tokenAddress?: string): Promise<boolean> {
+	let tokenInfo: TokenInfo | null = null;
+	if (tokenAddress) {
+		tokenInfo = await resolveTokenWithTimeout(tokenAddress);
+	}
+	const intent = buildIntent(opts, tokenInfo);
 	ensureModalRoot();
-	return warningVM.show(
-		analysis,
-		context,
-		permitInfo,
-		approvalInfo,
-		nftApprovalInfo,
-		blindSignatureInfo,
-		typedDataScanInfo,
-	);
+	return warningVM.show({ ...opts, intent: intent ?? undefined });
 }
 
 function showInfo(analysis: AnalysisResult): void {
@@ -163,13 +164,11 @@ function wrapEthereumProvider(): void {
 							const analysis = await requestAddressCheck(nftApprovalInfo.operator);
 
 							if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
-								const userConfirmed = await showWarning(
+								const userConfirmed = await showWarningWithIntent({
 									analysis,
-									'nft-approval',
-									undefined,
-									undefined,
+									context: 'nft-approval',
 									nftApprovalInfo,
-								);
+								});
 								if (!userConfirmed) {
 									throw new Error(
 										'Testudo: NFT approval blocked by user - malicious operator detected',
@@ -195,13 +194,11 @@ function wrapEthereumProvider(): void {
 								threats: ['nft_full_collection_access', ...analysis.threats],
 								blocked: true,
 							};
-							const userConfirmed = await showWarning(
-								syntheticAnalysis,
-								'nft-approval',
-								undefined,
-								undefined,
+							const userConfirmed = await showWarningWithIntent({
+								analysis: syntheticAnalysis,
+								context: 'nft-approval',
 								nftApprovalInfo,
-							);
+							});
 							if (!userConfirmed) {
 								throw new Error('Testudo: NFT approval blocked by user - unknown operator');
 							}
@@ -225,12 +222,11 @@ function wrapEthereumProvider(): void {
 							const unlimited = isUnlimitedValue(approvalInfo.amount);
 
 							if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
-								const userConfirmed = await showWarning(
+								const userConfirmed = await showWarningWithIntent({
 									analysis,
-									'approval',
-									undefined,
+									context: 'approval',
 									approvalInfo,
-								);
+								}, approvalInfo.tokenAddress);
 								if (!userConfirmed) {
 									throw new Error('Testudo: Approval blocked by user - malicious spender detected');
 								}
@@ -241,12 +237,11 @@ function wrapEthereumProvider(): void {
 									threats: ['unlimited_approval', ...analysis.threats],
 									blocked: true,
 								};
-								const userConfirmed = await showWarning(
-									syntheticAnalysis,
-									'approval',
-									undefined,
+								const userConfirmed = await showWarningWithIntent({
+									analysis: syntheticAnalysis,
+									context: 'approval',
 									approvalInfo,
-								);
+								}, approvalInfo.tokenAddress);
 								if (!userConfirmed) {
 									throw new Error('Testudo: Approval blocked by user - unlimited amount');
 								}
@@ -261,7 +256,7 @@ function wrapEthereumProvider(): void {
 						const analysis = await requestAddressCheck(toAddress);
 
 						if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
-							const userConfirmed = await showWarning(analysis, 'transaction');
+							const userConfirmed = await showWarningWithIntent({ analysis, context: 'transaction' });
 
 							if (!userConfirmed) {
 								throw new Error(
@@ -311,14 +306,11 @@ function wrapEthereumProvider(): void {
 					whitelisted: false,
 				};
 
-				const userConfirmed = await showWarning(
-					syntheticAnalysis,
-					'eth-sign-danger',
-					undefined,
-					undefined,
-					undefined,
-					blindSigInfo,
-				);
+				const userConfirmed = await showWarningWithIntent({
+					analysis: syntheticAnalysis,
+					context: 'eth-sign-danger',
+					blindSignatureInfo: blindSigInfo,
+				});
 
 				if (!userConfirmed) {
 					throw new Error('Testudo: eth_sign blocked by user \u2014 deprecated method rejected');
@@ -358,14 +350,11 @@ function wrapEthereumProvider(): void {
 						whitelisted: false,
 					};
 
-					const userConfirmed = await showWarning(
-						syntheticAnalysis,
-						'blind-signature',
-						undefined,
-						undefined,
-						undefined,
-						blindSigInfo,
-					);
+					const userConfirmed = await showWarningWithIntent({
+						analysis: syntheticAnalysis,
+						context: 'blind-signature',
+						blindSignatureInfo: blindSigInfo,
+					});
 
 					if (!userConfirmed) {
 						throw new Error(
@@ -397,7 +386,10 @@ function wrapEthereumProvider(): void {
 
 						const unlimited = isUnlimitedValue(permitInfo.value);
 						if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
-							const userConfirmed = await showWarning(analysis, 'permit', permitInfo);
+							const userConfirmed = await showWarningWithIntent(
+								{ analysis, context: 'permit', permitInfo },
+								permitInfo.token,
+							);
 							if (!userConfirmed) {
 								throw new Error('Testudo: Permit blocked by user - malicious spender detected');
 							}
@@ -408,7 +400,10 @@ function wrapEthereumProvider(): void {
 								threats: ['unlimited_approval', ...analysis.threats],
 								blocked: true,
 							};
-							const userConfirmed = await showWarning(syntheticAnalysis, 'permit', permitInfo);
+							const userConfirmed = await showWarningWithIntent(
+								{ analysis: syntheticAnalysis, context: 'permit', permitInfo },
+								permitInfo.token,
+							);
 							if (!userConfirmed) {
 								throw new Error('Testudo: Permit blocked by user - unlimited approval');
 							}
@@ -450,15 +445,11 @@ function wrapEthereumProvider(): void {
 									domainName: typedData.domain?.name,
 								};
 
-								const userConfirmed = await showWarning(
-									syntheticAnalysis,
-									'typed-data-scan',
-									undefined,
-									undefined,
-									undefined,
-									undefined,
-									scanInfo,
-								);
+								const userConfirmed = await showWarningWithIntent({
+									analysis: syntheticAnalysis,
+									context: 'typed-data-scan',
+									typedDataScanInfo: scanInfo,
+								});
 
 								if (!userConfirmed) {
 									throw new Error(
@@ -483,7 +474,7 @@ function wrapEthereumProvider(): void {
 				console.log('[Testudo] Analysis result:', analysis);
 
 				if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
-					const userConfirmed = await showWarning(analysis);
+					const userConfirmed = await showWarningWithIntent({ analysis });
 
 					if (!userConfirmed) {
 						console.log('[Testudo] \u274C User rejected dangerous delegation');

@@ -128,6 +128,51 @@ window.addEventListener('message', async (event) => {
 		}
 	}
 
+	// Handle token resolution request (runs in background to avoid CSP)
+	if (event.data?.type === 'TESTUDO_RESOLVE_TOKEN') {
+		const { requestId, address } = event.data;
+		const nullResult = { name: null, symbol: null, decimals: null };
+
+		if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+			window.postMessage({ type: 'TESTUDO_TOKEN_RESULT', requestId, result: nullResult }, '*');
+			return;
+		}
+
+		chrome.runtime
+			.sendMessage({ type: 'RESOLVE_TOKEN', address })
+			.then((result) => {
+				window.postMessage(
+					{ type: 'TESTUDO_TOKEN_RESULT', requestId, result: result ?? nullResult },
+					'*',
+				);
+			})
+			.catch(() => {
+				window.postMessage(
+					{ type: 'TESTUDO_TOKEN_RESULT', requestId, result: nullResult },
+					'*',
+				);
+			});
+	}
+
+	// Handle settings request
+	if (event.data?.type === 'TESTUDO_GET_SETTINGS') {
+		const { requestId } = event.data;
+		chrome.runtime
+			.sendMessage({ type: 'GET_SETTINGS' })
+			.then((result) => {
+				window.postMessage(
+					{ type: 'TESTUDO_SETTINGS_RESULT', requestId, result: result ?? {} },
+					'*',
+				);
+			})
+			.catch(() => {
+				window.postMessage(
+					{ type: 'TESTUDO_SETTINGS_RESULT', requestId, result: {} },
+					'*',
+				);
+			});
+	}
+
 	// Handle blocked record
 	if (event.data?.type === 'TESTUDO_RECORD_BLOCKED') {
 		console.log('[Testudo Content] Recording blocked delegation');

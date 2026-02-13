@@ -80,6 +80,30 @@ export function recordBlocked(): void {
 	window.postMessage({ type: 'TESTUDO_RECORD_BLOCKED' }, '*');
 }
 
+export interface TokenResolveResult {
+	name: string | null;
+	symbol: string | null;
+	decimals: number | null;
+}
+
+export function requestTokenResolve(address: string): Promise<TokenResolveResult> {
+	return sendTestudoRequest<TokenResolveResult>(
+		'TESTUDO_RESOLVE_TOKEN',
+		'TESTUDO_TOKEN_RESULT',
+		{ address },
+		3000,
+	).catch(() => ({ name: null, symbol: null, decimals: null }));
+}
+
+export function requestSettings(): Promise<Record<string, unknown>> {
+	return sendTestudoRequest<Record<string, unknown>>(
+		'TESTUDO_GET_SETTINGS',
+		'TESTUDO_SETTINGS_RESULT',
+		{},
+		3000,
+	).catch(() => ({}));
+}
+
 export function requestWhitelist(address: string, label?: string): Promise<boolean> {
 	return new Promise((resolve) => {
 		const requestId = Math.random().toString(36).substring(7);

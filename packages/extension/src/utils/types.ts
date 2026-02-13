@@ -93,3 +93,36 @@ export type WarningContext =
 	| 'blind-signature'
 	| 'typed-data-scan'
 	| 'eth-sign-danger';
+
+export interface TokenInfo {
+	address: string;
+	symbol: string | null;
+	decimals: number | null;
+	name: string | null;
+	isVerified?: boolean;
+}
+
+export interface IntentDetail {
+	label: string;
+	value: string;
+	emphasis?: 'danger' | 'warning' | 'info';
+	mono?: boolean;
+}
+
+export interface HumanReadableIntent {
+	headline: string;
+	action: string;
+	details: IntentDetail[];
+	chainName?: string;
+}
+
+export interface WarningOptions {
+	analysis: AnalysisResult;
+	context?: WarningContext;
+	permitInfo?: PermitInfo;
+	approvalInfo?: ApprovalInfo;
+	nftApprovalInfo?: NftApprovalInfo;
+	blindSignatureInfo?: BlindSignatureInfo;
+	typedDataScanInfo?: TypedDataScanInfo;
+	intent?: HumanReadableIntent;
+}

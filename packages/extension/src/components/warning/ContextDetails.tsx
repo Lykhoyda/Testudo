@@ -3,6 +3,8 @@ import { truncateAddress } from '../../utils/formatters';
 import type {
 	ApprovalInfo,
 	BlindSignatureInfo,
+	HumanReadableIntent,
+	IntentDetail,
 	NftApprovalInfo,
 	PermitInfo,
 	TypedDataScanInfo,
@@ -14,6 +16,7 @@ interface Props {
 	nftApprovalInfo?: NftApprovalInfo;
 	blindSignatureInfo?: BlindSignatureInfo;
 	typedDataScanInfo?: TypedDataScanInfo;
+	intent?: HumanReadableIntent;
 }
 
 function AddressRow({
@@ -37,13 +40,53 @@ function AddressRow({
 	);
 }
 
+function getEmphasisStyle(emphasis?: IntentDetail['emphasis']): string | undefined {
+	switch (emphasis) {
+		case 'danger':
+			return 'color:#e74c3c;font-weight:700';
+		case 'warning':
+			return 'color:#f59e0b;font-weight:600';
+		default:
+			return undefined;
+	}
+}
+
+function IntentDisplay({ intent }: { intent: HumanReadableIntent }) {
+	return (
+		<div class="testudo-address-section">
+			<div class="testudo-intent-action">{intent.action}</div>
+			{intent.details.map((detail, i) => (
+				<AddressRow
+					key={detail.label}
+					label={detail.label}
+					value={detail.value}
+					style={
+						detail.mono
+							? `font-family:monospace;font-size:12px;${getEmphasisStyle(detail.emphasis) ?? ''}`
+							: getEmphasisStyle(detail.emphasis)
+					}
+					mb={i < intent.details.length - 1}
+				/>
+			))}
+			{intent.chainName && (
+				<AddressRow label="Network" value={intent.chainName} mb={false} />
+			)}
+		</div>
+	);
+}
+
 export function ContextDetails({
 	permitInfo,
 	approvalInfo,
 	nftApprovalInfo,
 	blindSignatureInfo,
 	typedDataScanInfo,
+	intent,
 }: Props) {
+	if (intent) {
+		return <IntentDisplay intent={intent} />;
+	}
+
 	return (
 		<>
 			{permitInfo && (

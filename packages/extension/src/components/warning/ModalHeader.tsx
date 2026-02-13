@@ -1,9 +1,10 @@
 import type { ComponentChildren } from 'preact';
-import type { AnalysisResult, WarningContext } from '../../utils/types';
+import type { AnalysisResult, HumanReadableIntent, WarningContext } from '../../utils/types';
 
 interface Props {
 	context: WarningContext;
 	analysis: AnalysisResult;
+	intent?: HumanReadableIntent;
 }
 
 function getTitle(context: WarningContext): string {
@@ -31,9 +32,9 @@ function getBlindSignatureTitle(risk: string): string {
 	return risk === 'HIGH' ? 'Suspicious Message Detected' : 'Blind Signature Request';
 }
 
-export function ModalHeader({ context, analysis }: Props) {
-	const title =
-		context === 'blind-signature' ? getBlindSignatureTitle(analysis.risk) : getTitle(context);
+export function ModalHeader({ context, analysis, intent }: Props) {
+	const title = intent?.headline
+		?? (context === 'blind-signature' ? getBlindSignatureTitle(analysis.risk) : getTitle(context));
 
 	return (
 		<div class="testudo-header">

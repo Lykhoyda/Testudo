@@ -1,5 +1,8 @@
 import type { AnalysisResult } from '@testudo/core';
 import { analyzeContract, checkKnownMalicious, KNOWN_MALICIOUS, KNOWN_SAFE } from '@testudo/core';
+import type { Address, Hex } from 'viem';
+import { createPublicClient, hexToString, http } from 'viem';
+import { mainnet } from 'viem/chains';
 import type { ApiClientResult } from './api-client';
 import { checkAddressThreat } from './api-client';
 import {
@@ -35,6 +38,74 @@ interface ExtendedAnalysisResult extends AnalysisResult {
 async function getApiUrl(): Promise<string> {
 	const settings = await getSettings();
 	return settings.apiUrl || process.env.TESTUDO_API_URL;
+}
+
+const DEFAULT_RPC = 'https://eth.llamarpc.com';
+
+const erc20StringAbi = [
+	{ inputs: [], name: 'name', outputs: [{ name: '', type: 'string' }], stateMutability: 'view', type: 'function' },
+	{ inputs: [], name: 'symbol', outputs: [{ name: '', type: 'string' }], stateMutability: 'view', type: 'function' },
+	{ inputs: [], name: 'decimals', outputs: [{ name: '', type: 'uint8' }], stateMutability: 'view', type: 'function' },
+] as const;
+
+const erc20Bytes32Abi = [
+	{ inputs: [], name: 'name', outputs: [{ name: '', type: 'bytes32' }], stateMutability: 'view', type: 'function' },
+	{ inputs: [], name: 'symbol', outputs: [{ name: '', type: 'bytes32' }], stateMutability: 'view', type: 'function' },
+] as const;
+
+interface TokenResult {
+	name: string | null;
+	symbol: string | null;
+	decimals: number | null;
+}
+
+let cachedClient: ReturnType<typeof createPublicClient> | null = null;
+let cachedRpcUrl: string | null = null;
+
+function getOrCreateClient(rpcUrl: string): ReturnType<typeof createPublicClient> {
+	if (cachedClient && cachedRpcUrl === rpcUrl) return cachedClient;
+	cachedClient = createPublicClient({ chain: mainnet, transport: http(rpcUrl, { timeout: 5_000 }) });
+	cachedRpcUrl = rpcUrl;
+	return cachedClient;
+}
+
+async function resolveTokenViaRpc(address: string): Promise<TokenResult> {
+	const fallback: TokenResult = { name: null, symbol: null, decimals: null };
+	try {
+		const settings = await getSettings();
+		const rpc = settings.customRpcUrl || DEFAULT_RPC;
+		const tokenAddress = address.toLowerCase() as Address;
+		const client = getOrCreateClient(rpc);
+
+		const results = await client.multicall({
+			contracts: [
+				{ address: tokenAddress, abi: erc20StringAbi, functionName: 'name' },
+				{ address: tokenAddress, abi: erc20Bytes32Abi, functionName: 'name' },
+				{ address: tokenAddress, abi: erc20StringAbi, functionName: 'symbol' },
+				{ address: tokenAddress, abi: erc20Bytes32Abi, functionName: 'symbol' },
+				{ address: tokenAddress, abi: erc20StringAbi, functionName: 'decimals' },
+			],
+			allowFailure: true,
+		});
+
+		const name = results[0].status === 'success'
+			? results[0].result
+			: results[1].status === 'success'
+				? hexToString(results[1].result as Hex, { size: 32 }).replace(/\0+$/, '') || null
+				: null;
+
+		const symbol = results[2].status === 'success'
+			? results[2].result
+			: results[3].status === 'success'
+				? hexToString(results[3].result as Hex, { size: 32 }).replace(/\0+$/, '') || null
+				: null;
+
+		const decimals = results[4].status === 'success' ? results[4].result : null;
+
+		return { name, symbol, decimals };
+	} catch {
+		return fallback;
+	}
 }
 
 // Initialize Safe Filter
@@ -501,6 +572,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 		safeFilter.syncFromCDN().then((success) => {
 			sendResponse({ success });
 		});
+		return true;
+	}
+
+	if (message.type === 'RESOLVE_TOKEN') {
+		const { address } = message;
+		resolveTokenViaRpc(address).then((tokenInfo) => sendResponse(tokenInfo));
 		return true;
 	}
 

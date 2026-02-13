@@ -230,6 +230,14 @@ export const WARNING_STYLES = `
   margin-top: 2px;
 }
 
+.testudo-intent-action {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.6;
+  margin-bottom: 8px;
+  padding: 0 12px;
+}
+
 .testudo-address-section {
   margin: 8px 24px;
 }

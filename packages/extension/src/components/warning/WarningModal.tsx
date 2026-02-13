@@ -18,6 +18,7 @@ export function WarningModal() {
 		nftApprovalInfo,
 		blindSignatureInfo,
 		typedDataScanInfo,
+		intent,
 	} = vm.state.value;
 
 	useEffect(() => {
@@ -34,7 +35,7 @@ export function WarningModal() {
 	return (
 		<div id="testudo-warning-overlay">
 			<div class="testudo-modal">
-				<ModalHeader context={context} analysis={analysis} />
+				<ModalHeader context={context} analysis={analysis} intent={intent} />
 				<AlertBox analysis={analysis} />
 				<ContextDetails
 					permitInfo={permitInfo}
@@ -42,6 +43,7 @@ export function WarningModal() {
 					nftApprovalInfo={nftApprovalInfo}
 					blindSignatureInfo={blindSignatureInfo}
 					typedDataScanInfo={typedDataScanInfo}
+					intent={intent}
 				/>
 				<ThreatList threats={analysis.threats} />
 				<AddressBox

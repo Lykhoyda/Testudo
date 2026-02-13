@@ -3,10 +3,12 @@ import type {
 	AnalysisResult,
 	ApprovalInfo,
 	BlindSignatureInfo,
+	HumanReadableIntent,
 	NftApprovalInfo,
 	PermitInfo,
 	TypedDataScanInfo,
 	WarningContext,
+	WarningOptions,
 } from '../utils/types';
 
 interface WarningState {
@@ -18,6 +20,7 @@ interface WarningState {
 	nftApprovalInfo?: NftApprovalInfo;
 	blindSignatureInfo?: BlindSignatureInfo;
 	typedDataScanInfo?: TypedDataScanInfo;
+	intent?: HumanReadableIntent;
 	resolver: ((value: boolean) => void) | null;
 }
 
@@ -35,15 +38,7 @@ export const isConfirmValid = computed(
 );
 export const copyIcon = signal('content_copy');
 
-export function show(
-	analysis: AnalysisResult,
-	context: WarningContext = 'delegation',
-	permitInfo?: PermitInfo,
-	approvalInfo?: ApprovalInfo,
-	nftApprovalInfo?: NftApprovalInfo,
-	blindSignatureInfo?: BlindSignatureInfo,
-	typedDataScanInfo?: TypedDataScanInfo,
-): Promise<boolean> {
+export function show(opts: WarningOptions): Promise<boolean> {
 	const previousResolver = state.value.resolver;
 	if (previousResolver) {
 		previousResolver(false);
@@ -54,13 +49,14 @@ export function show(
 		copyIcon.value = 'content_copy';
 		state.value = {
 			visible: true,
-			analysis,
-			context,
-			permitInfo,
-			approvalInfo,
-			nftApprovalInfo,
-			blindSignatureInfo,
-			typedDataScanInfo,
+			analysis: opts.analysis,
+			context: opts.context ?? 'delegation',
+			permitInfo: opts.permitInfo,
+			approvalInfo: opts.approvalInfo,
+			nftApprovalInfo: opts.nftApprovalInfo,
+			blindSignatureInfo: opts.blindSignatureInfo,
+			typedDataScanInfo: opts.typedDataScanInfo,
+			intent: opts.intent,
 			resolver: resolve,
 		};
 	});
