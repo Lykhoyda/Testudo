@@ -103,7 +103,9 @@ describe('resolveToken — messaging bridge fallback', () => {
 		expect(info.symbol).toBe('TEST');
 		expect(info.decimals).toBe(18);
 		expect(info.isVerified).toBe(false);
-		expect(mockRequestTokenResolve).toHaveBeenCalledWith('0x0000000000000000000000000000000000000004');
+		expect(mockRequestTokenResolve).toHaveBeenCalledWith(
+			'0x0000000000000000000000000000000000000004',
+		);
 	});
 
 	it('handles null fields from bridge gracefully', async () => {

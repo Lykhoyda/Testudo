@@ -68,7 +68,7 @@ describe('buildPermitIntent', () => {
 
 		const intent = buildPermitIntent(info);
 		expect(intent.headline).toContain('Token');
-		expect(intent.action).toContain(info.value!);
+		expect(intent.action).toContain(info.value as string);
 	});
 
 	it('handles batch permit', () => {
@@ -308,9 +308,7 @@ describe('buildBlindSignatureIntent', () => {
 describe('buildTypedDataScanIntent', () => {
 	it('builds typed data scan intent with malicious addresses', () => {
 		const info: TypedDataScanInfo = {
-			maliciousAddresses: [
-				{ address: SPENDER, fieldPath: 'message.to' },
-			],
+			maliciousAddresses: [{ address: SPENDER, fieldPath: 'message.to' }],
 			primaryType: 'Transfer',
 			domainName: 'FakeDAO',
 		};

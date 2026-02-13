@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { formatDeadline, formatTokenAmount, getChainName, isNeverExpiry } from '../../src/decoder/format';
+import {
+	formatDeadline,
+	formatTokenAmount,
+	getChainName,
+	isNeverExpiry,
+} from '../../src/decoder/format';
 import { MAX_UINT160, MAX_UINT256 } from '../../src/utils/constants';
 
 describe('formatTokenAmount', () => {
@@ -59,7 +64,7 @@ describe('formatTokenAmount', () => {
 	});
 
 	it('handles very large unlimited-like values', () => {
-		const huge = '0x' + 'ff'.repeat(32);
+		const huge = `0x${'ff'.repeat(32)}`;
 		expect(formatTokenAmount(huge, 18, 'DAI')).toBe('Unlimited DAI');
 	});
 });

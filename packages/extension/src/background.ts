@@ -43,14 +43,44 @@ async function getApiUrl(): Promise<string> {
 const DEFAULT_RPC = 'https://eth.llamarpc.com';
 
 const erc20StringAbi = [
-	{ inputs: [], name: 'name', outputs: [{ name: '', type: 'string' }], stateMutability: 'view', type: 'function' },
-	{ inputs: [], name: 'symbol', outputs: [{ name: '', type: 'string' }], stateMutability: 'view', type: 'function' },
-	{ inputs: [], name: 'decimals', outputs: [{ name: '', type: 'uint8' }], stateMutability: 'view', type: 'function' },
+	{
+		inputs: [],
+		name: 'name',
+		outputs: [{ name: '', type: 'string' }],
+		stateMutability: 'view',
+		type: 'function',
+	},
+	{
+		inputs: [],
+		name: 'symbol',
+		outputs: [{ name: '', type: 'string' }],
+		stateMutability: 'view',
+		type: 'function',
+	},
+	{
+		inputs: [],
+		name: 'decimals',
+		outputs: [{ name: '', type: 'uint8' }],
+		stateMutability: 'view',
+		type: 'function',
+	},
 ] as const;
 
 const erc20Bytes32Abi = [
-	{ inputs: [], name: 'name', outputs: [{ name: '', type: 'bytes32' }], stateMutability: 'view', type: 'function' },
-	{ inputs: [], name: 'symbol', outputs: [{ name: '', type: 'bytes32' }], stateMutability: 'view', type: 'function' },
+	{
+		inputs: [],
+		name: 'name',
+		outputs: [{ name: '', type: 'bytes32' }],
+		stateMutability: 'view',
+		type: 'function',
+	},
+	{
+		inputs: [],
+		name: 'symbol',
+		outputs: [{ name: '', type: 'bytes32' }],
+		stateMutability: 'view',
+		type: 'function',
+	},
 ] as const;
 
 interface TokenResult {
@@ -64,7 +94,10 @@ let cachedRpcUrl: string | null = null;
 
 function getOrCreateClient(rpcUrl: string): ReturnType<typeof createPublicClient> {
 	if (cachedClient && cachedRpcUrl === rpcUrl) return cachedClient;
-	cachedClient = createPublicClient({ chain: mainnet, transport: http(rpcUrl, { timeout: 5_000 }) });
+	cachedClient = createPublicClient({
+		chain: mainnet,
+		transport: http(rpcUrl, { timeout: 5_000 }),
+	});
 	cachedRpcUrl = rpcUrl;
 	return cachedClient;
 }
@@ -88,17 +121,19 @@ async function resolveTokenViaRpc(address: string): Promise<TokenResult> {
 			allowFailure: true,
 		});
 
-		const name = results[0].status === 'success'
-			? results[0].result
-			: results[1].status === 'success'
-				? hexToString(results[1].result as Hex, { size: 32 }).replace(/\0+$/, '') || null
-				: null;
+		const name =
+			results[0].status === 'success'
+				? results[0].result
+				: results[1].status === 'success'
+					? hexToString(results[1].result as Hex, { size: 32 }).replace(/\0+$/, '') || null
+					: null;
 
-		const symbol = results[2].status === 'success'
-			? results[2].result
-			: results[3].status === 'success'
-				? hexToString(results[3].result as Hex, { size: 32 }).replace(/\0+$/, '') || null
-				: null;
+		const symbol =
+			results[2].status === 'success'
+				? results[2].result
+				: results[3].status === 'success'
+					? hexToString(results[3].result as Hex, { size: 32 }).replace(/\0+$/, '') || null
+					: null;
 
 		const decimals = results[4].status === 'success' ? results[4].result : null;
 

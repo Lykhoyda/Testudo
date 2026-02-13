@@ -77,7 +77,10 @@ function ensureModalRoot(): void {
 // PUBLIC API — replaces imperative showWarning/showInfo/showUnknownNotice
 // ============================================================================
 
-async function resolveTokenWithTimeout(address: string, timeoutMs = 2000): Promise<TokenInfo | null> {
+async function resolveTokenWithTimeout(
+	address: string,
+	timeoutMs = 2000,
+): Promise<TokenInfo | null> {
 	const cached = getCachedToken(address);
 	if (cached) return cached;
 	try {
@@ -90,7 +93,10 @@ async function resolveTokenWithTimeout(address: string, timeoutMs = 2000): Promi
 	}
 }
 
-async function showWarningWithIntent(opts: WarningOptions, tokenAddress?: string): Promise<boolean> {
+async function showWarningWithIntent(
+	opts: WarningOptions,
+	tokenAddress?: string,
+): Promise<boolean> {
 	let tokenInfo: TokenInfo | null = null;
 	if (tokenAddress) {
 		tokenInfo = await resolveTokenWithTimeout(tokenAddress);
@@ -222,11 +228,14 @@ function wrapEthereumProvider(): void {
 							const unlimited = isUnlimitedValue(approvalInfo.amount);
 
 							if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
-								const userConfirmed = await showWarningWithIntent({
-									analysis,
-									context: 'approval',
-									approvalInfo,
-								}, approvalInfo.tokenAddress);
+								const userConfirmed = await showWarningWithIntent(
+									{
+										analysis,
+										context: 'approval',
+										approvalInfo,
+									},
+									approvalInfo.tokenAddress,
+								);
 								if (!userConfirmed) {
 									throw new Error('Testudo: Approval blocked by user - malicious spender detected');
 								}
@@ -237,11 +246,14 @@ function wrapEthereumProvider(): void {
 									threats: ['unlimited_approval', ...analysis.threats],
 									blocked: true,
 								};
-								const userConfirmed = await showWarningWithIntent({
-									analysis: syntheticAnalysis,
-									context: 'approval',
-									approvalInfo,
-								}, approvalInfo.tokenAddress);
+								const userConfirmed = await showWarningWithIntent(
+									{
+										analysis: syntheticAnalysis,
+										context: 'approval',
+										approvalInfo,
+									},
+									approvalInfo.tokenAddress,
+								);
 								if (!userConfirmed) {
 									throw new Error('Testudo: Approval blocked by user - unlimited amount');
 								}
@@ -256,7 +268,10 @@ function wrapEthereumProvider(): void {
 						const analysis = await requestAddressCheck(toAddress);
 
 						if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
-							const userConfirmed = await showWarningWithIntent({ analysis, context: 'transaction' });
+							const userConfirmed = await showWarningWithIntent({
+								analysis,
+								context: 'transaction',
+							});
 
 							if (!userConfirmed) {
 								throw new Error(
