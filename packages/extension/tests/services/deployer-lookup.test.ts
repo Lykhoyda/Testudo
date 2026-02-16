@@ -1,6 +1,6 @@
+import type { Address, PublicClient } from 'viem';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchDeployerStaticInfo } from '../../src/services/deployer-lookup';
-import type { Address, PublicClient } from 'viem';
 
 const CONTRACT = '0xabcdef1234567890abcdef1234567890abcdef12' as Address;
 const DEPLOYER = '0x000085BAD5B016E5448A530cb3D4840D2CfD15BC';
@@ -39,9 +39,9 @@ describe('fetchDeployerStaticInfo', () => {
 		const result = await fetchDeployerStaticInfo(CONTRACT, client);
 
 		expect(result).not.toBeNull();
-		expect(result!.deployerAddress).toBe(DEPLOYER);
-		expect(result!.deployerNonce).toBe(3);
-		expect(result!.contractCreationTimestamp).toBe(1699990000);
+		expect(result?.deployerAddress).toBe(DEPLOYER);
+		expect(result?.deployerNonce).toBe(3);
+		expect(result?.contractCreationTimestamp).toBe(1699990000);
 		expect(result).not.toHaveProperty('currentTimestamp');
 	});
 
@@ -50,7 +50,7 @@ describe('fetchDeployerStaticInfo', () => {
 		const client = makeMockClient({ getTransaction: mockGetTx });
 		const result = await fetchDeployerStaticInfo(CONTRACT, client);
 
-		expect(result!.deployerNonce).toBe(7);
+		expect(result?.deployerNonce).toBe(7);
 		expect(mockGetTx).toHaveBeenCalledWith({ hash: CREATION_TX });
 	});
 
@@ -73,10 +73,7 @@ describe('fetchDeployerStaticInfo', () => {
 	});
 
 	it('returns null on Blockscout timeout', async () => {
-		vi.stubGlobal(
-			'fetch',
-			vi.fn().mockRejectedValue(new DOMException('Aborted', 'AbortError')),
-		);
+		vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new DOMException('Aborted', 'AbortError')));
 		const result = await fetchDeployerStaticInfo(CONTRACT, makeMockClient());
 		expect(result).toBeNull();
 	});
