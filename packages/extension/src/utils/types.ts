@@ -76,6 +76,12 @@ export interface AnalysisResult {
 	address: string;
 	blocked: boolean;
 	whitelisted?: boolean;
+	deployerRisk?: {
+		risk: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+		contractAge: number;
+		deployerNonce: number;
+		reasons: string[];
+	};
 }
 
 export interface RecentScan {

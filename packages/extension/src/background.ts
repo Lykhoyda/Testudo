@@ -478,6 +478,7 @@ function applyDecisionMatrix(
 	const baseResult = {
 		address: address as `0x${string}`,
 		warnings: local.warnings,
+		deployerRisk: local.deployerRisk,
 	};
 
 	// API returned malicious → BLOCK (highest priority)

@@ -18,14 +18,12 @@ export async function fetchDeployerStaticInfo(
 	contractAddress: Address,
 	client: PublicClient,
 ): Promise<DeployerStaticInfo | null> {
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
 	try {
-		const controller = new AbortController();
-		const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-
 		const res = await fetch(`${BLOCKSCOUT_BASE}/api/v2/addresses/${contractAddress}`, {
 			signal: controller.signal,
 		});
-		clearTimeout(timer);
 
 		if (!res.ok) return null;
 
@@ -52,5 +50,7 @@ export async function fetchDeployerStaticInfo(
 		};
 	} catch {
 		return null;
+	} finally {
+		clearTimeout(timer);
 	}
 }
