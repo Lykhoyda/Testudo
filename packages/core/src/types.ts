@@ -20,7 +20,10 @@ export type WarningType =
 	| 'BLIND_SIGNATURE'
 	| 'PHISHING_PATTERN'
 	| 'TYPED_DATA_MALICIOUS_ADDRESS'
-	| 'ETH_SIGN_DEPRECATED';
+	| 'ETH_SIGN_DEPRECATED'
+	| 'DEPLOYER_FRESH'
+	| 'DEPLOYER_LOW_NONCE'
+	| 'DEPLOYER_NEW_CONTRACT';
 
 export type WarningSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
 
@@ -59,6 +62,20 @@ export interface ChainIdDetectionResult {
 	isEip712Pattern: boolean;
 }
 
+export interface DeployerInfo {
+	deployerAddress: string;
+	deployerNonce: number;
+	contractCreationTimestamp: number;
+	currentTimestamp: number;
+}
+
+export interface DeployerRiskAssessment {
+	risk: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+	contractAge: number;
+	deployerNonce: number;
+	reasons: string[];
+}
+
 export interface AnalysisResult {
 	address: Address;
 	risk: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN';
@@ -68,6 +85,7 @@ export interface AnalysisResult {
 	cached?: boolean;
 	source?: string;
 	error?: string;
+	deployerRisk?: DeployerRiskAssessment;
 }
 
 export interface KnownMaliciousContract {

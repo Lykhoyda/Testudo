@@ -27,7 +27,7 @@ export function buildIntent(
 			return opts.nftApprovalInfo ? buildNftApprovalIntent(opts.nftApprovalInfo) : null;
 
 		case 'delegation':
-			return buildDelegationIntent(opts.analysis.address);
+			return buildDelegationIntent(opts.analysis.address, undefined, opts.analysis.deployerRisk);
 
 		case 'transaction':
 			return buildTransactionIntent(opts.analysis.address);

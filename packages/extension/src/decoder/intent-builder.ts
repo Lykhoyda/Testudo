@@ -1,3 +1,4 @@
+import type { DeployerRiskAssessment } from '@testudo/core';
 import { isUnlimitedValue } from '../parsers/transaction';
 import { truncateAddress } from '../utils/formatters';
 import type {
@@ -163,6 +164,7 @@ export function buildNftApprovalIntent(info: NftApprovalInfo): HumanReadableInte
 export function buildDelegationIntent(
 	address: string,
 	chainId?: number | string,
+	deployerRisk?: DeployerRiskAssessment | null,
 ): HumanReadableIntent {
 	const delegate = truncateAddress(address);
 	const chainName = getChainName(chainId);
@@ -180,12 +182,31 @@ export function buildDelegationIntent(
 		details.push({ label: 'Network', value: chainName });
 	}
 
+	if (deployerRisk && deployerRisk.risk !== 'LOW') {
+		details.push({
+			label: 'Deployer Activity',
+			value: `${deployerRisk.deployerNonce} transactions`,
+			emphasis: deployerRisk.risk === 'CRITICAL' ? 'danger' : 'warning',
+		});
+		details.push({
+			label: 'Contract Age',
+			value: formatContractAge(deployerRisk.contractAge),
+			emphasis: deployerRisk.contractAge < 86_400 ? 'danger' : 'info',
+		});
+	}
+
 	return {
 		headline: 'Wallet Delegation Request',
 		action: `Delegate wallet control to ${delegate}${chainName ? ` on ${chainName}` : ''}`,
 		details,
 		chainName,
 	};
+}
+
+function formatContractAge(seconds: number): string {
+	if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes`;
+	if (seconds < 86_400) return `${Math.floor(seconds / 3600)} hours`;
+	return `${Math.floor(seconds / 86_400)} days`;
 }
 
 export function buildTransactionIntent(address: string): HumanReadableIntent {

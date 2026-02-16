@@ -125,6 +125,21 @@ const THREAT_REGISTRY: Record<string, ThreatEntry> = {
 		shortDesc: 'A known malicious address is embedded in the signed data',
 		format: 'Malicious address in signed data',
 	},
+	deployer_fresh: {
+		icon: 'new_releases',
+		shortDesc: 'Deployed by a brand-new account with almost no history',
+		format: 'Fresh deployer account',
+	},
+	deployer_low_nonce: {
+		icon: 'person_alert',
+		shortDesc: 'Deployer account has very few transactions',
+		format: 'Low-activity deployer',
+	},
+	deployer_new_contract: {
+		icon: 'schedule',
+		shortDesc: 'Contract was deployed very recently',
+		format: 'Recently deployed',
+	},
 	ETH_AUTO_FORWARDER: {
 		icon: 'currency_exchange',
 		shortDesc: 'Known malicious ETH drainer contract',

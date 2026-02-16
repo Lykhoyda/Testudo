@@ -242,6 +242,44 @@ describe('buildDelegationIntent', () => {
 		expect(delegate?.emphasis).toBe('danger');
 		expect(delegate?.mono).toBe(true);
 	});
+
+	it('includes deployer activity when risk is not LOW', () => {
+		const intent = buildDelegationIntent(SPENDER, undefined, {
+			risk: 'CRITICAL',
+			contractAge: 3600,
+			deployerNonce: 2,
+			reasons: ['test'],
+		});
+		const activity = intent.details.find((d) => d.label === 'Deployer Activity');
+		expect(activity?.value).toBe('2 transactions');
+		expect(activity?.emphasis).toBe('danger');
+		const age = intent.details.find((d) => d.label === 'Contract Age');
+		expect(age?.value).toBe('1 hours');
+		expect(age?.emphasis).toBe('danger');
+	});
+
+	it('omits deployer info when risk is LOW', () => {
+		const intent = buildDelegationIntent(SPENDER, undefined, {
+			risk: 'LOW',
+			contractAge: 86_400 * 30,
+			deployerNonce: 500,
+			reasons: [],
+		});
+		expect(intent.details.find((d) => d.label === 'Deployer Activity')).toBeUndefined();
+	});
+
+	it('uses warning emphasis for HIGH risk deployer', () => {
+		const intent = buildDelegationIntent(SPENDER, undefined, {
+			risk: 'HIGH',
+			contractAge: 86_400 * 3,
+			deployerNonce: 3,
+			reasons: ['test'],
+		});
+		const activity = intent.details.find((d) => d.label === 'Deployer Activity');
+		expect(activity?.emphasis).toBe('warning');
+		const age = intent.details.find((d) => d.label === 'Contract Age');
+		expect(age?.emphasis).toBe('info');
+	});
 });
 
 describe('buildTransactionIntent', () => {

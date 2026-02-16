@@ -1,5 +1,13 @@
 import type { AnalysisResult } from '@testudo/core';
-import { analyzeContract, checkKnownMalicious, KNOWN_MALICIOUS, KNOWN_SAFE } from '@testudo/core';
+import {
+	analyzeContract,
+	assessDeployerRisk,
+	checkKnownMalicious,
+	deriveRiskFromWarnings,
+	generateDeployerWarnings,
+	KNOWN_MALICIOUS,
+	KNOWN_SAFE,
+} from '@testudo/core';
 import type { Address, Hex } from 'viem';
 import { createPublicClient, hexToString, http } from 'viem';
 import { mainnet } from 'viem/chains';
@@ -11,6 +19,8 @@ import {
 	initializeSafeFilterOnInstall,
 	setupSafeFilterAlarm,
 } from './safe-filter';
+import type { DeployerStaticInfo } from './services/deployer-lookup';
+import { fetchDeployerStaticInfo } from './services/deployer-lookup';
 import {
 	getSettings,
 	getStats,
@@ -23,6 +33,8 @@ import {
 
 const analysisCache = new Map<string, { result: ExtendedAnalysisResult; timestamp: number }>();
 const CACHE_TTL = 60 * 60 * 1000; // 60 minutes
+
+const deployerCache = new Map<string, DeployerStaticInfo>();
 
 // Pending analysis requests to prevent duplicate concurrent requests for the same address
 const pendingAnalysis = new Map<string, Promise<ExtendedAnalysisResult>>();
@@ -375,11 +387,24 @@ async function performThreeLayerAnalysis(
 	const settings = await getSettings();
 	const rpcUrl = settings.customRpcUrl || undefined;
 
-	const [apiResult, localResult] = await Promise.allSettled([
+	const rpc = settings.customRpcUrl || DEFAULT_RPC;
+	const client = getOrCreateClient(rpc);
+
+	async function fetchDeployerStaticCached(addr: string): Promise<DeployerStaticInfo | null> {
+		const cached = deployerCache.get(addr);
+		if (cached) return cached;
+		const info = await fetchDeployerStaticInfo(addr as Address, client);
+		if (info) deployerCache.set(addr, info);
+		return info;
+	}
+
+	const [apiResult, localResult, deployerResult] = await Promise.allSettled([
 		// Layer 1: API Lookup (includes GoPlus fallback server-side)
 		checkAddressThreat(normalizedAddress, { baseUrl: apiUrl }),
 		// Layer 2: Local Bytecode Analysis
 		analyzeContract(normalizedAddress as `0x${string}`, { rpcUrl }),
+		// Layer 3: Deployer Reputation (Blockscout + RPC, fail-open)
+		fetchDeployerStaticCached(normalizedAddress),
 	]);
 
 	// Extract results
@@ -388,7 +413,7 @@ async function performThreeLayerAnalysis(
 			? apiResult.value
 			: ({ success: false, error: 'Promise rejected' } as ApiClientResult);
 
-	const local =
+	let local =
 		localResult.status === 'fulfilled'
 			? localResult.value
 			: ({
@@ -397,6 +422,31 @@ async function performThreeLayerAnalysis(
 					address: normalizedAddress,
 					blocked: false,
 				} as AnalysisResult);
+
+	const deployerStatic = deployerResult.status === 'fulfilled' ? deployerResult.value : null;
+
+	// Merge deployer warnings into local result (post-processing)
+	if (deployerStatic) {
+		const assessment = assessDeployerRisk({
+			...deployerStatic,
+			currentTimestamp: Math.floor(Date.now() / 1000),
+		});
+		const deployerWarnings = generateDeployerWarnings(assessment);
+		if (deployerWarnings.length > 0) {
+			const allWarnings = [...(local.warnings || []), ...deployerWarnings];
+			const derived = deriveRiskFromWarnings(allWarnings);
+			local = {
+				...local,
+				warnings: allWarnings,
+				risk: derived.risk,
+				blocked: derived.blocked,
+				deployerRisk: assessment,
+				threats: allWarnings.filter((w) => w.severity !== 'INFO').map((w) => w.type.toLowerCase()),
+			};
+		} else if (assessment.risk === 'LOW') {
+			local = { ...local, deployerRisk: assessment };
+		}
+	}
 
 	// ========================================================================
 	// DECISION MATRIX (from ADR-006)

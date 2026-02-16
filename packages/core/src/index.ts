@@ -1,5 +1,6 @@
 export type { AnalyzeOptions } from './analyzer';
 export { analyzeContract, deriveRiskFromWarnings, generateWarnings } from './analyzer';
+export { assessDeployerRisk, generateDeployerWarnings } from './deployer-risk';
 export {
 	detectAutoForwarder,
 	detectDelegateCall,
@@ -18,6 +19,8 @@ export { OPCODES } from './opcode';
 export { parseBytecode } from './parser';
 export type {
 	AnalysisResult,
+	DeployerInfo,
+	DeployerRiskAssessment,
 	DetectionResults,
 	Instruction,
 	KnownMaliciousContract,
