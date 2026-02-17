@@ -604,43 +604,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 		return true;
 	}
 
-	if (message.type === 'WHITELIST_FROM_MODAL') {
-		console.log('[Testudo Background] Quick whitelist:', message.address);
-
-		// Validate address format (security)
-		if (!/^0x[a-fA-F0-9]{40}$/.test(message.address)) {
-			sendResponse({ success: false, error: 'Invalid address format' });
-			return true;
-		}
-
-		// Security: only allow whitelisting addresses that were recently analyzed.
-		// Prevents malicious page scripts from whitelisting arbitrary addresses
-		// via the postMessage bridge.
-		const normalizedAddr = message.address.toLowerCase();
-		const cached = analysisCache.get(normalizedAddr);
-		if (!cached || Date.now() - cached.timestamp > 5 * 60 * 1000) {
-			console.warn(
-				'[Testudo Background] Whitelist rejected: no recent analysis for',
-				normalizedAddr,
-			);
-			sendResponse({ success: false, error: 'Address not recently analyzed' });
-			return true;
-		}
-
-		// Use real URL from sender, not from message (security)
-		const url = sender.tab?.url ? new URL(sender.tab.url).origin : undefined;
-
-		import('./storage').then(({ addToWhitelist }) => {
-			addToWhitelist(message.address, message.label || 'Quick whitelist', url).then((success) => {
-				// Clear cache so next analysis uses whitelist
-				analysisCache.delete(normalizedAddr);
-				sendResponse({ success });
-			});
-		});
-
-		return true;
-	}
-
 	if (message.type === 'GET_STATS') {
 		Promise.all([getStats(), getWhitelist(), safeFilter.getStats()]).then(
 			([stats, whitelist, safeFilterStats]) => {

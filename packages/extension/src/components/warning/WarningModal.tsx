@@ -1,6 +1,5 @@
 import { useEffect } from 'preact/hooks';
 import * as vm from '../../hooks/warningVM';
-import { requestWhitelist } from '../../services/messaging';
 import { AddressBox } from './AddressBox';
 import { AlertBox } from './AlertBox';
 import { ContextDetails } from './ContextDetails';
@@ -58,7 +57,6 @@ export function WarningModal() {
 					isConfirmValid={vm.isConfirmValid}
 					onCancel={vm.cancel}
 					onProceed={vm.proceed}
-					onTrust={() => vm.trust(requestWhitelist)}
 					onEthSignProceed={vm.ethSignProceed}
 					onConfirmInput={(val) => {
 						vm.confirmInput.value = val;

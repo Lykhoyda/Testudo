@@ -78,18 +78,6 @@ export function proceed(): void {
 	resolve(true);
 }
 
-export function trust(
-	requestWhitelist: (address: string, label?: string) => Promise<boolean>,
-): void {
-	const analysis = state.value.analysis;
-	if (!analysis) return;
-	requestWhitelist(analysis.address, 'Trusted from warning').then((success) => {
-		if (success) {
-			resolve(true);
-		}
-	});
-}
-
 export function ethSignProceed(): void {
 	if (!isConfirmValid.value) return;
 	resolve(true);

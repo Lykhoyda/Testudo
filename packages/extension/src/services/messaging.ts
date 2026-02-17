@@ -103,33 +103,3 @@ export function requestSettings(): Promise<Record<string, unknown>> {
 		3000,
 	).catch(() => ({}));
 }
-
-export function requestWhitelist(address: string, label?: string): Promise<boolean> {
-	return new Promise((resolve) => {
-		const requestId = Math.random().toString(36).substring(7);
-
-		const handler = (event: MessageEvent) => {
-			if (event.data?.type === 'TESTUDO_WHITELIST_RESULT' && event.data?.requestId === requestId) {
-				window.removeEventListener('message', handler);
-				resolve(event.data.success);
-			}
-		};
-
-		window.addEventListener('message', handler);
-
-		window.postMessage(
-			{
-				type: 'TESTUDO_WHITELIST_REQUEST',
-				requestId,
-				address,
-				label,
-			},
-			'*',
-		);
-
-		setTimeout(() => {
-			window.removeEventListener('message', handler);
-			resolve(false);
-		}, 5000);
-	});
-}

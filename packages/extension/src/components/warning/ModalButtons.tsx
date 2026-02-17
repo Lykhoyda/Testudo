@@ -8,7 +8,6 @@ interface Props {
 	isConfirmValid: ReadonlySignal<boolean>;
 	onCancel: () => void;
 	onProceed: () => void;
-	onTrust: () => void;
 	onEthSignProceed: () => void;
 	onConfirmInput: (value: string) => void;
 }
@@ -19,7 +18,6 @@ export function ModalButtons({
 	isConfirmValid,
 	onCancel,
 	onProceed,
-	onTrust,
 	onEthSignProceed,
 	onConfirmInput,
 }: Props) {
@@ -38,9 +36,6 @@ export function ModalButtons({
 				/>
 			) : (
 				<div class="testudo-secondary-actions">
-					<button type="button" class="testudo-btn-link" id="testudo-trust" onClick={onTrust}>
-						Trust contract & Proceed
-					</button>
 					<button type="button" class="testudo-btn-danger" id="testudo-proceed" onClick={onProceed}>
 						<span>Proceed Anyway</span>
 						<span class="testudo-material-icon">arrow_forward</span>

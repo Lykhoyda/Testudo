@@ -38,7 +38,7 @@ The extension communicates with the following external services to perform threa
 
 **What is sent**: Only the smart contract address being analyzed is sent to external services. No wallet addresses, private keys, transaction amounts, browsing history, or personal information is transmitted.
 
-**When requests are made**: External requests occur only when you interact with a dApp that triggers a transaction or signature request. The extension does not make background requests except for periodic safe filter updates (a static file download with no user data).
+**When requests are made**: External requests occur when Testudo analyzes wallet transaction/signature activity on a dApp page. The extension also makes periodic safe filter update requests (a static file download with no user data).
 
 ## Permissions
 
@@ -46,7 +46,7 @@ The extension communicates with the following external services to perform threa
 |------------|---------|
 | `storage` | Save settings, scan history, and whitelist locally on your device |
 | `alarms` | Schedule periodic safe filter updates (downloading a static file of known-safe addresses) |
-| `host_permissions` (5 pinned domains) | Required to communicate with the specific external services listed above. Only these exact domains are contacted. |
+| `host_permissions` (4 pinned domains) | Required to communicate with the specific external services listed above. Only these exact domains are contacted. |
 | `content_scripts` (all URLs) | Inject the security interception script that monitors wallet signature and transaction requests. See justification below. |
 | `web_accessible_resources` (all URLs) | Load the injected security script and bundled font files into page context |
 
@@ -58,12 +58,16 @@ Testudo must run on every webpage because:
 2. **Legitimate dApps can be compromised** — even trusted sites may serve malicious signature requests via supply-chain attacks or frontend compromises.
 3. **The extension only activates when a wallet interaction occurs** — the content script is lightweight and does not read, modify, or transmit any page content. It only intercepts Ethereum provider calls (`window.ethereum.request`).
 
+### Fonts
+
+Popup/options UI and warning modal typography use bundled local font files packaged inside the extension. No third-party font CDN requests are required.
+
 ### What the extension does NOT do
 
 - Read or modify page content, forms, or DOM elements (beyond its own security modal)
 - Track browsing history or page visits
 - Access page content unrelated to wallet signature/transaction requests
-- Make network requests unless a wallet interaction triggers analysis
+- Send analytics, tracking, or telemetry requests
 
 ## No Tracking
 

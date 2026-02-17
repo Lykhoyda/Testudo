@@ -172,26 +172,6 @@ test.describe('CDN Safe Filter Delegation', () => {
 	});
 });
 
-test.describe('Whitelist from Modal', () => {
-	test('user can trust and whitelist address from warning', async ({ context }) => {
-		const page = await context.newPage();
-		await page.goto(MOCK_DAPP_URL);
-
-		await page.click('#sign-malicious');
-
-		const modal = page.locator('#testudo-warning-overlay');
-		await expect(modal).toBeVisible({ timeout: 10000 });
-
-		await page.click('#testudo-trust');
-
-		await expect(modal).not.toBeVisible({ timeout: 5000 });
-
-		await expect(page.locator('#result')).toContainText('Signature received');
-
-		await page.close();
-	});
-});
-
 test.describe('eth_sendTransaction Detection', () => {
 	test('warning modal appears for transaction to malicious address', async ({ context }) => {
 		const page = await context.newPage();
