@@ -16,8 +16,6 @@ import type { ScanRecord, Settings, WhitelistEntry } from '../utils/types';
 
 export const activeTab = signal('general');
 export const settings = signal<Settings>({
-	protectionLevel: 'standard',
-	customRpcUrl: null,
 	apiUrl: null,
 	showMediumRiskToast: true,
 	autoRecordScans: true,
@@ -66,12 +64,6 @@ export function switchTab(tabId: string): void {
 
 export async function loadSettings(): Promise<void> {
 	settings.value = await getSettings();
-}
-
-export async function changeProtectionLevel(value: Settings['protectionLevel']): Promise<void> {
-	const success = await updateSettings({ protectionLevel: value });
-	showToast(success ? 'Protection level updated' : 'Failed to update', !success);
-	if (success) settings.value = { ...settings.value, protectionLevel: value };
 }
 
 export async function toggleMediumToast(): Promise<void> {
@@ -155,26 +147,6 @@ export async function clearHistory(): Promise<void> {
 	await clearScanHistory();
 	await loadHistory();
 	showToast('History cleared');
-}
-
-export async function saveRpc(url: string | null): Promise<void> {
-	if (url) {
-		try {
-			new URL(url);
-		} catch {
-			showToast('Invalid URL format', true);
-			return;
-		}
-	}
-	const success = await updateSettings({ customRpcUrl: url });
-	showToast(success ? 'RPC endpoint saved' : 'Failed to save', !success);
-	if (success) settings.value = { ...settings.value, customRpcUrl: url };
-}
-
-export async function clearRpc(): Promise<void> {
-	await updateSettings({ customRpcUrl: null });
-	settings.value = { ...settings.value, customRpcUrl: null };
-	showToast('RPC endpoint cleared');
 }
 
 export async function clearAllData(): Promise<void> {

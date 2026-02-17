@@ -14,8 +14,6 @@ export interface WhitelistEntry {
 }
 
 export interface Settings {
-	protectionLevel: 'strict' | 'standard' | 'permissive';
-	customRpcUrl: string | null;
 	apiUrl: string | null;
 	showMediumRiskToast: boolean;
 	autoRecordScans: boolean;
@@ -35,8 +33,6 @@ const MAX_WHITELIST_SIZE = 500;
 const MAX_HISTORY_SIZE = 100;
 
 const DEFAULT_SETTINGS: Settings = {
-	protectionLevel: 'standard',
-	customRpcUrl: null,
 	apiUrl: null,
 	showMediumRiskToast: true,
 	autoRecordScans: true,
@@ -244,16 +240,6 @@ export async function updateSettings(updates: Partial<Settings>): Promise<boolea
 	try {
 		const current = await getSettings();
 		const updated = { ...current, ...updates };
-
-		// Validate RPC URL if provided
-		if (updated.customRpcUrl) {
-			try {
-				new URL(updated.customRpcUrl);
-			} catch {
-				console.error('[Testudo Storage] Invalid RPC URL');
-				return false;
-			}
-		}
 
 		// Validate API URL if provided
 		if (updated.apiUrl) {

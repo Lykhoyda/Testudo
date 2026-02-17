@@ -37,8 +37,6 @@ export const test = base.extend<{
 				chrome.storage.local.set(
 					{
 						settings: {
-							protectionLevel: 'standard',
-							customRpcUrl: null,
 							apiUrl: 'http://localhost:3001',
 							showMediumRiskToast: true,
 							autoRecordScans: true,

@@ -9,6 +9,46 @@
  * Also responsible for injecting the injected.js script into the page.
  */
 
+// Inject bundled fonts into the page so the warning modal can use them
+function injectFonts() {
+	const style = document.createElement('style');
+	style.id = 'testudo-fonts';
+	const base = chrome.runtime.getURL('fonts/');
+	style.textContent = `
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: swap;
+  src: url(${base}material-symbols-outlined.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url(${base}inter-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url(${base}inter-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Roboto Mono';
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+  src: url(${base}roboto-mono-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}`;
+	(document.head || document.documentElement).appendChild(style);
+}
+
 // Inject the injected.js script into the page
 function injectScript() {
 	const script = document.createElement('script');
@@ -24,6 +64,7 @@ function injectScript() {
 }
 
 // Inject immediately
+injectFonts();
 injectScript();
 
 // Listen for messages from injected script

@@ -32,7 +32,6 @@ export function OptionsApp() {
 			>
 				<GeneralTab
 					settings={vm.settings}
-					onChangeProtection={vm.changeProtectionLevel}
 					onToggleMediumToast={vm.toggleMediumToast}
 					onToggleAutoRecord={vm.toggleAutoRecord}
 				/>
@@ -63,11 +62,8 @@ export function OptionsApp() {
 				class={`tab-content${vm.activeTab.value === 'advanced' ? ' active' : ''}`}
 			>
 				<AdvancedTab
-					settings={vm.settings}
 					storagePercentage={vm.storagePercentage}
 					storageUsage={vm.storageUsage}
-					onSaveRpc={vm.saveRpc}
-					onClearRpc={vm.clearRpc}
 					onClearAll={vm.clearAllData}
 				/>
 			</div>

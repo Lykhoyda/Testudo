@@ -1,8 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Testudo",
+  "short_name": "Testudo",
   "version": "0.2.0",
   "description": "Protect your wallet from malicious EIP-7702 delegations. Real-time bytecode analysis warns you before signing dangerous contracts.",
+  "homepage_url": "https://github.com/niccolofant/eip7702-poc",
+  "minimum_chrome_version": "116",
 
   "icons": {
     "16": "icon-16.png",
@@ -13,16 +16,16 @@
 
   "permissions": [
     "storage",
-    "unlimitedStorage",
-    "activeTab",
     "alarms"
   ],
 
   "options_page": "options.html",
   
   "host_permissions": [
-    "https://*/*",
-    "http://localhost/*"
+    "https://testudo-api-production.up.railway.app/*",
+    "https://eth.blockscout.com/*",
+    "https://pub-76c6347fe0fc49d7b1497bc741c11d24.r2.dev/*",
+    "https://eth.llamarpc.com/*"
   ],
 
   "background": {
@@ -41,7 +44,7 @@
 
   "web_accessible_resources": [
     {
-      "resources": ["injected.js"],
+      "resources": ["injected.js", "fonts/*"],
       "matches": ["<all_urls>"]
     }
   ],

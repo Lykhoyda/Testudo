@@ -117,10 +117,8 @@ function getOrCreateClient(rpcUrl: string): ReturnType<typeof createPublicClient
 async function resolveTokenViaRpc(address: string): Promise<TokenResult> {
 	const fallback: TokenResult = { name: null, symbol: null, decimals: null };
 	try {
-		const settings = await getSettings();
-		const rpc = settings.customRpcUrl || DEFAULT_RPC;
 		const tokenAddress = address.toLowerCase() as Address;
-		const client = getOrCreateClient(rpc);
+		const client = getOrCreateClient(DEFAULT_RPC);
 
 		const results = await client.multicall({
 			contracts: [
@@ -384,11 +382,8 @@ async function performThreeLayerAnalysis(
 	// LAYER 1 + LAYER 2: Run API and Local Analysis in parallel
 	// ========================================================================
 	const apiUrl = await getApiUrl();
-	const settings = await getSettings();
-	const rpcUrl = settings.customRpcUrl || undefined;
 
-	const rpc = settings.customRpcUrl || DEFAULT_RPC;
-	const client = getOrCreateClient(rpc);
+	const client = getOrCreateClient(DEFAULT_RPC);
 
 	async function fetchDeployerStaticCached(addr: string): Promise<DeployerStaticInfo | null> {
 		const cached = deployerCache.get(addr);
@@ -402,7 +397,7 @@ async function performThreeLayerAnalysis(
 		// Layer 1: API Lookup (includes GoPlus fallback server-side)
 		checkAddressThreat(normalizedAddress, { baseUrl: apiUrl }),
 		// Layer 2: Local Bytecode Analysis
-		analyzeContract(normalizedAddress as `0x${string}`, { rpcUrl }),
+		analyzeContract(normalizedAddress as `0x${string}`),
 		// Layer 3: Deployer Reputation (Blockscout + RPC, fail-open)
 		fetchDeployerStaticCached(normalizedAddress),
 	]);
@@ -618,13 +613,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 			return true;
 		}
 
+		// Security: only allow whitelisting addresses that were recently analyzed.
+		// Prevents malicious page scripts from whitelisting arbitrary addresses
+		// via the postMessage bridge.
+		const normalizedAddr = message.address.toLowerCase();
+		const cached = analysisCache.get(normalizedAddr);
+		if (!cached || Date.now() - cached.timestamp > 5 * 60 * 1000) {
+			console.warn(
+				'[Testudo Background] Whitelist rejected: no recent analysis for',
+				normalizedAddr,
+			);
+			sendResponse({ success: false, error: 'Address not recently analyzed' });
+			return true;
+		}
+
 		// Use real URL from sender, not from message (security)
 		const url = sender.tab?.url ? new URL(sender.tab.url).origin : undefined;
 
 		import('./storage').then(({ addToWhitelist }) => {
 			addToWhitelist(message.address, message.label || 'Quick whitelist', url).then((success) => {
 				// Clear cache so next analysis uses whitelist
-				analysisCache.delete(message.address.toLowerCase());
+				analysisCache.delete(normalizedAddr);
 				sendResponse({ success });
 			});
 		});

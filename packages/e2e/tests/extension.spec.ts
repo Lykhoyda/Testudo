@@ -252,8 +252,6 @@ test.describe('eth_sendTransaction Detection', () => {
 				chrome.storage.local.set(
 					{
 						settings: {
-							protectionLevel: 'strict',
-							customRpcUrl: null,
 							apiUrl: 'http://localhost:59999', // Non-existent port
 						},
 					},
@@ -285,8 +283,6 @@ test.describe('eth_sendTransaction Detection', () => {
 				chrome.storage.local.set(
 					{
 						settings: {
-							protectionLevel: 'strict',
-							customRpcUrl: null,
 							apiUrl: null, // Restore default
 						},
 					},
@@ -852,24 +848,6 @@ test.describe('Settings Page', () => {
 		await page.close();
 	});
 
-	test('protection level can be changed', async ({ context, extensionId }) => {
-		const page = await context.newPage();
-		await page.goto(`chrome-extension://${extensionId}/options.html`);
-
-		const select = page.locator('#protection-level');
-		await expect(select).toBeVisible();
-
-		// Change to strict
-		await select.selectOption('strict');
-		await expect(select).toHaveValue('strict');
-
-		// Change to permissive
-		await select.selectOption('permissive');
-		await expect(select).toHaveValue('permissive');
-
-		await page.close();
-	});
-
 	test('whitelist address can be added', async ({ context, extensionId }) => {
 		const page = await context.newPage();
 		await page.goto(`chrome-extension://${extensionId}/options.html`);
@@ -885,24 +863,6 @@ test.describe('Settings Page', () => {
 
 		// Verify address appears in the list (truncated format: 0x12345678...34567890)
 		await expect(page.locator('.whitelist-address')).toContainText('0x12345678...34567890');
-
-		await page.close();
-	});
-
-	test('custom RPC can be saved', async ({ context, extensionId }) => {
-		const page = await context.newPage();
-		await page.goto(`chrome-extension://${extensionId}/options.html`);
-
-		// Navigate to Advanced tab
-		await page.click('[data-tab="advanced"]');
-
-		// Enter RPC URL
-		const rpcUrl = 'https://eth.llamarpc.com';
-		await page.fill('#custom-rpc', rpcUrl);
-		await page.click('#btn-save-rpc');
-
-		// Check for success toast
-		await expect(page.locator('.toast.show')).toBeVisible({ timeout: 3000 });
 
 		await page.close();
 	});

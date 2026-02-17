@@ -1,121 +1,94 @@
-# Privacy Policy for Testudo
+# Testudo Privacy Policy
 
-**Last Updated: January 21, 2026**
+**Last Updated**: 2026-02-16
 
-> **Note:** Testudo is currently in active development and not yet available on the Chrome Web Store. This privacy policy applies to the upcoming public release.
+Testudo is a browser extension that protects your wallet from malicious smart contract interactions. This policy explains what data the extension processes, what external services it communicates with, and why specific permissions are required.
 
-## Overview
+## Data Processing
 
-Testudo ("the Extension") is a browser extension that protects users from malicious EIP-7702 delegation contracts. We are committed to protecting your privacy and being transparent about our data practices.
+Testudo processes the following data **locally in your browser**:
 
-## Data Collection
+- **Smart contract addresses** from transaction and signature requests intercepted by the extension
+- **Typed data** from EIP-712 signature requests (to detect permits, approvals, and EIP-7702 delegations)
+- **Message content** from personal_sign requests (to detect phishing patterns)
 
-### What We Collect
+This data is processed in real time to determine risk levels. The extension does not collect, store, or transmit browsing history, personal information, or wallet balances.
 
-**Locally Stored Data (on your device only):**
-- Whitelisted contract addresses you explicitly trust
-- Scan history (contract addresses and analysis results)
-- Your custom RPC endpoint URL (if configured)
-- Extension settings and preferences
+## Local Storage
 
-### What We Do NOT Collect or Transmit
+The extension stores the following data locally using `chrome.storage.local`:
 
-- Personal information (name, email, etc.)
-- Transaction data or balances
-- Browsing history
-- Analytics or telemetry data
+- **Settings**: notification preferences
+- **Scan history**: recent scan results (contract address, risk level, timestamp, originating site domain)
+- **Statistics**: aggregate counts (scans performed, threats blocked)
+- **Whitelist**: addresses you have explicitly marked as trusted, with the domain where whitelisting occurred
 
-Note: Contract addresses you whitelist are stored locally on your device only.
+All locally stored data can be viewed and cleared from the extension's Settings page.
 
-## How Data Is Used
+## External Services
 
-All data processing and analysis occurs **locally on your device**:
+The extension communicates with the following external services to perform threat analysis:
 
-1. **Contract Analysis**: When you interact with an EIP-7702 delegation request, the Extension:
-   - Fetches the contract bytecode from a public Ethereum RPC endpoint (network request)
-   - Analyzes the bytecode entirely on your device (local processing)
-   - No analysis results or personal data are sent anywhere
+| Service | Domain | Purpose | Data Sent |
+|---------|--------|---------|-----------|
+| Testudo Threat API | `testudo-api-production.up.railway.app` | Look up known malicious addresses | Contract address being analyzed |
+| Blockscout API | `eth.blockscout.com` | Look up contract deployer information | Contract address being analyzed |
+| Safe Filter CDN | `pub-76c6347fe0fc49d7b1497bc741c11d24.r2.dev` | Download safe address filter set | No user data (static file download) |
+| Ethereum RPC | `eth.llamarpc.com` | Fetch contract bytecode and token metadata | Contract address being analyzed |
 
-2. **Whitelist**: Addresses you trust are stored locally to skip future warnings.
+**What is sent**: Only the smart contract address being analyzed is sent to external services. No wallet addresses, private keys, transaction amounts, browsing history, or personal information is transmitted.
 
-3. **Scan History**: Recent scans are stored locally so you can review past analyses.
+**When requests are made**: External requests occur only when you interact with a dApp that triggers a transaction or signature request. The extension does not make background requests except for periodic safe filter updates (a static file download with no user data).
 
-## Data Storage
+## Permissions
 
-- All data is stored in your browser's local storage (`chrome.storage.local`)
-- Data never leaves your device
-- Data is not synced across devices
-- You can clear all data at any time via the Extension settings
+| Permission | Purpose |
+|------------|---------|
+| `storage` | Save settings, scan history, and whitelist locally on your device |
+| `alarms` | Schedule periodic safe filter updates (downloading a static file of known-safe addresses) |
+| `host_permissions` (5 pinned domains) | Required to communicate with the specific external services listed above. Only these exact domains are contacted. |
+| `content_scripts` (all URLs) | Inject the security interception script that monitors wallet signature and transaction requests. See justification below. |
+| `web_accessible_resources` (all URLs) | Load the injected security script and bundled font files into page context |
 
-## Third-Party Services
+### Why content_scripts requires all URLs
 
-The Extension connects to public Ethereum RPC endpoints to fetch contract bytecode:
+Testudo must run on every webpage because:
 
-- Default: `eth.llamarpc.com` (LlamaNodes public RPC)
-- You can configure a custom RPC endpoint in settings
+1. **Malicious dApps can be hosted on any domain** — phishing sites and drainer contracts appear on new domains constantly. Limiting to specific sites would leave users unprotected.
+2. **Legitimate dApps can be compromised** — even trusted sites may serve malicious signature requests via supply-chain attacks or frontend compromises.
+3. **The extension only activates when a wallet interaction occurs** — the content script is lightweight and does not read, modify, or transmit any page content. It only intercepts Ethereum provider calls (`window.ethereum.request`).
 
-These RPC requests contain only the contract address being analyzed. No personal data is transmitted.
+### What the extension does NOT do
 
-## Data Sharing
+- Read or modify page content, forms, or DOM elements (beyond its own security modal)
+- Track browsing history or page visits
+- Access page content unrelated to wallet signature/transaction requests
+- Make network requests unless a wallet interaction triggers analysis
 
-We do **not** share, sell, or transmit any data to third parties. All analysis is performed locally.
+## No Tracking
 
-## Your Rights
+- No analytics or telemetry
+- No user identification or fingerprinting
+- No cookies or third-party trackers
+- No data sold or shared with third parties
 
-You have full control over your data:
+## Data Retention
 
-- **View**: Access all stored data in Extension settings
-- **Export**: Export your whitelist as JSON
-- **Delete**: Clear all data via the "Clear All Data" button in settings
-- **Modify**: Add or remove whitelist entries at any time
-
-## Security
-
-- The Extension operates with minimal required permissions
-- No Testudo-owned servers or databases - we don't collect your data
-- Only connects to public Ethereum RPC endpoints to fetch contract code
-- Open source code available for audit
-- All analysis and sensitive operations happen locally on your device
+All data is stored locally in your browser. Uninstalling the extension removes all stored data. You can also clear all data from the Settings page at any time.
 
 ## Children's Privacy
 
-The Extension is not directed at children under 13 and does not knowingly collect data from children.
+The extension is not directed at children under 13 and does not knowingly collect data from children.
 
-## Changes to This Policy
+## Changes
 
-We may update this Privacy Policy from time to time. Changes will be reflected in the "Last Updated" date above.
+Updates to this policy will be posted here with a revised date.
 
 ## Contact
 
 For privacy-related questions or concerns:
-
-- GitHub Issues: [github.com/Lykhoyda/testudo](https://github.com/Lykhoyda/testudo)
-- Email: lykhoyda@gmail.com
-
-## Permissions Explained
-
-The Extension requests the following permissions:
-
-| Permission | Purpose |
-|------------|---------|
-| `storage` | Store whitelist, settings, and scan history locally on your device |
-| `activeTab` | Access the current tab to display analysis results in the popup UI |
-| `host_permissions` (all URLs) | Required to fetch contract bytecode from Ethereum RPC endpoints for security analysis. The extension makes requests only to RPC nodes (default: eth.llamarpc.com) to retrieve smart contract code. |
-| `content_scripts` (all URLs) | Inject the security script that intercepts delegation signature requests before they reach your wallet. This runs on all sites because malicious dApps can be hosted anywhere. |
-
-### Why "All URLs"?
-
-Testudo requires broad permissions because:
-1. **Malicious dApps can be hosted on any domain** - We cannot predict where threats will appear
-2. **RPC endpoints vary** - Users may configure custom RPC URLs
-3. **Protection must be universal** - Limiting to specific sites would leave users vulnerable
-
-**What we do NOT do with these permissions:**
-- Read or modify your browsing data
-- Track your browsing history
-- Access page content unrelated to EIP-7702 delegations
-- Send any data to our servers (we have none)
+- GitHub Issues: [github.com/niccolofant/eip7702-poc](https://github.com/niccolofant/eip7702-poc/issues)
 
 ---
 
-*Testudo is open source software. You can review our code to verify these privacy practices.*
+*Testudo is open source software. You can review the code to verify these privacy practices.*

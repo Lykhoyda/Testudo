@@ -1,27 +1,13 @@
 import type { ReadonlySignal } from '@preact/signals';
-import { useRef } from 'preact/hooks';
-import type { Settings } from '../../utils/types';
 import { MaterialIcon } from '../shared/MaterialIcon';
 
 interface Props {
-	settings: ReadonlySignal<Settings>;
 	storagePercentage: ReadonlySignal<number>;
 	storageUsage: ReadonlySignal<{ bytesUsed: number; quota: number }>;
-	onSaveRpc: (url: string | null) => void;
-	onClearRpc: () => void;
 	onClearAll: () => void;
 }
 
-export function AdvancedTab({
-	settings: s,
-	storagePercentage,
-	storageUsage: su,
-	onSaveRpc,
-	onClearRpc,
-	onClearAll,
-}: Props) {
-	const rpcRef = useRef<HTMLInputElement>(null);
-
+export function AdvancedTab({ storagePercentage, storageUsage: su, onClearAll }: Props) {
 	const pct = storagePercentage.value;
 	const fillClass = pct > 80 ? ' danger' : pct > 50 ? ' warning' : '';
 	const usedMB = (su.value.bytesUsed / 1024 / 1024).toFixed(2);
@@ -29,51 +15,6 @@ export function AdvancedTab({
 
 	return (
 		<>
-			<div class="section">
-				<h2 class="section-title">
-					<MaterialIcon name="link" />
-					Custom RPC
-				</h2>
-				<div class="form-group">
-					<label class="form-label" htmlFor="custom-rpc">
-						RPC Endpoint URL
-					</label>
-					<input
-						type="url"
-						id="custom-rpc"
-						placeholder="https://eth.llamarpc.com"
-						ref={rpcRef}
-						defaultValue={s.value.customRpcUrl || ''}
-					/>
-					<p class="form-description">
-						Use a custom RPC endpoint for bytecode fetching. Leave empty for default.
-					</p>
-				</div>
-				<div class="btn-group">
-					<button
-						type="button"
-						class="btn btn-primary"
-						id="btn-save-rpc"
-						onClick={() => onSaveRpc(rpcRef.current?.value.trim() || null)}
-					>
-						<MaterialIcon name="save" />
-						Save RPC
-					</button>
-					<button
-						type="button"
-						class="btn btn-secondary"
-						id="btn-clear-rpc"
-						onClick={() => {
-							if (rpcRef.current) rpcRef.current.value = '';
-							onClearRpc();
-						}}
-					>
-						<MaterialIcon name="clear" />
-						Clear
-					</button>
-				</div>
-			</div>
-
 			<div class="section">
 				<h2 class="section-title">
 					<MaterialIcon name="storage" />

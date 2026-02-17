@@ -60,7 +60,6 @@ function ensureModalRoot(): void {
 	if (modalRoot?.isConnected) return;
 
 	injectWarningStyles();
-	injectFonts();
 
 	if (modalRoot && !modalRoot.isConnected) {
 		document.body.appendChild(modalRoot);
@@ -114,21 +113,6 @@ function showInfo(analysis: AnalysisResult): void {
 function showUnknownNotice(analysis: AnalysisResult): void {
 	ensureModalRoot();
 	warningVM.showUnknownToast(analysis);
-}
-
-// ============================================================================
-// FONT INJECTION
-// ============================================================================
-
-function injectFonts(): void {
-	if (!document.getElementById('testudo-fonts')) {
-		const link = document.createElement('link');
-		link.id = 'testudo-fonts';
-		link.rel = 'stylesheet';
-		link.href =
-			'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap';
-		document.head.appendChild(link);
-	}
 }
 
 // ============================================================================
