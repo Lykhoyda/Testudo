@@ -13,6 +13,7 @@ import type {
 
 interface WarningState {
 	visible: boolean;
+	loading: boolean;
 	analysis: AnalysisResult | null;
 	context: WarningContext;
 	permitInfo?: PermitInfo;
@@ -26,6 +27,7 @@ interface WarningState {
 
 const INITIAL_STATE: WarningState = {
 	visible: false,
+	loading: false,
 	analysis: null,
 	context: 'delegation',
 	resolver: null,
@@ -49,6 +51,7 @@ export function show(opts: WarningOptions): Promise<boolean> {
 		copyIcon.value = 'content_copy';
 		state.value = {
 			visible: true,
+			loading: false,
 			analysis: opts.analysis,
 			context: opts.context ?? 'delegation',
 			permitInfo: opts.permitInfo,
@@ -62,6 +65,55 @@ export function show(opts: WarningOptions): Promise<boolean> {
 	});
 }
 
+export interface LoadingOptions {
+	context: WarningContext;
+	address: string;
+}
+
+export function showLoading(opts: LoadingOptions): Promise<boolean> {
+	const previousResolver = state.value.resolver;
+	if (previousResolver) {
+		previousResolver(false);
+	}
+
+	return new Promise((resolve) => {
+		confirmInput.value = '';
+		copyIcon.value = 'content_copy';
+		state.value = {
+			visible: true,
+			loading: true,
+			analysis: {
+				address: opts.address as `0x${string}`,
+				risk: 'UNKNOWN',
+				threats: [],
+				blocked: false,
+			},
+			context: opts.context,
+			resolver: resolve,
+		};
+	});
+}
+
+export function updateAnalysis(analysis: AnalysisResult, intent?: HumanReadableIntent): void {
+	const current = state.value;
+	if (!current.visible || !current.resolver) return;
+	state.value = {
+		...current,
+		loading: false,
+		analysis,
+		intent,
+	};
+}
+
+// Resolves true = allow transaction to proceed (no user decision needed)
+export function dismissLoading(): void {
+	const { resolver } = state.value;
+	if (!resolver) return;
+	state.value = INITIAL_STATE;
+	confirmInput.value = '';
+	resolver(true);
+}
+
 function resolve(value: boolean): void {
 	const { resolver } = state.value;
 	state.value = INITIAL_STATE;
@@ -70,7 +122,9 @@ function resolve(value: boolean): void {
 }
 
 export function cancel(): void {
-	window.postMessage({ type: 'TESTUDO_RECORD_BLOCKED' }, '*');
+	if (!state.value.loading) {
+		window.postMessage({ type: 'TESTUDO_RECORD_BLOCKED' }, '*');
+	}
 	resolve(false);
 }
 

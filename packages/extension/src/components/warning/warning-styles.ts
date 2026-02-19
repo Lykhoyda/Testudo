@@ -587,6 +587,41 @@ export const WARNING_STYLES = `
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
 }
+
+@keyframes testudo-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.testudo-spin {
+  animation: testudo-spin 1.5s linear infinite;
+}
+
+.testudo-loading-icon {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+}
+
+.testudo-loading-bar-container {
+  margin: 16px 24px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(59, 130, 246, 0.15);
+  overflow: hidden;
+}
+
+@keyframes testudo-loading-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.testudo-loading-bar {
+  height: 100%;
+  width: 60%;
+  border-radius: 2px;
+  background: #3b82f6;
+  animation: testudo-loading-slide 1.2s ease-in-out infinite;
+}
 `;
 
 export function injectWarningStyles(): void {

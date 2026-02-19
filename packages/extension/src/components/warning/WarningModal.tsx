@@ -3,6 +3,7 @@ import * as vm from '../../hooks/warningVM';
 import { AddressBox } from './AddressBox';
 import { AlertBox } from './AlertBox';
 import { ContextDetails } from './ContextDetails';
+import { LoadingState } from './LoadingState';
 import { ModalButtons } from './ModalButtons';
 import { ModalHeader } from './ModalHeader';
 import { ThreatList } from './ThreatList';
@@ -10,6 +11,7 @@ import { ThreatList } from './ThreatList';
 export function WarningModal() {
 	const {
 		visible,
+		loading,
 		analysis,
 		context,
 		permitInfo,
@@ -29,7 +31,13 @@ export function WarningModal() {
 		return () => document.removeEventListener('keydown', handler);
 	}, [visible]);
 
-	if (!visible || !analysis) return null;
+	if (!visible) return null;
+
+	if (loading && analysis) {
+		return <LoadingState context={context} address={analysis.address} />;
+	}
+
+	if (!analysis) return null;
 
 	return (
 		<div id="testudo-warning-overlay">

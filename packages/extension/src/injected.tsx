@@ -468,12 +468,27 @@ function wrapEthereumProvider(): void {
 				const delegateAddress = typedData.message.address as string;
 				console.log('[Testudo] Delegate address:', delegateAddress);
 
-				const analysis = await requestAnalysis(delegateAddress);
+				ensureModalRoot();
+				const loadingPromise = warningVM.showLoading({
+					context: 'delegation',
+					address: delegateAddress,
+				});
+
+				let analysis: AnalysisResult;
+				try {
+					analysis = await requestAnalysis(delegateAddress);
+				} catch (err) {
+					console.error('[Testudo] Analysis failed, failing open:', err);
+					warningVM.dismissLoading();
+					return originalRequest(args);
+				}
 
 				console.log('[Testudo] Analysis result:', analysis);
 
 				if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
-					const userConfirmed = await showWarningWithIntent({ analysis });
+					const intent = buildIntent({ analysis }, null);
+					warningVM.updateAnalysis(analysis, intent ?? undefined);
+					const userConfirmed = await loadingPromise;
 
 					if (!userConfirmed) {
 						console.log('[Testudo] \u274C User rejected dangerous delegation');
@@ -482,9 +497,13 @@ function wrapEthereumProvider(): void {
 
 					console.log('[Testudo] \u26A0\uFE0F User proceeded despite warning');
 				} else if (analysis.risk === 'MEDIUM') {
+					warningVM.dismissLoading();
 					showInfo(analysis);
-				} else if (analysis.risk === 'UNKNOWN') {
-					showUnknownNotice(analysis);
+				} else {
+					warningVM.dismissLoading();
+					if (analysis.risk === 'UNKNOWN') {
+						showUnknownNotice(analysis);
+					}
 				}
 
 				return originalRequest(args);

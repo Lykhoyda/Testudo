@@ -555,6 +555,11 @@ function applyDecisionMatrix(
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+	if (message.type === 'HEARTBEAT') {
+		sendResponse({ alive: true });
+		return false;
+	}
+
 	if (message.type === 'ANALYZE_DELEGATION') {
 		console.log('[Testudo Background] Analyzing:', message.delegateAddress);
 

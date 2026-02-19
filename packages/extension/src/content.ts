@@ -67,6 +67,30 @@ function injectScript() {
 injectFonts();
 injectScript();
 
+// Fire-and-forget wake-up ping — pre-warms the SW on every page load
+chrome.runtime.sendMessage({ type: 'HEARTBEAT' }).catch(() => {});
+
+// Keep SW alive on known dApp domains via periodic heartbeat
+const DAPP_DOMAINS = [
+	'app.uniswap.org',
+	'opensea.io',
+	'blur.io',
+	'lido.fi',
+	'curve.fi',
+	'app.1inch.io',
+	'pancakeswap.finance',
+	'app.aave.com',
+	'raydium.io',
+	'app.sushi.com',
+];
+const HEARTBEAT_MS = 20_000;
+
+if (DAPP_DOMAINS.some((d) => location.hostname === d || location.hostname.endsWith(`.${d}`))) {
+	const heartbeatId = setInterval(() => {
+		chrome.runtime.sendMessage({ type: 'HEARTBEAT' }).catch(() => clearInterval(heartbeatId));
+	}, HEARTBEAT_MS);
+}
+
 // Listen for messages from injected script
 window.addEventListener('message', async (event) => {
 	// Only accept messages from same window
