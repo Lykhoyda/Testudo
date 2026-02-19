@@ -91,7 +91,7 @@ Updates to this policy will be posted here with a revised date.
 ## Contact
 
 For privacy-related questions or concerns:
-- GitHub Issues: [github.com/niccolofant/eip7702-poc](https://github.com/niccolofant/eip7702-poc/issues)
+- GitHub Issues: [github.com/Lykhoyda/Testudo](https://github.com/Lykhoyda/Testudo/issues)
 
 ---
 
