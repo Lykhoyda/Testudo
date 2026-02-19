@@ -64,6 +64,9 @@ test.describe('EIP-7702 Delegation Detection', () => {
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).toBeVisible({ timeout: 10000 });
 
+		// Wait for loading state to transition to full warning modal
+		await expect(modal.locator('.testudo-threat-item').first()).toBeVisible({ timeout: 15000 });
+
 		await expect(modal.locator('.testudo-title')).toContainText('Wallet Delegation Request');
 
 		const threatsList = modal.locator('.testudo-threat-item');
@@ -80,6 +83,9 @@ test.describe('EIP-7702 Delegation Detection', () => {
 
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		// Wait for loading state to transition to full warning with cancel button
+		await expect(page.locator('#testudo-cancel')).toBeVisible({ timeout: 15000 });
 
 		await page.click('#testudo-cancel');
 
@@ -98,6 +104,9 @@ test.describe('EIP-7702 Delegation Detection', () => {
 
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).toBeVisible({ timeout: 10000 });
+
+		// Wait for loading state to transition to full warning with proceed button
+		await expect(page.locator('#testudo-proceed')).toBeVisible({ timeout: 15000 });
 
 		await page.click('#testudo-proceed');
 
