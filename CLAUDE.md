@@ -1,4 +1,4 @@
-# Testudo — Smart Contract Capability Analyzer
+# Testudo — Transaction Security for the Ethereum Ecosystem
 
 ## Instructions for Claude
 
@@ -17,13 +17,15 @@
 
 ## Quick Context
 
-**What**: Browser extension + API that analyzes smart contracts and signatures before users sign, detecting malicious EIP-7702 delegations, token approvals, permits, blind signatures, and more.
+**What**: Browser extension + API that acts as an antivirus for Ethereum transactions — analyzing contracts and signatures before users sign. Detects malicious EIP-7702 delegations, token approvals, permits, blind signatures, phishing, and more across Ethereum L1/L2/L3.
 
-**Why**: $12M+ stolen from 15,000+ wallets since May 2025. 90%+ of EIP-7702 delegations are malicious.
+**Why**: $12M+ stolen from 15,000+ wallets since May 2025. Users sign transactions they don't understand — Testudo makes every signature human-readable and flags threats before damage occurs.
 
 **Who**: Anton — Senior Web3 dev (built Dappeteer, MetaMask Snap, Multix, Sprinter SDK).
 
 **Goal**: 8-week MVP → EUR 5K MRR in 6 months via B2B API to wallet providers.
+
+**Scope**: Ethereum ecosystem only — L1 (mainnet), L2s (Arbitrum, Optimism, Base, zkSync), and L3s. No non-Ethereum chains (BSC, Solana, etc.).
 
 **Positioning**: "Human-Readable Signature Layer" — deterministic detection with explainable results (see ADR-002, ADR-004).
 

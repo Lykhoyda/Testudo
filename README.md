@@ -5,32 +5,45 @@
 <h1 align="center">Testudo</h1>
 
 <p align="center">
-  EIP-7702 Security Auditor - Browser extension that detects malicious delegation contracts before users sign them.
+  Transaction security for the Ethereum ecosystem — a browser extension that analyzes contracts and signatures before you sign, detecting threats across EIP-7702 delegations, token approvals, permits, blind signatures, and more.
 </p>
 
 <p align="center">
-  <strong>Status: In Development</strong> - Not yet available on Chrome Web Store
-</p>
-
-<p align="center">
-  <a href="https://testudomock-dapp-production.up.railway.app">🎮 Try the Demo Playground</a>
+  <a href="https://testudomock-dapp-production.up.railway.app">Try the Demo Playground</a>
 </p>
 
 ## Problem
 
-EIP-7702 enables EOA delegation to smart contracts. Since May 2025, $12M+ has been stolen from 15,000+ wallets through malicious delegations. 90%+ of delegation contracts are malicious.
+Users sign transactions they don't understand. Since May 2025, $12M+ has been stolen from 15,000+ wallets through malicious EIP-7702 delegations alone — and that's just one attack vector. Token approvals, permit signatures, and blind signing expose users to unlimited drains with a single click.
 
 ## Solution
 
-Testudo intercepts `eth_signTypedData_v4` requests, analyzes the delegate contract bytecode, and warns users before they sign dangerous authorizations.
+Testudo acts as an antivirus for every Ethereum transaction. It intercepts signature requests, analyzes the target contract's bytecode and intent, and presents human-readable warnings before users sign anything dangerous.
 
-## Features
+## Detection Capabilities
 
-- Real-time bytecode analysis
-- Detection of auto-forwarders, delegatecall, selfdestruct, unlimited approvals
-- Known malicious address database
-- Risk scoring (Critical/High/Medium/Low)
-- Browser extension with blocking warnings
+| Capability | Method |
+|-----------|--------|
+| EIP-7702 delegation analysis | Bytecode capability extraction (14 detectors) |
+| Token approvals (`approve`, `increaseAllowance`) | Calldata decoding + address check |
+| NFT `setApprovalForAll` | Calldata decoding + marketplace allowlist |
+| Permit / Permit2 signatures | Typed data primaryType detection |
+| Blind signatures (`personal_sign`) | Phishing pattern scoring |
+| `eth_sign` hard block | Always CRITICAL, typed confirmation required |
+| Typed data address scanning | Recursive address extraction + batch check |
+| Malicious transaction recipients | Address-only check pipeline |
+| Deployer reputation | Nonce/age heuristic via Blockscout + RPC |
+| Human-readable intent | Token metadata resolution + intent builder |
+
+## Architecture
+
+**3-layer defense** — every unknown address passes through:
+
+1. **Safe Filter** (local, instant) — known-good addresses skip API
+2. **Threat Intelligence API** (800ms timeout) — 15K+ malicious addresses + GoPlus real-time fallback
+3. **Local Bytecode Analysis** (parallel) — 14 deterministic detectors, no ML
+
+All results are **explainable**: "This contract HAS capability X because of opcode Y at offset Z."
 
 ## Installation
 
@@ -45,40 +58,6 @@ yarn build
 yarn test
 ```
 
-## Project Structure
-
-```
-packages/
-  core/             # @testudo/core - Detection engine
-    src/
-      index.ts      # Public exports
-      parser.ts     # Bytecode parser
-      detectors.ts  # Threat detectors
-      analyzer.ts   # Main orchestrator
-      fetcher.ts    # Bytecode fetcher (viem)
-      malicious-db.ts
-    tests/          # 168 tests
-
-  extension/        # @testudo/extension - Chrome extension
-    src/
-      injected.ts   # Intercepts ethereum.request
-      content.ts    # Message bridge
-      background.ts # Uses @testudo/core
-      popup.ts      # Popup UI
-    dist/           # Build output
-
-  e2e/              # End-to-end tests (Playwright)
-
-apps/
-  mock-dapp/        # Demo playground for testing extension
-
-docs/               # Documentation
-```
-
-> **Note**: The Threat Intelligence API lives in a [separate private repository](https://github.com/Lykhoyda/testudo-api).
-
-## Usage
-
 ### Load Extension in Chrome
 
 1. Build the extension: `yarn workspace @testudo/extension run build`
@@ -86,6 +65,23 @@ docs/               # Documentation
 3. Enable "Developer mode"
 4. Click "Load unpacked"
 5. Select `packages/extension/dist/`
+
+## Project Structure
+
+```
+packages/
+  core/             # @testudo/core — Detection engine (190 tests)
+  extension/        # @testudo/extension — Chrome extension (Preact + Signals)
+  e2e/              # End-to-end tests (Playwright, 43 tests)
+
+apps/
+  mock-dapp/        # Demo playground for testing
+
+docs/
+  adr/              # Architecture Decision Records
+```
+
+> **Note**: The Threat Intelligence API lives in a [separate private repository](https://github.com/Lykhoyda/testudo-api).
 
 ### Use Core Package
 
@@ -100,17 +96,18 @@ const result = await analyzeContract('0x...');
 
 Try Testudo in action: **[testudomock-dapp-production.up.railway.app](https://testudomock-dapp-production.up.railway.app)**
 
-The playground simulates EIP-7702 delegation signatures with:
-- **Safe delegation** - MetaMask official delegator (whitelisted)
-- **Malicious delegation** - Known drainer contract (blocked)
-
-Install the extension locally and visit the playground to see how Testudo intercepts and analyzes delegation requests.
+The playground simulates various transaction types:
+- **EIP-7702 delegations** — safe (MetaMask delegator) and malicious (known drainer)
+- **Token approvals** — unlimited amounts, malicious spenders
+- **NFT setApprovalForAll** — unknown operators, marketplace allowlist
+- **Permit/Permit2 signatures** — gasless approval attacks
+- **Blind signatures** — phishing pattern detection
+- **eth_sign** — hard block with typed confirmation
 
 ## Documentation
 
 - [Roadmap](docs/ROADMAP.md)
 - [Architectural Decisions](docs/DECISIONS.md)
-- [Project Status](docs/PROJECT_STATUS.md)
 - [ADRs](docs/adr/README.md)
 
 ## License
