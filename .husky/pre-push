@@ -6,7 +6,8 @@ yarn lint || exit 1
 echo "🏗️ Building packages..."
 yarn build || exit 1
 
-echo "🧪 Running E2E tests..."
-yarn test:e2e || exit 1
+echo "🧪 Running unit tests..."
+yarn workspace @testudo/core run test || exit 1
+yarn workspace @testudo/extension run test || exit 1
 
 echo "✅ All checks passed!"
