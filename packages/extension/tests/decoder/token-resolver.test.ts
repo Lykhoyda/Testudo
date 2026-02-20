@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clearTokenCache, getCachedToken, resolveToken } from '../../src/decoder/token-resolver';
+import { clearTokenCache, getInstantToken, resolveToken } from '../../src/decoder/token-resolver';
 
 vi.mock('../../src/services/messaging', () => ({
 	requestTokenResolve: vi.fn(),
@@ -14,16 +14,45 @@ afterEach(() => {
 	vi.clearAllMocks();
 });
 
-describe('getCachedToken', () => {
-	it('returns null for uncached address', () => {
-		expect(getCachedToken('0x1234567890123456789012345678901234567890')).toBeNull();
+describe('getInstantToken', () => {
+	it('returns null for unknown address', () => {
+		expect(getInstantToken('0x0000000000000000000000000000000000000001')).toBeNull();
 	});
 
-	it('returns cached token after resolve', async () => {
-		const address = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
-		const result = await resolveToken(address);
-		expect(result.symbol).toBe('USDC');
-		expect(getCachedToken(address)).toEqual(result);
+	it('returns well-known token without prior cache population', () => {
+		const info = getInstantToken('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48');
+		expect(info).not.toBeNull();
+		expect(info?.symbol).toBe('USDC');
+		expect(info?.decimals).toBe(6);
+		expect(info?.name).toBe('USD Coin');
+		expect(info?.isVerified).toBe(true);
+	});
+
+	it('normalizes addresses to lowercase', () => {
+		const info = getInstantToken('0xA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48');
+		expect(info).not.toBeNull();
+		expect(info?.symbol).toBe('USDC');
+	});
+
+	it('populates cache on well-known hit', () => {
+		getInstantToken('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48');
+		const cached = getInstantToken('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48');
+		expect(cached).not.toBeNull();
+		expect(cached?.symbol).toBe('USDC');
+	});
+
+	it('returns cached token from previous resolveToken call', async () => {
+		mockRequestTokenResolve.mockResolvedValue({
+			name: 'Test Token',
+			symbol: 'TEST',
+			decimals: 18,
+		});
+
+		await resolveToken('0x0000000000000000000000000000000000000099');
+		const instant = getInstantToken('0x0000000000000000000000000000000000000099');
+		expect(instant).not.toBeNull();
+		expect(instant?.symbol).toBe('TEST');
+		expect(instant?.isVerified).toBe(false);
 	});
 });
 

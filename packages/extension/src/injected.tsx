@@ -5,7 +5,7 @@ import { UnknownToast } from './components/warning/UnknownToast';
 import { WarningModal } from './components/warning/WarningModal';
 import { injectWarningStyles } from './components/warning/warning-styles';
 import { buildIntent } from './decoder';
-import { getCachedToken, resolveToken } from './decoder/token-resolver';
+import { getInstantToken, resolveToken } from './decoder/token-resolver';
 import * as warningVM from './hooks/warningVM';
 import { isBlindSignature, parseBlindSignature } from './parsers/blind-signature';
 import { detectPhishingPatterns } from './parsers/phishing';
@@ -33,7 +33,6 @@ import {
 } from './services/messaging';
 import type {
 	AnalysisResult,
-	TokenInfo,
 	TypedDataMessage,
 	TypedDataScanInfo,
 	WarningOptions,
@@ -76,32 +75,28 @@ function ensureModalRoot(): void {
 // PUBLIC API — replaces imperative showWarning/showInfo/showUnknownNotice
 // ============================================================================
 
-async function resolveTokenWithTimeout(
-	address: string,
-	timeoutMs = 2000,
-): Promise<TokenInfo | null> {
-	const cached = getCachedToken(address);
-	if (cached) return cached;
-	try {
-		return await Promise.race([
-			resolveToken(address),
-			new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
-		]);
-	} catch {
-		return null;
-	}
-}
-
 async function showWarningWithIntent(
 	opts: WarningOptions,
 	tokenAddress?: string,
 ): Promise<boolean> {
-	let tokenInfo: TokenInfo | null = null;
-	if (tokenAddress) {
-		tokenInfo = await resolveTokenWithTimeout(tokenAddress);
-	}
-	const intent = buildIntent(opts, tokenInfo);
+	const instantToken = tokenAddress ? getInstantToken(tokenAddress) : null;
+	const intent = buildIntent(opts, instantToken);
 	ensureModalRoot();
+
+	if (tokenAddress && !instantToken) {
+		const modalPromise = warningVM.show({ ...opts, intent: intent ?? undefined });
+		const gen = warningVM.getModalGeneration();
+		resolveToken(tokenAddress)
+			.then((resolved) => {
+				const updatedIntent = buildIntent(opts, resolved);
+				if (updatedIntent) warningVM.updateIntent(updatedIntent, gen);
+			})
+			.catch((err) => {
+				console.debug('[Testudo] Background token resolution failed:', err);
+			});
+		return modalPromise;
+	}
+
 	return warningVM.show({ ...opts, intent: intent ?? undefined });
 }
 

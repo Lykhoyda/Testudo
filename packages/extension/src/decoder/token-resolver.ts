@@ -92,23 +92,24 @@ const WELL_KNOWN_TOKENS: Record<string, Omit<TokenInfo, 'address'>> = {
 
 const cache = new Map<string, TokenInfo>();
 
-export function getCachedToken(address: string): TokenInfo | null {
-	return cache.get(address.toLowerCase()) ?? null;
-}
-
-export async function resolveToken(address: string): Promise<TokenInfo> {
+export function getInstantToken(address: string): TokenInfo | null {
 	const normalized = address.toLowerCase();
-
 	const cached = cache.get(normalized);
 	if (cached) return cached;
-
 	const wellKnown = WELL_KNOWN_TOKENS[normalized];
 	if (wellKnown) {
 		const info: TokenInfo = { address: normalized, ...wellKnown };
 		cache.set(normalized, info);
 		return info;
 	}
+	return null;
+}
 
+export async function resolveToken(address: string): Promise<TokenInfo> {
+	const instant = getInstantToken(address);
+	if (instant) return instant;
+
+	const normalized = address.toLowerCase();
 	const result = await requestTokenResolve(normalized);
 	const info: TokenInfo = {
 		address: normalized,

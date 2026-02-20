@@ -40,12 +40,19 @@ export const isConfirmValid = computed(
 );
 export const copyIcon = signal('content_copy');
 
+let modalGeneration = 0;
+
+export function getModalGeneration(): number {
+	return modalGeneration;
+}
+
 export function show(opts: WarningOptions): Promise<boolean> {
 	const previousResolver = state.value.resolver;
 	if (previousResolver) {
 		previousResolver(false);
 	}
 
+	++modalGeneration;
 	return new Promise((resolve) => {
 		confirmInput.value = '';
 		copyIcon.value = 'content_copy';
@@ -103,6 +110,12 @@ export function updateAnalysis(analysis: AnalysisResult, intent?: HumanReadableI
 		analysis,
 		intent,
 	};
+}
+
+export function updateIntent(intent: HumanReadableIntent, forGeneration: number): void {
+	const current = state.value;
+	if (!current.visible || !current.resolver || forGeneration !== modalGeneration) return;
+	state.value = { ...current, intent };
 }
 
 // Resolves true = allow transaction to proceed (no user decision needed)
