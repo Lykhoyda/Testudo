@@ -2,10 +2,33 @@ export type { AnalyzeOptions } from './analyzer';
 export { analyzeContract, deriveRiskFromWarnings, generateWarnings } from './analyzer';
 export { assessDeployerRisk, generateDeployerWarnings } from './deployer-risk';
 export {
+	analyzeTokenTransfers,
 	detectAutoForwarder,
+	detectBalanceDrain,
+	detectCallcode,
+	detectChainId,
+	detectCoinbaseDependence,
+	detectCreate2,
 	detectDelegateCall,
+	detectDiamondProxy,
+	detectEcrecover,
+	detectEip7702Delegation,
+	detectErc4337Pattern,
+	detectExtcodecopy,
+	detectExtcodesizeGuard,
+	detectFallbackLocation,
+	detectHardcodedDestination,
+	detectMinimalProxy,
+	detectMsgSenderCheck,
+	detectMulticall,
+	detectNonceTracking,
+	detectProxyPattern,
 	detectSelfDestruct,
+	detectTimestampDependence,
+	detectTokenSelectors,
+	detectTxOrigin,
 	detectUnlimitedApproval,
+	LOOK_AHEAD,
 	runAllDetectors,
 } from './detectors';
 export { fetchBytecode } from './fetcher';
@@ -15,15 +38,31 @@ export {
 	KNOWN_MALICIOUS,
 	KNOWN_SAFE,
 } from './malicious-db';
-export { OPCODES } from './opcode';
+export {
+	APPROVAL_SELECTORS,
+	BATCH_SELECTORS,
+	COMPARISON_OPCODES,
+	DIAMOND_SELECTORS,
+	EIP1967_SLOTS,
+	ERC4337_ENTRYPOINTS,
+	ERC4337_SELECTORS,
+	MULTICALL_SELECTORS,
+	OPCODES,
+	PERMIT2_SELECTORS,
+	TOKEN_SELECTORS,
+} from './opcode';
 export { parseBytecode } from './parser';
 export type {
 	AnalysisResult,
+	ChainIdDetectionResult,
 	DeployerInfo,
 	DeployerRiskAssessment,
 	DetectionResults,
 	Instruction,
 	KnownMaliciousContract,
+	ProxyDetectionResult,
+	TokenSelector,
+	TokenTransferAnalysis,
 	Warning,
 	WarningSeverity,
 	WarningType,

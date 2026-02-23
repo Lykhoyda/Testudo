@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { DetectionResults, Warning } from '../src';
 import {
 	checkKnownMalicious,
 	deriveRiskFromWarnings,
@@ -11,11 +10,15 @@ import {
 	AUTO_FORWARDER_CONTRACTS,
 	CREATE2_CONTRACTS,
 	DELEGATECALL_CONTRACTS,
+	DRAINER_PATTERNS,
+	MINIMAL_PROXY_CONTRACTS,
 	MULTI_THREAT_CONTRACTS,
+	PERMIT2_CONTRACTS,
 	REAL_WORLD_PATTERNS,
 	SAFE_CONTRACTS,
 	SELFDESTRUCT_CONTRACTS,
 } from './fixtures/contracts';
+import { createMockDetectionResults, createMockWarning } from './helpers/mock-detection';
 
 describe('Analysis Pipeline Integration', () => {
 	describe('Layer 1 → Layer 4: Database vs Detection', () => {
@@ -232,34 +235,6 @@ describe('Edge Cases', () => {
 });
 
 describe('Warning Generation', () => {
-	const createMockDetectionResults = (
-		overrides: Partial<DetectionResults> = {},
-	): DetectionResults => ({
-		isDelegatedCall: false,
-		hasAutoForwarder: false,
-		hasUnlimitedApprovals: false,
-		hasSelfDestruct: false,
-		hasCreate2: false,
-		hasChainId: false,
-		hasChainIdBranching: false,
-		hasChainIdComparison: false,
-		isEip712Pattern: false,
-		tokenTransfer: {
-			hasTokenTransfer: false,
-			hasTokenApproval: false,
-			hasBatchOperations: false,
-			detectedSelectors: [],
-			hasAuthorizationPattern: false,
-			hasEcrecover: false,
-			hasNonceTracking: false,
-			appearsInFallback: false,
-			hasHardcodedDestination: false,
-			contextualRisk: 'LOW',
-			riskReason: '',
-		},
-		...overrides,
-	});
-
 	describe('Warning Structure', () => {
 		it('returns empty array for safe contract', () => {
 			const result = createMockDetectionResults();
@@ -324,6 +299,67 @@ describe('Warning Generation', () => {
 			expect(tokenWarning).toBeDefined();
 			expect(tokenWarning?.severity).toBe('CRITICAL');
 		});
+
+		it('generates CRITICAL warning for Permit2 without auth (was silently dropped)', () => {
+			const result = createMockDetectionResults({
+				tokenTransfer: {
+					hasTokenTransfer: false,
+					hasTokenApproval: false,
+					hasBatchOperations: false,
+					detectedSelectors: [
+						{
+							selector: '30f28b7a',
+							name: 'permitTransferFrom',
+							standard: 'Permit2',
+							type: 'permit',
+						},
+					],
+					hasAuthorizationPattern: false,
+					hasEcrecover: false,
+					hasNonceTracking: false,
+					appearsInFallback: false,
+					hasHardcodedDestination: false,
+					contextualRisk: 'CRITICAL',
+					riskReason: 'Permit2 gasless transfer without access control',
+				},
+			});
+			const warnings = generateWarnings(result);
+
+			const permit2Warning = warnings.find((w) => w.type === 'TOKEN_PERMIT2_NO_AUTH');
+			expect(permit2Warning).toBeDefined();
+			expect(permit2Warning?.severity).toBe('CRITICAL');
+			expect(permit2Warning?.title).toContain('Gasless');
+		});
+
+		it('generates CRITICAL warning for Permit2 batch without auth', () => {
+			const result = createMockDetectionResults({
+				tokenTransfer: {
+					hasTokenTransfer: false,
+					hasTokenApproval: false,
+					hasBatchOperations: false,
+					detectedSelectors: [
+						{
+							selector: 'edd9444b',
+							name: 'permitTransferFromBatch',
+							standard: 'Permit2',
+							type: 'permit',
+						},
+					],
+					hasAuthorizationPattern: false,
+					hasEcrecover: false,
+					hasNonceTracking: false,
+					appearsInFallback: false,
+					hasHardcodedDestination: false,
+					contextualRisk: 'CRITICAL',
+					riskReason: 'Permit2 gasless transfer without access control',
+				},
+			});
+			const warnings = generateWarnings(result);
+
+			const permit2Warning = warnings.find((w) => w.type === 'TOKEN_PERMIT2_NO_AUTH');
+			expect(permit2Warning).toBeDefined();
+			expect(permit2Warning?.severity).toBe('CRITICAL');
+		});
 	});
 
 	describe('HIGH Severity Warnings', () => {
@@ -354,12 +390,54 @@ describe('Warning Generation', () => {
 			expect(warnings[0].severity).toBe('HIGH');
 		});
 
-		it('generates HIGH warning for unlimited approvals', () => {
+		it('generates MEDIUM warning for unlimited approvals (standard DeFi pattern)', () => {
 			const result = createMockDetectionResults({ hasUnlimitedApprovals: true });
 			const warnings = generateWarnings(result);
 
 			expect(warnings[0].type).toBe('UNLIMITED_APPROVAL');
-			expect(warnings[0].severity).toBe('HIGH');
+			expect(warnings[0].severity).toBe('MEDIUM');
+		});
+	});
+
+	describe('CALLCODE Warnings', () => {
+		it('generates HIGH warning for CALLCODE without proxy', () => {
+			const result = createMockDetectionResults({ hasCallcode: true });
+			const warnings = generateWarnings(result);
+
+			const callcodeWarning = warnings.find((w) => w.type === 'CALLCODE');
+			expect(callcodeWarning).toBeDefined();
+			expect(callcodeWarning?.severity).toBe('HIGH');
+			expect(callcodeWarning?.title).toContain('Legacy');
+		});
+
+		it('generates MEDIUM warning for CALLCODE with proxy pattern', () => {
+			const result = createMockDetectionResults({
+				hasCallcode: true,
+				proxy: {
+					isProxy: true,
+					hasImplementationSlot: true,
+					hasAdminSlot: false,
+					hasBeaconSlot: false,
+				},
+			});
+			const warnings = generateWarnings(result);
+
+			const callcodeWarning = warnings.find((w) => w.type === 'CALLCODE');
+			expect(callcodeWarning).toBeDefined();
+			expect(callcodeWarning?.severity).toBe('MEDIUM');
+		});
+
+		it('CALLCODE + DELEGATECALL generates both warnings', () => {
+			const result = createMockDetectionResults({
+				hasCallcode: true,
+				isDelegatedCall: true,
+			});
+			const warnings = generateWarnings(result);
+
+			const callcodeWarning = warnings.find((w) => w.type === 'CALLCODE');
+			const delegateWarning = warnings.find((w) => w.type === 'DELEGATE_CALL');
+			expect(callcodeWarning).toBeDefined();
+			expect(delegateWarning).toBeDefined();
 		});
 	});
 
@@ -428,6 +506,65 @@ describe('Warning Generation', () => {
 		});
 	});
 
+	describe('Proxy Pattern Warnings', () => {
+		it('generates MEDIUM warning for proxy contract', () => {
+			const result = createMockDetectionResults({
+				proxy: {
+					isProxy: true,
+					hasImplementationSlot: true,
+					hasAdminSlot: false,
+					hasBeaconSlot: false,
+				},
+			});
+			const warnings = generateWarnings(result);
+
+			const proxyWarning = warnings.find((w) => w.type === 'PROXY_PATTERN');
+			expect(proxyWarning).toBeDefined();
+			expect(proxyWarning?.severity).toBe('MEDIUM');
+		});
+
+		it('does not generate proxy warning for non-proxy', () => {
+			const result = createMockDetectionResults();
+			const warnings = generateWarnings(result);
+
+			const proxyWarning = warnings.find((w) => w.type === 'PROXY_PATTERN');
+			expect(proxyWarning).toBeUndefined();
+		});
+	});
+
+	describe('tx.origin Warnings', () => {
+		it('generates HIGH warning for tx.origin phishing', () => {
+			const result = createMockDetectionResults({ hasTxOrigin: true });
+			const warnings = generateWarnings(result);
+
+			const txOriginWarning = warnings.find((w) => w.type === 'TX_ORIGIN_PHISHING');
+			expect(txOriginWarning).toBeDefined();
+			expect(txOriginWarning?.severity).toBe('HIGH');
+		});
+	});
+
+	describe('Timestamp Dependence Warnings', () => {
+		it('generates MEDIUM warning for timestamp dependence', () => {
+			const result = createMockDetectionResults({ hasTimestampDependence: true });
+			const warnings = generateWarnings(result);
+
+			const tsWarning = warnings.find((w) => w.type === 'TIMESTAMP_DEPENDENCE');
+			expect(tsWarning).toBeDefined();
+			expect(tsWarning?.severity).toBe('MEDIUM');
+		});
+	});
+
+	describe('EIP-7702 Delegation Warnings', () => {
+		it('generates INFO warning for delegation pointer', () => {
+			const result = createMockDetectionResults({ isEip7702Delegation: true });
+			const warnings = generateWarnings(result);
+
+			const delegationWarning = warnings.find((w) => w.type === 'EIP7702_DELEGATION');
+			expect(delegationWarning).toBeDefined();
+			expect(delegationWarning?.severity).toBe('INFO');
+		});
+	});
+
 	describe('Multiple Warnings', () => {
 		it('generates multiple warnings for multi-threat contract', () => {
 			const result = createMockDetectionResults({
@@ -489,16 +626,6 @@ describe('Warning Generation', () => {
 });
 
 describe('Risk Derivation from Warnings', () => {
-	const createWarning = (
-		severity: Warning['severity'],
-		type: Warning['type'] = 'AUTO_FORWARDER',
-	): Warning => ({
-		type,
-		severity,
-		title: 'Test Warning',
-		description: 'Test description',
-	});
-
 	describe('deriveRiskFromWarnings', () => {
 		it('returns LOW risk for empty warnings', () => {
 			const { risk, blocked } = deriveRiskFromWarnings([]);
@@ -507,28 +634,28 @@ describe('Risk Derivation from Warnings', () => {
 		});
 
 		it('returns LOW risk for INFO-only warnings', () => {
-			const warnings = [createWarning('INFO', 'EIP712_SAFE')];
+			const warnings = [createMockWarning('INFO', 'EIP712_SAFE')];
 			const { risk, blocked } = deriveRiskFromWarnings(warnings);
 			expect(risk).toBe('LOW');
 			expect(blocked).toBe(false);
 		});
 
 		it('returns CRITICAL risk and blocked for CRITICAL warning', () => {
-			const warnings = [createWarning('CRITICAL')];
+			const warnings = [createMockWarning('CRITICAL')];
 			const { risk, blocked } = deriveRiskFromWarnings(warnings);
 			expect(risk).toBe('CRITICAL');
 			expect(blocked).toBe(true);
 		});
 
 		it('returns HIGH risk and blocked for HIGH warning', () => {
-			const warnings = [createWarning('HIGH', 'DELEGATE_CALL')];
+			const warnings = [createMockWarning('HIGH', 'DELEGATE_CALL')];
 			const { risk, blocked } = deriveRiskFromWarnings(warnings);
 			expect(risk).toBe('HIGH');
 			expect(blocked).toBe(true);
 		});
 
 		it('returns MEDIUM risk and not blocked for MEDIUM warning', () => {
-			const warnings = [createWarning('MEDIUM', 'CREATE2')];
+			const warnings = [createMockWarning('MEDIUM', 'CREATE2')];
 			const { risk, blocked } = deriveRiskFromWarnings(warnings);
 			expect(risk).toBe('MEDIUM');
 			expect(blocked).toBe(false);
@@ -538,8 +665,8 @@ describe('Risk Derivation from Warnings', () => {
 			// 2+ MEDIUM warnings = HIGH (not CRITICAL) to avoid blocking legitimate smart wallets
 			// e.g., Gnosis Safe with TOKEN_WITH_AUTH + CHAINID_COMPARISON
 			const warnings = [
-				createWarning('MEDIUM', 'CREATE2'),
-				createWarning('MEDIUM', 'CHAINID_READ'),
+				createMockWarning('MEDIUM', 'CREATE2'),
+				createMockWarning('MEDIUM', 'CHAINID_READ'),
 			];
 			const { risk, blocked } = deriveRiskFromWarnings(warnings);
 			expect(risk).toBe('HIGH');
@@ -547,17 +674,631 @@ describe('Risk Derivation from Warnings', () => {
 		});
 
 		it('returns CRITICAL risk for HIGH + MEDIUM warnings', () => {
-			const warnings = [createWarning('HIGH', 'DELEGATE_CALL'), createWarning('MEDIUM', 'CREATE2')];
+			const warnings = [
+				createMockWarning('HIGH', 'DELEGATE_CALL'),
+				createMockWarning('MEDIUM', 'CREATE2'),
+			];
 			const { risk, blocked } = deriveRiskFromWarnings(warnings);
 			expect(risk).toBe('CRITICAL');
 			expect(blocked).toBe(true);
 		});
 
 		it('ignores INFO warnings when calculating risk', () => {
-			const warnings = [createWarning('MEDIUM', 'CREATE2'), createWarning('INFO', 'EIP712_SAFE')];
+			const warnings = [
+				createMockWarning('MEDIUM', 'CREATE2'),
+				createMockWarning('INFO', 'EIP712_SAFE'),
+			];
 			const { risk, blocked } = deriveRiskFromWarnings(warnings);
 			expect(risk).toBe('MEDIUM');
 			expect(blocked).toBe(false);
 		});
+	});
+});
+
+describe('Multicall Warnings', () => {
+	it('generates MEDIUM warning for multicall capability', () => {
+		const result = createMockDetectionResults({ hasMulticall: true });
+		const warnings = generateWarnings(result);
+		const mcWarning = warnings.find((w) => w.type === 'MULTICALL_CAPABILITY');
+		expect(mcWarning).toBeDefined();
+		expect(mcWarning?.severity).toBe('MEDIUM');
+	});
+
+	it('generates INFO warning for EXTCODESIZE guard', () => {
+		const result = createMockDetectionResults({ hasExtcodesizeGuard: true });
+		const warnings = generateWarnings(result);
+		const ecWarning = warnings.find((w) => w.type === 'EXTCODESIZE_GUARD');
+		expect(ecWarning).toBeDefined();
+		expect(ecWarning?.severity).toBe('INFO');
+	});
+
+	it('generates INFO warning for ERC-4337 pattern', () => {
+		const result = createMockDetectionResults({ hasErc4337Pattern: true });
+		const warnings = generateWarnings(result);
+		const aaWarning = warnings.find((w) => w.type === 'ERC4337_PATTERN');
+		expect(aaWarning).toBeDefined();
+		expect(aaWarning?.severity).toBe('INFO');
+	});
+
+	it('generates MEDIUM warning for coinbase dependence', () => {
+		const result = createMockDetectionResults({ hasCoinbaseDependence: true });
+		const warnings = generateWarnings(result);
+		const cbWarning = warnings.find((w) => w.type === 'COINBASE_DEPENDENCE');
+		expect(cbWarning).toBeDefined();
+		expect(cbWarning?.severity).toBe('MEDIUM');
+	});
+
+	it('generates INFO warning for EIP-1167 minimal proxy', () => {
+		const result = createMockDetectionResults({ hasMinimalProxy: true });
+		const warnings = generateWarnings(result);
+		const mpWarning = warnings.find((w) => w.type === 'MINIMAL_PROXY');
+		expect(mpWarning).toBeDefined();
+		expect(mpWarning?.severity).toBe('INFO');
+	});
+
+	it('generates MEDIUM warning for Diamond proxy', () => {
+		const result = createMockDetectionResults({ hasDiamondProxy: true });
+		const warnings = generateWarnings(result);
+		const dpWarning = warnings.find((w) => w.type === 'DIAMOND_PROXY');
+		expect(dpWarning).toBeDefined();
+		expect(dpWarning?.severity).toBe('MEDIUM');
+	});
+
+	it('generates INFO warning for EXTCODECOPY alone', () => {
+		const result = createMockDetectionResults({ hasExtcodecopy: true });
+		const warnings = generateWarnings(result);
+		const ecWarning = warnings.find((w) => w.type === 'EXTCODECOPY_USAGE');
+		expect(ecWarning).toBeDefined();
+		expect(ecWarning?.severity).toBe('INFO');
+	});
+
+	it('generates MEDIUM warning for EXTCODECOPY + CREATE2 (code injection)', () => {
+		const result = createMockDetectionResults({
+			hasExtcodecopy: true,
+			hasCreate2: true,
+		});
+		const warnings = generateWarnings(result);
+		const ecWarning = warnings.find((w) => w.type === 'EXTCODECOPY_USAGE');
+		expect(ecWarning).toBeDefined();
+		expect(ecWarning?.severity).toBe('MEDIUM');
+		expect(ecWarning?.title).toContain('External Code Deployment');
+	});
+
+	it('generates HIGH warning for BALANCE drain pattern', () => {
+		const result = createMockDetectionResults({ hasBalanceDrain: true });
+		const warnings = generateWarnings(result);
+		const bdWarning = warnings.find((w) => w.type === 'BALANCE_DRAIN');
+		expect(bdWarning).toBeDefined();
+		expect(bdWarning?.severity).toBe('HIGH');
+	});
+
+	it('EXTCODECOPY + CREATE2 + SELFDESTRUCT: metamorphic takes precedence', () => {
+		const result = createMockDetectionResults({
+			hasExtcodecopy: true,
+			hasCreate2: true,
+			hasSelfDestruct: true,
+		});
+		const warnings = generateWarnings(result);
+		const metamorphicWarning = warnings.find((w) => w.type === 'METAMORPHIC');
+		expect(metamorphicWarning).toBeDefined();
+		const ecWarning = warnings.find((w) => w.type === 'EXTCODECOPY_USAGE');
+		expect(ecWarning).toBeDefined();
+		expect(ecWarning?.severity).toBe('INFO');
+	});
+});
+
+describe('Threat Combination Risk Scoring', () => {
+	describe('metamorphic suppression', () => {
+		it('metamorphic suppresses individual CREATE2 + SELFDESTRUCT warnings', () => {
+			const result = createMockDetectionResults({ hasCreate2: true, hasSelfDestruct: true });
+			const warnings = generateWarnings(result);
+
+			expect(warnings).toHaveLength(1);
+			expect(warnings[0].type).toBe('METAMORPHIC');
+			const create2 = warnings.find((w) => w.type === 'CREATE2');
+			const selfDestruct = warnings.find((w) => w.type === 'SELF_DESTRUCT');
+			expect(create2).toBeUndefined();
+			expect(selfDestruct).toBeUndefined();
+		});
+	});
+
+	describe('realistic multi-threat combinations', () => {
+		it('proxy + delegatecall → HIGH (mitigated DELEGATECALL MEDIUM + PROXY MEDIUM)', () => {
+			const result = createMockDetectionResults({
+				isDelegatedCall: true,
+				proxy: {
+					isProxy: true,
+					hasImplementationSlot: true,
+					hasAdminSlot: false,
+					hasBeaconSlot: false,
+				},
+			});
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			const delegateWarning = warnings.find((w) => w.type === 'DELEGATE_CALL');
+			expect(delegateWarning?.severity).toBe('MEDIUM');
+			expect(risk).toBe('HIGH');
+			expect(blocked).toBe(true);
+		});
+
+		it('diamond proxy + multicall → HIGH (2x MEDIUM)', () => {
+			const result = createMockDetectionResults({ hasDiamondProxy: true, hasMulticall: true });
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			expect(risk).toBe('HIGH');
+			expect(blocked).toBe(true);
+		});
+
+		it('timestamp + coinbase → HIGH (2x MEDIUM)', () => {
+			const result = createMockDetectionResults({
+				hasTimestampDependence: true,
+				hasCoinbaseDependence: true,
+			});
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			expect(risk).toBe('HIGH');
+			expect(blocked).toBe(true);
+		});
+
+		it('auto-forwarder + unlimited approval → CRITICAL', () => {
+			const result = createMockDetectionResults({
+				hasAutoForwarder: true,
+				hasUnlimitedApprovals: true,
+			});
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			expect(risk).toBe('CRITICAL');
+			expect(blocked).toBe(true);
+		});
+
+		it('tx.origin + chainid branching → CRITICAL (2x HIGH)', () => {
+			const result = createMockDetectionResults({
+				hasTxOrigin: true,
+				hasChainId: true,
+				hasChainIdBranching: true,
+				hasChainIdComparison: true,
+			});
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			expect(risk).toBe('CRITICAL');
+			expect(blocked).toBe(true);
+		});
+
+		it('ERC-4337 + DELEGATECALL: mitigation reduces to MEDIUM', () => {
+			const result = createMockDetectionResults({
+				isDelegatedCall: true,
+				hasErc4337Pattern: true,
+			});
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			const delegateWarning = warnings.find((w) => w.type === 'DELEGATE_CALL');
+			expect(delegateWarning?.severity).toBe('MEDIUM');
+			expect(delegateWarning?.title).toContain('Proxy');
+			const aaWarning = warnings.find((w) => w.type === 'ERC4337_PATTERN');
+			expect(aaWarning?.severity).toBe('INFO');
+			expect(risk).toBe('MEDIUM');
+			expect(blocked).toBe(false);
+		});
+
+		it('Diamond proxy + DELEGATECALL: mitigation reduces to MEDIUM', () => {
+			const result = createMockDetectionResults({
+				isDelegatedCall: true,
+				hasDiamondProxy: true,
+			});
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			const delegateWarning = warnings.find((w) => w.type === 'DELEGATE_CALL');
+			expect(delegateWarning?.severity).toBe('MEDIUM');
+			const diamondWarning = warnings.find((w) => w.type === 'DIAMOND_PROXY');
+			expect(diamondWarning?.severity).toBe('MEDIUM');
+			expect(risk).toBe('HIGH');
+			expect(blocked).toBe(true);
+		});
+
+		it('CALLCODE + proxy: mitigation reduces CALLCODE to MEDIUM', () => {
+			const result = createMockDetectionResults({
+				hasCallcode: true,
+				proxy: {
+					isProxy: true,
+					hasImplementationSlot: true,
+					hasAdminSlot: false,
+					hasBeaconSlot: false,
+				},
+			});
+			const warnings = generateWarnings(result);
+
+			const callcodeWarning = warnings.find((w) => w.type === 'CALLCODE');
+			expect(callcodeWarning?.severity).toBe('MEDIUM');
+		});
+
+		it('BALANCE drain + auto-forwarder → CRITICAL (drains both ETH balance check and auto-forward)', () => {
+			const result = createMockDetectionResults({
+				hasBalanceDrain: true,
+				hasAutoForwarder: true,
+			});
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			expect(risk).toBe('CRITICAL');
+			expect(blocked).toBe(true);
+		});
+
+		it('EXTCODECOPY + CREATE2 + DELEGATECALL → CRITICAL (code injection + arbitrary exec)', () => {
+			const result = createMockDetectionResults({
+				hasExtcodecopy: true,
+				hasCreate2: true,
+				isDelegatedCall: true,
+			});
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			expect(risk).toBe('CRITICAL');
+			expect(blocked).toBe(true);
+		});
+
+		it('Permit2 CRITICAL + BALANCE drain HIGH → CRITICAL', () => {
+			const result = createMockDetectionResults({
+				hasBalanceDrain: true,
+				tokenTransfer: {
+					hasTokenTransfer: false,
+					hasTokenApproval: false,
+					hasBatchOperations: false,
+					detectedSelectors: [
+						{
+							selector: '30f28b7a',
+							name: 'permitTransferFrom',
+							standard: 'Permit2',
+							type: 'permit',
+						},
+					],
+					hasAuthorizationPattern: false,
+					hasEcrecover: false,
+					hasNonceTracking: false,
+					appearsInFallback: false,
+					hasHardcodedDestination: false,
+					contextualRisk: 'CRITICAL',
+					riskReason: 'Permit2 gasless transfer without access control',
+				},
+			});
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			expect(risk).toBe('CRITICAL');
+			expect(blocked).toBe(true);
+			expect(warnings.find((w) => w.type === 'TOKEN_PERMIT2_NO_AUTH')).toBeDefined();
+			expect(warnings.find((w) => w.type === 'BALANCE_DRAIN')).toBeDefined();
+		});
+
+		it('DELEGATECALL without any proxy → stays HIGH', () => {
+			const result = createMockDetectionResults({
+				isDelegatedCall: true,
+			});
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			const delegateWarning = warnings.find((w) => w.type === 'DELEGATE_CALL');
+			expect(delegateWarning?.severity).toBe('HIGH');
+			expect(risk).toBe('HIGH');
+			expect(blocked).toBe(true);
+		});
+
+		it('ERC-4337 + extcodesize (INFO only) → LOW', () => {
+			const result = createMockDetectionResults({
+				hasErc4337Pattern: true,
+				hasExtcodesizeGuard: true,
+			});
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			expect(warnings.length).toBe(2);
+			expect(risk).toBe('LOW');
+			expect(blocked).toBe(false);
+		});
+
+		it('minimal proxy + EIP-7702 delegation (INFO only) → LOW', () => {
+			const result = createMockDetectionResults({
+				hasMinimalProxy: true,
+				isEip7702Delegation: true,
+			});
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			expect(warnings.length).toBe(2);
+			expect(risk).toBe('LOW');
+			expect(blocked).toBe(false);
+		});
+	});
+
+	describe('risk derivation edge cases', () => {
+		it('3+ MEDIUM warnings still → HIGH (not CRITICAL)', () => {
+			const warnings = [
+				createMockWarning('MEDIUM', 'CREATE2'),
+				createMockWarning('MEDIUM', 'CHAINID_READ'),
+				createMockWarning('MEDIUM', 'TIMESTAMP_DEPENDENCE'),
+			];
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+			expect(risk).toBe('HIGH');
+			expect(blocked).toBe(true);
+		});
+
+		it('multiple CRITICAL warnings still → CRITICAL', () => {
+			const warnings = [
+				createMockWarning('CRITICAL', 'AUTO_FORWARDER'),
+				createMockWarning('CRITICAL', 'METAMORPHIC'),
+			];
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+			expect(risk).toBe('CRITICAL');
+			expect(blocked).toBe(true);
+		});
+
+		it('single MEDIUM + multiple INFO → MEDIUM (not blocked)', () => {
+			const warnings = [
+				createMockWarning('MEDIUM', 'CREATE2'),
+				createMockWarning('INFO', 'EIP712_SAFE'),
+				createMockWarning('INFO', 'ERC4337_PATTERN'),
+				createMockWarning('INFO', 'EXTCODESIZE_GUARD'),
+			];
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+			expect(risk).toBe('MEDIUM');
+			expect(blocked).toBe(false);
+		});
+
+		it('HIGH + CRITICAL → CRITICAL', () => {
+			const warnings = [
+				createMockWarning('HIGH', 'DELEGATE_CALL'),
+				createMockWarning('CRITICAL', 'AUTO_FORWARDER'),
+			];
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+			expect(risk).toBe('CRITICAL');
+			expect(blocked).toBe(true);
+		});
+	});
+
+	describe('deployer warning interactions', () => {
+		it('DEPLOYER_FRESH (CRITICAL) alone → CRITICAL blocked', () => {
+			const warnings = [createMockWarning('CRITICAL', 'DEPLOYER_FRESH')];
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+			expect(risk).toBe('CRITICAL');
+			expect(blocked).toBe(true);
+		});
+
+		it('DEPLOYER_LOW_NONCE (HIGH) + DELEGATECALL (HIGH) → CRITICAL', () => {
+			const warnings = [
+				createMockWarning('HIGH', 'DEPLOYER_LOW_NONCE'),
+				createMockWarning('HIGH', 'DELEGATE_CALL'),
+			];
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+			expect(risk).toBe('CRITICAL');
+			expect(blocked).toBe(true);
+		});
+
+		it('DEPLOYER_NEW_CONTRACT (MEDIUM) + safe bytecode → MEDIUM (not blocked)', () => {
+			const warnings = [createMockWarning('MEDIUM', 'DEPLOYER_NEW_CONTRACT')];
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+			expect(risk).toBe('MEDIUM');
+			expect(blocked).toBe(false);
+		});
+
+		it('DEPLOYER_NEW_CONTRACT (MEDIUM) + CREATE2 (MEDIUM) → HIGH', () => {
+			const warnings = [
+				createMockWarning('MEDIUM', 'DEPLOYER_NEW_CONTRACT'),
+				createMockWarning('MEDIUM', 'CREATE2'),
+			];
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+			expect(risk).toBe('HIGH');
+			expect(blocked).toBe(true);
+		});
+	});
+
+	describe('token transfer + bytecode warning interactions', () => {
+		it('TOKEN_NO_AUTH (HIGH) + PROXY_PATTERN (MEDIUM) → CRITICAL', () => {
+			const warnings = [
+				createMockWarning('HIGH', 'TOKEN_NO_AUTH'),
+				createMockWarning('MEDIUM', 'PROXY_PATTERN'),
+			];
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+			expect(risk).toBe('CRITICAL');
+			expect(blocked).toBe(true);
+		});
+
+		it('TOKEN_WITH_AUTH (MEDIUM) + CHAINID_COMPARISON (MEDIUM) → HIGH', () => {
+			const warnings = [
+				createMockWarning('MEDIUM', 'TOKEN_WITH_AUTH'),
+				createMockWarning('MEDIUM', 'CHAINID_COMPARISON'),
+			];
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+			expect(risk).toBe('HIGH');
+			expect(blocked).toBe(true);
+		});
+
+		it('TOKEN_REPLAY_RISK (HIGH) alone → HIGH (not CRITICAL)', () => {
+			const warnings = [createMockWarning('HIGH', 'TOKEN_REPLAY_RISK')];
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+			expect(risk).toBe('HIGH');
+			expect(blocked).toBe(true);
+		});
+
+		it('TOKEN_DRAIN_FALLBACK (CRITICAL) + any → CRITICAL', () => {
+			const warnings = [
+				createMockWarning('CRITICAL', 'TOKEN_DRAIN_FALLBACK'),
+				createMockWarning('MEDIUM', 'TIMESTAMP_DEPENDENCE'),
+			];
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+			expect(risk).toBe('CRITICAL');
+			expect(blocked).toBe(true);
+		});
+	});
+
+	describe('full generateWarnings → deriveRisk pipeline edge cases', () => {
+		it('EIP-712 pattern produces only INFO → LOW risk', () => {
+			const result = createMockDetectionResults({
+				hasChainId: true,
+				isEip712Pattern: true,
+			});
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			expect(warnings).toHaveLength(1);
+			expect(warnings[0].severity).toBe('INFO');
+			expect(risk).toBe('LOW');
+			expect(blocked).toBe(false);
+		});
+
+		it('proxy + diamond + multicall = 3x MEDIUM → HIGH', () => {
+			const result = createMockDetectionResults({
+				proxy: {
+					isProxy: true,
+					hasImplementationSlot: true,
+					hasAdminSlot: false,
+					hasBeaconSlot: false,
+				},
+				hasDiamondProxy: true,
+				hasMulticall: true,
+			});
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			const mediumWarnings = warnings.filter((w) => w.severity === 'MEDIUM');
+			expect(mediumWarnings.length).toBeGreaterThanOrEqual(3);
+			expect(risk).toBe('HIGH');
+			expect(blocked).toBe(true);
+		});
+
+		it('all INFO warnings = LOW even with many detections', () => {
+			const result = createMockDetectionResults({
+				hasErc4337Pattern: true,
+				hasExtcodesizeGuard: true,
+				hasMinimalProxy: true,
+				isEip7702Delegation: true,
+				hasChainId: true,
+				isEip712Pattern: true,
+			});
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			expect(warnings.length).toBeGreaterThanOrEqual(4);
+			expect(warnings.every((w) => w.severity === 'INFO')).toBe(true);
+			expect(risk).toBe('LOW');
+			expect(blocked).toBe(false);
+		});
+
+		it('delegatecall + selfdestruct + create2 = CRITICAL (metamorphic + DELEGATECALL)', () => {
+			const result = createMockDetectionResults({
+				isDelegatedCall: true,
+				hasSelfDestruct: true,
+				hasCreate2: true,
+			});
+			const warnings = generateWarnings(result);
+			const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+			const metamorphicWarning = warnings.find((w) => w.type === 'METAMORPHIC');
+			const delegateWarning = warnings.find((w) => w.type === 'DELEGATE_CALL');
+			expect(metamorphicWarning).toBeDefined();
+			expect(delegateWarning).toBeDefined();
+			expect(risk).toBe('CRITICAL');
+			expect(blocked).toBe(true);
+		});
+	});
+});
+
+describe('Drainer Pattern End-to-End Pipeline', () => {
+	it('Inferno-style drainer: setApprovalForAll + hardcoded address → CRITICAL', () => {
+		const instructions = parseBytecode(DRAINER_PATTERNS.infernoStyle);
+		const detectionResults = runAllDetectors(instructions);
+		const warnings = generateWarnings(detectionResults);
+		const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+		expect(risk).toBe('CRITICAL');
+		expect(blocked).toBe(true);
+	});
+
+	it('CrimeEnjoyer with token: fallback drain → CRITICAL', () => {
+		const instructions = parseBytecode(DRAINER_PATTERNS.crimeEnjoyerWithToken);
+		const detectionResults = runAllDetectors(instructions);
+		const warnings = generateWarnings(detectionResults);
+		const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+		expect(risk).toBe('CRITICAL');
+		expect(blocked).toBe(true);
+		const drainWarning = warnings.find((w) => w.type === 'TOKEN_DRAIN_FALLBACK');
+		expect(drainWarning).toBeDefined();
+	});
+
+	it('Safe wallet pattern: authorized tokens → MEDIUM (not blocked)', () => {
+		const instructions = parseBytecode(DRAINER_PATTERNS.safeWalletPattern);
+		const detectionResults = runAllDetectors(instructions);
+		const warnings = generateWarnings(detectionResults);
+		const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+		expect(risk).toBe('MEDIUM');
+		expect(blocked).toBe(false);
+	});
+
+	it('Legitimate with auth: authorized tokens → MEDIUM (not blocked)', () => {
+		const instructions = parseBytecode(DRAINER_PATTERNS.legitimateWithAuth);
+		const detectionResults = runAllDetectors(instructions);
+		const warnings = generateWarnings(detectionResults);
+		const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+		expect(risk).toBe('MEDIUM');
+		expect(blocked).toBe(false);
+	});
+
+	it('Permit2 drainer: permitTransferFrom without auth → CRITICAL', () => {
+		const instructions = parseBytecode(PERMIT2_CONTRACTS.permit2NoAuth);
+		const detectionResults = runAllDetectors(instructions);
+		const warnings = generateWarnings(detectionResults);
+		const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+		expect(risk).toBe('CRITICAL');
+		expect(blocked).toBe(true);
+		const permit2Warning = warnings.find((w) => w.type === 'TOKEN_PERMIT2_NO_AUTH');
+		expect(permit2Warning).toBeDefined();
+	});
+
+	it('Permit2 with auth: authorized Permit2 → MEDIUM (not blocked)', () => {
+		const instructions = parseBytecode(PERMIT2_CONTRACTS.permit2WithAuth);
+		const detectionResults = runAllDetectors(instructions);
+		const warnings = generateWarnings(detectionResults);
+		const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+		expect(risk).toBe('MEDIUM');
+		expect(blocked).toBe(false);
+	});
+
+	it('BALANCE drain pattern: checks balance then calls → HIGH blocked', () => {
+		const instructions = parseBytecode('0x3114f1');
+		const detectionResults = runAllDetectors(instructions);
+		const warnings = generateWarnings(detectionResults);
+		const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+		expect(risk).toBe('HIGH');
+		expect(blocked).toBe(true);
+		const bdWarning = warnings.find((w) => w.type === 'BALANCE_DRAIN');
+		expect(bdWarning).toBeDefined();
+	});
+
+	it('EIP-1167 minimal proxy: DELEGATECALL mitigated to MEDIUM (not blocked)', () => {
+		const bytecode = MINIMAL_PROXY_CONTRACTS.canonical;
+		const instructions = parseBytecode(bytecode);
+		const detectionResults = runAllDetectors(instructions, bytecode);
+		const warnings = generateWarnings(detectionResults);
+		const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+		expect(detectionResults.hasMinimalProxy).toBe(true);
+		expect(detectionResults.isDelegatedCall).toBe(true);
+		const delegateWarning = warnings.find((w) => w.type === 'DELEGATE_CALL');
+		expect(delegateWarning?.severity).toBe('MEDIUM');
+		expect(risk).toBe('MEDIUM');
+		expect(blocked).toBe(false);
+		const mpWarning = warnings.find((w) => w.type === 'MINIMAL_PROXY');
+		expect(mpWarning).toBeDefined();
 	});
 });

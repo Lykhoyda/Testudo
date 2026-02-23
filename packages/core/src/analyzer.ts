@@ -38,8 +38,10 @@ export function generateWarnings(detectionResults: DetectionResults): Warning[] 
 				type: 'SELF_DESTRUCT',
 				severity: 'HIGH',
 				title: 'Self-Destruct Capability',
-				description: 'Contract can self-destruct. Your delegation would become invalid.',
-				technical: 'SELFDESTRUCT opcode (0xFF) detected',
+				description:
+					'Contract contains SELFDESTRUCT. Post-Dencun (EIP-6780), this sends the entire ETH balance to a target address without destroying the contract.',
+				technical:
+					'SELFDESTRUCT opcode (0xFF) detected - post-EIP-6780: sends balance only, no code destruction unless same-tx creation',
 			});
 		}
 	}
@@ -56,21 +58,54 @@ export function generateWarnings(detectionResults: DetectionResults): Warning[] 
 	}
 
 	if (detectionResults.isDelegatedCall) {
+		const isExpectedDelegatecall =
+			detectionResults.proxy?.isProxy ||
+			detectionResults.hasMinimalProxy ||
+			detectionResults.hasDiamondProxy ||
+			detectionResults.hasErc4337Pattern;
+
 		warnings.push({
 			type: 'DELEGATE_CALL',
-			severity: 'HIGH',
-			title: 'Arbitrary Code Execution',
-			description: 'Contract uses DELEGATECALL. Can execute arbitrary code in your wallet context.',
-			technical: 'DELEGATECALL opcode (0xF4) detected',
+			severity: isExpectedDelegatecall ? 'MEDIUM' : 'HIGH',
+			title: isExpectedDelegatecall ? 'Delegated Execution (Proxy)' : 'Arbitrary Code Execution',
+			description: isExpectedDelegatecall
+				? 'Contract uses DELEGATECALL as part of a known proxy or smart wallet pattern. The implementation contract should be verified separately.'
+				: 'Contract uses DELEGATECALL. Can execute arbitrary code in your wallet context.',
+			technical: isExpectedDelegatecall
+				? 'DELEGATECALL opcode (0xF4) detected - expected for proxy/smart wallet architecture'
+				: 'DELEGATECALL opcode (0xF4) detected',
+		});
+	}
+
+	if (detectionResults.hasCallcode) {
+		const isExpectedCallcode =
+			detectionResults.proxy?.isProxy ||
+			detectionResults.hasMinimalProxy ||
+			detectionResults.hasDiamondProxy ||
+			detectionResults.hasErc4337Pattern;
+
+		warnings.push({
+			type: 'CALLCODE',
+			severity: isExpectedCallcode ? 'MEDIUM' : 'HIGH',
+			title: isExpectedCallcode
+				? 'Legacy Delegated Execution (Proxy)'
+				: 'Legacy Arbitrary Code Execution',
+			description: isExpectedCallcode
+				? 'Contract uses CALLCODE (deprecated) as part of a known proxy pattern. The implementation contract should be verified separately.'
+				: 'Contract uses CALLCODE (deprecated equivalent of DELEGATECALL). Can execute arbitrary code in your wallet context. Use of this deprecated opcode is suspicious.',
+			technical: isExpectedCallcode
+				? 'CALLCODE opcode (0xF2) detected - deprecated variant of DELEGATECALL, expected for legacy proxy'
+				: 'CALLCODE opcode (0xF2) detected - deprecated variant of DELEGATECALL, suspicious in modern contracts',
 		});
 	}
 
 	if (detectionResults.hasUnlimitedApprovals) {
 		warnings.push({
 			type: 'UNLIMITED_APPROVAL',
-			severity: 'HIGH',
+			severity: 'MEDIUM',
 			title: 'Unlimited Token Approval',
-			description: 'Contract requests unlimited token approvals. Could drain all approved tokens.',
+			description:
+				'Contract contains max uint256 value, commonly used for unlimited token approvals. Standard in DeFi but allows full token spending if approved.',
 			technical: 'PUSH32 with max uint256 (0xFF...FF) detected',
 		});
 	}
@@ -144,6 +179,16 @@ export function generateWarnings(detectionResults: DetectionResults): Warning[] 
 						'Contract can approve unlimited access to your NFT collections without security controls.',
 					technical: 'setApprovalForAll (0xa22cb465) without ecrecover or CALLER check',
 				});
+			} else if (tokenAnalysis.detectedSelectors.some((s) => s.type === 'permit')) {
+				warnings.push({
+					type: 'TOKEN_PERMIT2_NO_AUTH',
+					severity: 'CRITICAL',
+					title: 'Gasless Token Drain Risk',
+					description:
+						'Contract uses Permit2 gasless transfers without access controls. Tokens can be moved without your direct approval.',
+					technical:
+						'Permit2 permitTransferFrom selector without ecrecover or CALLER check - immediate drain risk',
+				});
 			}
 		} else if (tokenAnalysis.contextualRisk === 'HIGH') {
 			if (!tokenAnalysis.hasNonceTracking && tokenAnalysis.hasEcrecover) {
@@ -188,6 +233,148 @@ export function generateWarnings(detectionResults: DetectionResults): Warning[] 
 			description:
 				'Contract uses network ID for secure signatures (EIP-712). This is expected behavior.',
 			technical: 'CHAINID (0x46) followed by KECCAK256 (0x20) - EIP-712 domain separator',
+		});
+	}
+
+	if (detectionResults.proxy?.isProxy) {
+		const slots: string[] = [];
+		if (detectionResults.proxy?.hasImplementationSlot) slots.push('implementation');
+		if (detectionResults.proxy?.hasBeaconSlot) slots.push('beacon');
+		if (detectionResults.proxy?.hasAdminSlot) slots.push('admin');
+		warnings.push({
+			type: 'PROXY_PATTERN',
+			severity: 'MEDIUM',
+			title: 'Upgradeable Proxy Contract',
+			description:
+				'Contract is an EIP-1967 proxy. The implementation can be upgraded, meaning behavior may change after you delegate.',
+			technical: `EIP-1967 storage slots detected: ${slots.join(', ')}`,
+		});
+	}
+
+	if (detectionResults.hasTxOrigin) {
+		warnings.push({
+			type: 'TX_ORIGIN_PHISHING',
+			severity: 'HIGH',
+			title: 'tx.origin Phishing Risk',
+			description:
+				'Contract checks tx.origin for authorization. This enables phishing attacks where a malicious contract relays your transaction.',
+			technical: 'ORIGIN (0x32) + EQ comparison pattern - vulnerable to relay attacks',
+		});
+	}
+
+	if (detectionResults.hasTimestampDependence) {
+		warnings.push({
+			type: 'TIMESTAMP_DEPENDENCE',
+			severity: 'MEDIUM',
+			title: 'Time-Dependent Behavior',
+			description:
+				'Contract uses block timestamp with conditional logic. May implement time-locked operations or delayed drains.',
+			technical: 'TIMESTAMP (0x42) + comparison + JUMPI branching pattern',
+		});
+	}
+
+	if (detectionResults.hasMulticall) {
+		warnings.push({
+			type: 'MULTICALL_CAPABILITY',
+			severity: 'MEDIUM',
+			title: 'Batch Execution Capability',
+			description:
+				'Contract supports multicall or aggregate operations. Multiple calls can be executed in a single transaction, which may include token transfers or approvals.',
+			technical: 'Multicall/aggregate selector detected - enables batched arbitrary calls',
+		});
+	}
+
+	if (detectionResults.hasExtcodesizeGuard) {
+		warnings.push({
+			type: 'EXTCODESIZE_GUARD',
+			severity: 'INFO',
+			title: 'Contract Size Check',
+			description:
+				'Contract checks EXTCODESIZE to determine if an address is a contract or EOA. With EIP-7702 delegations, EOAs can have code, which may bypass this check.',
+			technical: 'EXTCODESIZE (0x3B) + comparison pattern - may be bypassed by EIP-7702 EOAs',
+		});
+	}
+
+	if (detectionResults.hasErc4337Pattern) {
+		warnings.push({
+			type: 'ERC4337_PATTERN',
+			severity: 'INFO',
+			title: 'Account Abstraction Pattern',
+			description:
+				'Contract interacts with ERC-4337 EntryPoint. This is standard account abstraction infrastructure used by smart wallets.',
+			technical: 'ERC-4337 EntryPoint address or handleOps/validateUserOp selector detected',
+		});
+	}
+
+	if (detectionResults.hasCoinbaseDependence) {
+		warnings.push({
+			type: 'COINBASE_DEPENDENCE',
+			severity: 'MEDIUM',
+			title: 'Validator-Dependent Behavior',
+			description:
+				'Contract uses block coinbase with conditional logic. Behavior may vary by block validator, which could enable MEV-related manipulation.',
+			technical: 'COINBASE (0x41) + comparison + JUMPI branching pattern',
+		});
+	}
+
+	if (detectionResults.hasMinimalProxy) {
+		warnings.push({
+			type: 'MINIMAL_PROXY',
+			severity: 'INFO',
+			title: 'EIP-1167 Minimal Proxy',
+			description:
+				'Contract is an EIP-1167 minimal proxy that delegates all calls to a fixed implementation address. The implementation cannot be changed, but the implementation contract should be analyzed separately.',
+			technical:
+				'EIP-1167 bytecode pattern: 363d3d373d3d3d363d73{addr}5af43d82803e903d91602b57fd5bf3',
+		});
+	}
+
+	if (detectionResults.hasBalanceDrain) {
+		warnings.push({
+			type: 'BALANCE_DRAIN',
+			severity: 'HIGH',
+			title: 'Balance Check Before Transfer',
+			description:
+				'Contract checks an address balance then makes an external call. This pattern is used to drain funds by checking the victim balance before stealing.',
+			technical:
+				'BALANCE (0x31) + comparison + CALL/SELFDESTRUCT pattern - checks target balance before transferring',
+		});
+	}
+
+	if (detectionResults.hasExtcodecopy) {
+		const isMetamorphicVariant = detectionResults.hasCreate2 && !detectionResults.hasSelfDestruct;
+		warnings.push({
+			type: 'EXTCODECOPY_USAGE',
+			severity: isMetamorphicVariant ? 'MEDIUM' : 'INFO',
+			title: isMetamorphicVariant ? 'External Code Deployment' : 'External Code Read',
+			description: isMetamorphicVariant
+				? 'Contract copies external bytecode and uses CREATE2 for deployment. This pattern can deploy arbitrary code at predictable addresses.'
+				: 'Contract reads bytecode from an external address. This is common in factory and deployment patterns.',
+			technical: isMetamorphicVariant
+				? 'EXTCODECOPY (0x3C) + CREATE2 (0xF5) without SELFDESTRUCT - code injection deployment pattern'
+				: 'EXTCODECOPY opcode (0x3C) detected - reads external contract bytecode',
+		});
+	}
+
+	if (detectionResults.hasDiamondProxy) {
+		warnings.push({
+			type: 'DIAMOND_PROXY',
+			severity: 'MEDIUM',
+			title: 'Diamond Proxy Pattern (EIP-2535)',
+			description:
+				'Contract implements the Diamond standard with upgradeable facets. Functions can be added, replaced, or removed by the owner, meaning behavior may change after you delegate.',
+			technical: 'Diamond Loupe selectors detected (diamondCut/facets/facetAddress)',
+		});
+	}
+
+	if (detectionResults.isEip7702Delegation) {
+		warnings.push({
+			type: 'EIP7702_DELEGATION',
+			severity: 'INFO',
+			title: 'EIP-7702 Delegation Pointer',
+			description:
+				'This address has an EIP-7702 delegation. Code is executed from the delegate contract, not stored here.',
+			technical: 'Bytecode starts with 0xEF0100 prefix - EIP-7702 delegation pointer',
 		});
 	}
 
@@ -263,7 +450,7 @@ export async function analyzeContract(
 		}
 
 		const instructions = parseBytecode(bytecode);
-		const detectionResults = runAllDetectors(instructions);
+		const detectionResults = runAllDetectors(instructions, bytecode);
 		const warnings = generateWarnings(detectionResults);
 
 		const threats: string[] = warnings

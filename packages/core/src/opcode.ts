@@ -1,43 +1,95 @@
 export const OPCODES = {
+	'00': 'STOP',
+	'01': 'ADD',
+	'02': 'MUL',
+	'03': 'SUB',
+	'04': 'DIV',
+	'05': 'SDIV',
+	'06': 'MOD',
+	'07': 'SMOD',
+	'08': 'ADDMOD',
+	'09': 'MULMOD',
+	'0A': 'EXP',
+	'0B': 'SIGNEXTEND',
 	'10': 'LT',
 	'11': 'GT',
 	'12': 'SLT',
 	'13': 'SGT',
 	'14': 'EQ',
+	'15': 'ISZERO',
+	'16': 'AND',
+	'17': 'OR',
+	'18': 'XOR',
+	'19': 'NOT',
+	'1A': 'BYTE',
+	'1B': 'SHL',
+	'1C': 'SHR',
+	'1D': 'SAR',
 	'20': 'KECCAK256',
+	'30': 'ADDRESS',
+	'31': 'BALANCE',
+	'32': 'ORIGIN',
 	'33': 'CALLER',
+	'34': 'CALLVALUE',
+	'35': 'CALLDATALOAD',
 	'36': 'CALLDATASIZE',
+	'37': 'CALLDATACOPY',
+	'38': 'CODESIZE',
+	'39': 'CODECOPY',
+	'3A': 'GASPRICE',
+	'3B': 'EXTCODESIZE',
+	'3C': 'EXTCODECOPY',
+	'3D': 'RETURNDATASIZE',
+	'3E': 'RETURNDATACOPY',
+	'3F': 'EXTCODEHASH',
+	'40': 'BLOCKHASH',
+	'41': 'COINBASE',
+	'42': 'TIMESTAMP',
+	'43': 'NUMBER',
+	'44': 'PREVRANDAO',
+	'45': 'GASLIMIT',
 	'46': 'CHAINID',
 	'47': 'SELFBALANCE',
+	'48': 'BASEFEE',
+	'50': 'POP',
+	'51': 'MLOAD',
+	'52': 'MSTORE',
+	'53': 'MSTORE8',
 	'54': 'SLOAD',
 	'55': 'SSTORE',
+	'56': 'JUMP',
 	'57': 'JUMPI',
-	'7F': 'PUSH32',
+	'58': 'PC',
+	'59': 'MSIZE',
+	'5A': 'GAS',
+	'5B': 'JUMPDEST',
+	'5F': 'PUSH0',
+	F0: 'CREATE',
 	F1: 'CALL',
+	F2: 'CALLCODE',
+	F3: 'RETURN',
 	F4: 'DELEGATECALL',
 	F5: 'CREATE2',
 	FA: 'STATICCALL',
+	FD: 'REVERT',
+	FE: 'INVALID',
 	FF: 'SELFDESTRUCT',
 } as const;
 
 export const COMPARISON_OPCODES = ['LT', 'GT', 'SLT', 'SGT', 'EQ'] as const;
 
 export const TOKEN_SELECTORS = {
-	// ERC20
 	transfer: 'a9059cbb',
 	transferFrom: '23b872dd',
 	approve: '095ea7b3',
 	increaseAllowance: '39509351',
-	// ERC20 Permit (EIP-2612)
+	decreaseAllowance: 'a457c2d7',
 	permit: 'd505accf',
-	// ERC721
 	safeTransferFrom: '42842e0e',
 	safeTransferFromWithData: 'b88d4fde',
 	setApprovalForAll: 'a22cb465',
-	// ERC1155
 	safeTransferFrom1155: 'f242432a',
 	safeBatchTransferFrom: '2eb2c2d6',
-	// Permit2 (Uniswap)
 	permitTransferFrom: '30f28b7a',
 	permitTransferFromBatch: 'edd9444b',
 } as const;
@@ -45,6 +97,7 @@ export const TOKEN_SELECTORS = {
 export const APPROVAL_SELECTORS = [
 	TOKEN_SELECTORS.approve,
 	TOKEN_SELECTORS.increaseAllowance,
+	TOKEN_SELECTORS.decreaseAllowance,
 	TOKEN_SELECTORS.setApprovalForAll,
 	TOKEN_SELECTORS.permit,
 ] as const;
@@ -55,3 +108,16 @@ export const PERMIT2_SELECTORS = [
 ] as const;
 
 export const BATCH_SELECTORS = [TOKEN_SELECTORS.safeBatchTransferFrom] as const;
+
+export const MULTICALL_SELECTORS = {
+	multicall: 'ac9650d8',
+	aggregate: '252dba42',
+	tryAggregate: 'bce38bd7',
+	aggregate3: '82ad56cb',
+} as const;
+
+export const EIP1967_SLOTS = {
+	implementation: '360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc',
+	admin: 'b53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103',
+	beacon: 'a3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50',
+} as const;

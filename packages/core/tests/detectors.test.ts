@@ -3,16 +3,29 @@ import { parseBytecode } from '../src';
 import {
 	analyzeTokenTransfers,
 	detectAutoForwarder,
+	detectBalanceDrain,
+	detectCallcode,
 	detectChainId,
+	detectCoinbaseDependence,
 	detectCreate2,
 	detectDelegateCall,
+	detectDiamondProxy,
 	detectEcrecover,
+	detectEip7702Delegation,
+	detectErc4337Pattern,
+	detectExtcodecopy,
+	detectExtcodesizeGuard,
 	detectFallbackLocation,
 	detectHardcodedDestination,
+	detectMinimalProxy,
 	detectMsgSenderCheck,
+	detectMulticall,
 	detectNonceTracking,
+	detectProxyPattern,
 	detectSelfDestruct,
+	detectTimestampDependence,
 	detectTokenSelectors,
+	detectTxOrigin,
 	detectUnlimitedApproval,
 	runAllDetectors,
 } from '../src/detectors';
@@ -20,17 +33,32 @@ import {
 import {
 	AUTHORIZATION_CONTRACTS,
 	AUTO_FORWARDER_CONTRACTS,
+	BALANCE_DRAIN_CONTRACTS,
+	CALLCODE_CONTRACTS,
 	CHAINID_CONTRACTS,
+	COINBASE_CONTRACTS,
 	CREATE2_CONTRACTS,
+	DECREASE_ALLOWANCE_CONTRACTS,
 	DELEGATECALL_CONTRACTS,
+	DIAMOND_PROXY_CONTRACTS,
 	DRAINER_PATTERNS,
+	EIP7702_CONTRACTS,
+	ERC4337_CONTRACTS,
+	EXTCODECOPY_CONTRACTS,
+	EXTCODESIZE_CONTRACTS,
 	FALLBACK_CONTRACTS,
 	FALSE_POSITIVE_CONTRACTS,
 	HARDCODED_DESTINATION_CONTRACTS,
+	MINIMAL_PROXY_CONTRACTS,
 	MULTI_THREAT_CONTRACTS,
+	MULTICALL_CONTRACTS,
+	NONCE_TRACKING_CONTRACTS,
+	PROXY_CONTRACTS,
 	SAFE_CONTRACTS,
 	SELFDESTRUCT_CONTRACTS,
+	TIMESTAMP_CONTRACTS,
 	TOKEN_TRANSFER_CONTRACTS,
+	TX_ORIGIN_CONTRACTS,
 	UNLIMITED_APPROVAL_CONTRACTS,
 } from './fixtures/contracts';
 
@@ -103,6 +131,131 @@ describe('detectDelegateCall', () => {
 			const instructions = parseBytecode(SAFE_CONTRACTS.simpleAdd);
 			expect(detectDelegateCall(instructions)).toBe(false);
 		});
+	});
+});
+
+describe('detectCallcode', () => {
+	describe('should detect CALLCODE opcode', () => {
+		it('detects minimal CALLCODE', () => {
+			const instructions = parseBytecode(CALLCODE_CONTRACTS.minimal);
+			expect(detectCallcode(instructions)).toBe(true);
+		});
+
+		it('detects CALLCODE with setup', () => {
+			const instructions = parseBytecode(CALLCODE_CONTRACTS.withSetup);
+			expect(detectCallcode(instructions)).toBe(true);
+		});
+
+		it('detects both CALLCODE and DELEGATECALL', () => {
+			const instructions = parseBytecode(CALLCODE_CONTRACTS.bothCallcodeAndDelegatecall);
+			expect(detectCallcode(instructions)).toBe(true);
+			expect(detectDelegateCall(instructions)).toBe(true);
+		});
+	});
+
+	describe('should NOT false positive', () => {
+		it('ignores 0xF2 inside PUSH data', () => {
+			const instructions = parseBytecode(CALLCODE_CONTRACTS.f2AsPushData);
+			expect(detectCallcode(instructions)).toBe(false);
+		});
+
+		it('returns false for safe contract', () => {
+			const instructions = parseBytecode(SAFE_CONTRACTS.simpleAdd);
+			expect(detectCallcode(instructions)).toBe(false);
+		});
+	});
+
+	describe('via runAllDetectors', () => {
+		it('sets hasCallcode flag', () => {
+			const instructions = parseBytecode(CALLCODE_CONTRACTS.minimal);
+			const result = runAllDetectors(instructions);
+			expect(result.hasCallcode).toBe(true);
+		});
+
+		it('does not set hasCallcode for safe contracts', () => {
+			const instructions = parseBytecode(SAFE_CONTRACTS.simpleAdd);
+			const result = runAllDetectors(instructions);
+			expect(result.hasCallcode).toBe(false);
+		});
+	});
+});
+
+describe('detectExtcodecopy', () => {
+	it('detects minimal EXTCODECOPY', () => {
+		const instructions = parseBytecode(EXTCODECOPY_CONTRACTS.minimal);
+		expect(detectExtcodecopy(instructions)).toBe(true);
+	});
+
+	it('detects EXTCODECOPY + CREATE2 pattern', () => {
+		const instructions = parseBytecode(EXTCODECOPY_CONTRACTS.withCreate2);
+		expect(detectExtcodecopy(instructions)).toBe(true);
+		expect(detectCreate2(instructions)).toBe(true);
+	});
+
+	it('detects EXTCODECOPY + CREATE2 + SELFDESTRUCT', () => {
+		const instructions = parseBytecode(EXTCODECOPY_CONTRACTS.withCreate2AndSelfdestruct);
+		expect(detectExtcodecopy(instructions)).toBe(true);
+		expect(detectCreate2(instructions)).toBe(true);
+		expect(detectSelfDestruct(instructions)).toBe(true);
+	});
+
+	it('ignores 0x3C inside PUSH data', () => {
+		const instructions = parseBytecode(EXTCODECOPY_CONTRACTS.inPushData);
+		expect(detectExtcodecopy(instructions)).toBe(false);
+	});
+
+	it('returns false for safe contract', () => {
+		const instructions = parseBytecode(SAFE_CONTRACTS.simpleAdd);
+		expect(detectExtcodecopy(instructions)).toBe(false);
+	});
+
+	it('sets hasExtcodecopy via runAllDetectors', () => {
+		const instructions = parseBytecode(EXTCODECOPY_CONTRACTS.minimal);
+		const result = runAllDetectors(instructions);
+		expect(result.hasExtcodecopy).toBe(true);
+	});
+});
+
+describe('detectBalanceDrain', () => {
+	it('detects BALANCE + EQ + CALL pattern', () => {
+		const instructions = parseBytecode(BALANCE_DRAIN_CONTRACTS.balanceCompareCall);
+		expect(detectBalanceDrain(instructions)).toBe(true);
+	});
+
+	it('detects BALANCE + GT + CALL pattern', () => {
+		const instructions = parseBytecode(BALANCE_DRAIN_CONTRACTS.balanceGtCall);
+		expect(detectBalanceDrain(instructions)).toBe(true);
+	});
+
+	it('detects BALANCE + EQ + SELFDESTRUCT pattern', () => {
+		const instructions = parseBytecode(BALANCE_DRAIN_CONTRACTS.balanceCompareSelfdestruct);
+		expect(detectBalanceDrain(instructions)).toBe(true);
+	});
+
+	it('ignores BALANCE without comparison', () => {
+		const instructions = parseBytecode(BALANCE_DRAIN_CONTRACTS.balanceNoCompare);
+		expect(detectBalanceDrain(instructions)).toBe(false);
+	});
+
+	it('ignores BALANCE alone', () => {
+		const instructions = parseBytecode(BALANCE_DRAIN_CONTRACTS.balanceOnly);
+		expect(detectBalanceDrain(instructions)).toBe(false);
+	});
+
+	it('ignores 0x31 inside PUSH data', () => {
+		const instructions = parseBytecode(BALANCE_DRAIN_CONTRACTS.balanceInPushData);
+		expect(detectBalanceDrain(instructions)).toBe(false);
+	});
+
+	it('does not trigger on SELFBALANCE (0x47) — different opcode', () => {
+		const instructions = parseBytecode(BALANCE_DRAIN_CONTRACTS.selfbalanceNotBalance);
+		expect(detectBalanceDrain(instructions)).toBe(false);
+	});
+
+	it('sets hasBalanceDrain via runAllDetectors', () => {
+		const instructions = parseBytecode(BALANCE_DRAIN_CONTRACTS.balanceCompareCall);
+		const result = runAllDetectors(instructions);
+		expect(result.hasBalanceDrain).toBe(true);
 	});
 });
 
@@ -180,6 +333,23 @@ describe('detectAutoForwarder', () => {
 
 		it('rejects CALL only', () => {
 			const instructions = parseBytecode(AUTO_FORWARDER_CONTRACTS.callOnly);
+			expect(detectAutoForwarder(instructions)).toBe(false);
+		});
+	});
+
+	describe('proximity enforcement', () => {
+		it('rejects SELFBALANCE + CALL beyond 15-instruction window', () => {
+			const instructions = parseBytecode(AUTO_FORWARDER_CONTRACTS.beyondProximity);
+			expect(detectAutoForwarder(instructions)).toBe(false);
+		});
+
+		it('rejects CALL before SELFBALANCE (wrong order)', () => {
+			const instructions = parseBytecode(AUTO_FORWARDER_CONTRACTS.reversedOrder);
+			expect(detectAutoForwarder(instructions)).toBe(false);
+		});
+
+		it('rejects SELFBALANCE at end without trailing CALL', () => {
+			const instructions = parseBytecode(AUTO_FORWARDER_CONTRACTS.selfBalanceAtEnd);
 			expect(detectAutoForwarder(instructions)).toBe(false);
 		});
 	});
@@ -405,6 +575,7 @@ describe('runAllDetectors', () => {
 
 			expect(result.hasSelfDestruct).toBe(false);
 			expect(result.isDelegatedCall).toBe(false);
+			expect(result.hasCallcode).toBe(false);
 			expect(result.hasAutoForwarder).toBe(false);
 			expect(result.hasUnlimitedApprovals).toBe(false);
 			expect(result.hasCreate2).toBe(false);
@@ -412,6 +583,16 @@ describe('runAllDetectors', () => {
 			expect(result.hasChainIdBranching).toBe(false);
 			expect(result.hasChainIdComparison).toBe(false);
 			expect(result.isEip712Pattern).toBe(false);
+			expect(result.hasTxOrigin).toBe(false);
+			expect(result.hasTimestampDependence).toBe(false);
+			expect(result.hasMulticall).toBe(false);
+			expect(result.hasExtcodesizeGuard).toBe(false);
+			expect(result.hasErc4337Pattern).toBe(false);
+			expect(result.hasCoinbaseDependence).toBe(false);
+			expect(result.hasMinimalProxy).toBe(false);
+			expect(result.hasDiamondProxy).toBe(false);
+			expect(result.proxy.isProxy).toBe(false);
+			expect(result.tokenTransfer.contextualRisk).toBe('LOW');
 		});
 
 		it('handles empty bytecode', () => {
@@ -420,6 +601,7 @@ describe('runAllDetectors', () => {
 
 			expect(result.hasSelfDestruct).toBe(false);
 			expect(result.isDelegatedCall).toBe(false);
+			expect(result.hasCallcode).toBe(false);
 			expect(result.hasAutoForwarder).toBe(false);
 			expect(result.hasUnlimitedApprovals).toBe(false);
 			expect(result.hasCreate2).toBe(false);
@@ -427,6 +609,16 @@ describe('runAllDetectors', () => {
 			expect(result.hasChainIdBranching).toBe(false);
 			expect(result.hasChainIdComparison).toBe(false);
 			expect(result.isEip712Pattern).toBe(false);
+			expect(result.hasTxOrigin).toBe(false);
+			expect(result.hasTimestampDependence).toBe(false);
+			expect(result.hasMulticall).toBe(false);
+			expect(result.hasExtcodesizeGuard).toBe(false);
+			expect(result.hasErc4337Pattern).toBe(false);
+			expect(result.hasCoinbaseDependence).toBe(false);
+			expect(result.hasMinimalProxy).toBe(false);
+			expect(result.hasDiamondProxy).toBe(false);
+			expect(result.proxy.isProxy).toBe(false);
+			expect(result.tokenTransfer.contextualRisk).toBe('LOW');
 		});
 
 		it('handles just STOP', () => {
@@ -439,6 +631,8 @@ describe('runAllDetectors', () => {
 			expect(result.hasChainId).toBe(false);
 			expect(result.hasChainIdComparison).toBe(false);
 			expect(result.isEip712Pattern).toBe(false);
+			expect(result.hasErc4337Pattern).toBe(false);
+			expect(result.hasCoinbaseDependence).toBe(false);
 		});
 	});
 
@@ -493,7 +687,7 @@ describe('parseBytecode', () => {
 		expect(instructions).toHaveLength(2);
 		expect(instructions[0].opcode).toBe('PUSH1');
 		expect(instructions[0].data?.[0]).toBe(0xff);
-		expect(instructions[1].opcode).toBe('00');
+		expect(instructions[1].opcode).toBe('STOP');
 	});
 
 	it('handles PUSH32 correctly', () => {
@@ -800,5 +994,355 @@ describe('analyzeTokenTransfers', () => {
 			const result = runAllDetectors(instructions);
 			expect(result.tokenTransfer.contextualRisk).toBe('LOW');
 		});
+	});
+});
+
+describe('detectProxyPattern', () => {
+	it('detects EIP-1967 implementation slot', () => {
+		const instructions = parseBytecode(PROXY_CONTRACTS.eip1967Implementation);
+		const result = detectProxyPattern(instructions);
+		expect(result.isProxy).toBe(true);
+		expect(result.hasImplementationSlot).toBe(true);
+		expect(result.hasAdminSlot).toBe(false);
+		expect(result.hasBeaconSlot).toBe(false);
+	});
+
+	it('detects EIP-1967 admin slot', () => {
+		const instructions = parseBytecode(PROXY_CONTRACTS.eip1967Admin);
+		const result = detectProxyPattern(instructions);
+		expect(result.isProxy).toBe(false);
+		expect(result.hasAdminSlot).toBe(true);
+	});
+
+	it('detects EIP-1967 beacon slot', () => {
+		const instructions = parseBytecode(PROXY_CONTRACTS.eip1967Beacon);
+		const result = detectProxyPattern(instructions);
+		expect(result.isProxy).toBe(true);
+		expect(result.hasBeaconSlot).toBe(true);
+	});
+
+	it('detects full proxy with multiple slots', () => {
+		const instructions = parseBytecode(PROXY_CONTRACTS.eip1967Full);
+		const result = detectProxyPattern(instructions);
+		expect(result.isProxy).toBe(true);
+		expect(result.hasImplementationSlot).toBe(true);
+		expect(result.hasAdminSlot).toBe(true);
+	});
+
+	it('returns false for non-proxy contracts', () => {
+		const instructions = parseBytecode(PROXY_CONTRACTS.notProxy);
+		const result = detectProxyPattern(instructions);
+		expect(result.isProxy).toBe(false);
+		expect(result.hasImplementationSlot).toBe(false);
+	});
+});
+
+describe('detectTxOrigin', () => {
+	it('detects ORIGIN + EQ pattern', () => {
+		const instructions = parseBytecode(TX_ORIGIN_CONTRACTS.originEq);
+		expect(detectTxOrigin(instructions)).toBe(true);
+	});
+
+	it('detects ORIGIN + CALLER + EQ pattern', () => {
+		const instructions = parseBytecode(TX_ORIGIN_CONTRACTS.originCallerEq);
+		expect(detectTxOrigin(instructions)).toBe(true);
+	});
+
+	it('returns false for ORIGIN without EQ', () => {
+		const instructions = parseBytecode(TX_ORIGIN_CONTRACTS.originOnly);
+		expect(detectTxOrigin(instructions)).toBe(false);
+	});
+
+	it('returns false when EQ is beyond lookahead window', () => {
+		const instructions = parseBytecode(TX_ORIGIN_CONTRACTS.originFarFromEq);
+		expect(detectTxOrigin(instructions)).toBe(false);
+	});
+
+	it('ignores ORIGIN opcode in PUSH data', () => {
+		const instructions = parseBytecode(TX_ORIGIN_CONTRACTS.originInPushData);
+		expect(detectTxOrigin(instructions)).toBe(false);
+	});
+});
+
+describe('detectEip7702Delegation', () => {
+	it('detects valid EIP-7702 delegation pointer', () => {
+		expect(detectEip7702Delegation(EIP7702_CONTRACTS.validDelegation)).toBe(true);
+	});
+
+	it('rejects wrong prefix', () => {
+		expect(detectEip7702Delegation(EIP7702_CONTRACTS.wrongPrefix)).toBe(false);
+	});
+
+	it('rejects too short bytecode', () => {
+		expect(detectEip7702Delegation(EIP7702_CONTRACTS.tooShort)).toBe(false);
+	});
+
+	it('rejects too long bytecode', () => {
+		expect(detectEip7702Delegation(EIP7702_CONTRACTS.tooLong)).toBe(false);
+	});
+
+	it('rejects normal bytecode', () => {
+		expect(detectEip7702Delegation(EIP7702_CONTRACTS.normalBytecode)).toBe(false);
+	});
+});
+
+describe('detectTimestampDependence', () => {
+	it('detects TIMESTAMP + comparison + branching', () => {
+		const instructions = parseBytecode(TIMESTAMP_CONTRACTS.withComparisonAndBranch);
+		expect(detectTimestampDependence(instructions)).toBe(true);
+	});
+
+	it('detects TIMESTAMP + GT + branching', () => {
+		const instructions = parseBytecode(TIMESTAMP_CONTRACTS.withGtAndBranch);
+		expect(detectTimestampDependence(instructions)).toBe(true);
+	});
+
+	it('returns false for TIMESTAMP alone', () => {
+		const instructions = parseBytecode(TIMESTAMP_CONTRACTS.timestampOnly);
+		expect(detectTimestampDependence(instructions)).toBe(false);
+	});
+
+	it('returns false for TIMESTAMP without comparison', () => {
+		const instructions = parseBytecode(TIMESTAMP_CONTRACTS.timestampNoComparison);
+		expect(detectTimestampDependence(instructions)).toBe(false);
+	});
+
+	it('ignores TIMESTAMP in PUSH data', () => {
+		const instructions = parseBytecode(TIMESTAMP_CONTRACTS.inPushData);
+		expect(detectTimestampDependence(instructions)).toBe(false);
+	});
+});
+
+describe('improved detectNonceTracking', () => {
+	it('detects SLOAD + ADD + SSTORE increment pattern', () => {
+		const instructions = parseBytecode(NONCE_TRACKING_CONTRACTS.incrementPattern);
+		expect(detectNonceTracking(instructions)).toBe(true);
+	});
+
+	it('detects SLOAD + SUB + SSTORE decrement pattern', () => {
+		const instructions = parseBytecode(NONCE_TRACKING_CONTRACTS.subtractPattern);
+		expect(detectNonceTracking(instructions)).toBe(true);
+	});
+
+	it('returns false for SLOAD without arithmetic before SSTORE', () => {
+		const instructions = parseBytecode(NONCE_TRACKING_CONTRACTS.sloadWithoutArithmetic);
+		expect(detectNonceTracking(instructions)).toBe(false);
+	});
+
+	it('returns false for SSTORE without prior SLOAD', () => {
+		const instructions = parseBytecode(NONCE_TRACKING_CONTRACTS.sstoreWithoutSload);
+		expect(detectNonceTracking(instructions)).toBe(false);
+	});
+});
+
+describe('decreaseAllowance selector', () => {
+	it('detects decreaseAllowance as approval type', () => {
+		const instructions = parseBytecode(DECREASE_ALLOWANCE_CONTRACTS.decreaseAllowance);
+		const result = detectTokenSelectors(instructions);
+		expect(result).toHaveLength(1);
+		expect(result[0].name).toBe('decreaseAllowance');
+		expect(result[0].standard).toBe('ERC20');
+		expect(result[0].type).toBe('approval');
+	});
+});
+
+describe('detectMulticall', () => {
+	it('detects multicall(bytes[]) selector', () => {
+		const instructions = parseBytecode(MULTICALL_CONTRACTS.multicall);
+		expect(detectMulticall(instructions)).toBe(true);
+	});
+
+	it('detects aggregate() selector', () => {
+		const instructions = parseBytecode(MULTICALL_CONTRACTS.aggregate);
+		expect(detectMulticall(instructions)).toBe(true);
+	});
+
+	it('detects tryAggregate() selector', () => {
+		const instructions = parseBytecode(MULTICALL_CONTRACTS.tryAggregate);
+		expect(detectMulticall(instructions)).toBe(true);
+	});
+
+	it('detects aggregate3() selector', () => {
+		const instructions = parseBytecode(MULTICALL_CONTRACTS.aggregate3);
+		expect(detectMulticall(instructions)).toBe(true);
+	});
+
+	it('returns false for contracts without multicall', () => {
+		const instructions = parseBytecode(MULTICALL_CONTRACTS.noMulticall);
+		expect(detectMulticall(instructions)).toBe(false);
+	});
+
+	it('ignores selector inside PUSH32 data', () => {
+		const instructions = parseBytecode(MULTICALL_CONTRACTS.selectorInPush32);
+		expect(detectMulticall(instructions)).toBe(false);
+	});
+});
+
+describe('detectExtcodesizeGuard', () => {
+	it('detects EXTCODESIZE + ISZERO pattern', () => {
+		const instructions = parseBytecode(EXTCODESIZE_CONTRACTS.withIszero);
+		expect(detectExtcodesizeGuard(instructions)).toBe(true);
+	});
+
+	it('detects EXTCODESIZE + EQ pattern', () => {
+		const instructions = parseBytecode(EXTCODESIZE_CONTRACTS.withEq);
+		expect(detectExtcodesizeGuard(instructions)).toBe(true);
+	});
+
+	it('detects EXTCODESIZE + GT pattern', () => {
+		const instructions = parseBytecode(EXTCODESIZE_CONTRACTS.withGt);
+		expect(detectExtcodesizeGuard(instructions)).toBe(true);
+	});
+
+	it('returns false for EXTCODESIZE without comparison', () => {
+		const instructions = parseBytecode(EXTCODESIZE_CONTRACTS.alone);
+		expect(detectExtcodesizeGuard(instructions)).toBe(false);
+	});
+
+	it('ignores EXTCODESIZE opcode in PUSH data', () => {
+		const instructions = parseBytecode(EXTCODESIZE_CONTRACTS.inPushData);
+		expect(detectExtcodesizeGuard(instructions)).toBe(false);
+	});
+});
+
+describe('detectErc4337Pattern', () => {
+	it('detects handleOps selector', () => {
+		const instructions = parseBytecode(ERC4337_CONTRACTS.handleOpsSelector);
+		expect(detectErc4337Pattern(instructions)).toBe(true);
+	});
+
+	it('detects handleAggregatedOps selector', () => {
+		const instructions = parseBytecode(ERC4337_CONTRACTS.handleAggregatedOpsSelector);
+		expect(detectErc4337Pattern(instructions)).toBe(true);
+	});
+
+	it('detects validateUserOp selector', () => {
+		const instructions = parseBytecode(ERC4337_CONTRACTS.validateUserOpSelector);
+		expect(detectErc4337Pattern(instructions)).toBe(true);
+	});
+
+	it('detects EntryPoint v0.6 address', () => {
+		const instructions = parseBytecode(ERC4337_CONTRACTS.entryPointV06);
+		expect(detectErc4337Pattern(instructions)).toBe(true);
+	});
+
+	it('detects EntryPoint v0.7 address', () => {
+		const instructions = parseBytecode(ERC4337_CONTRACTS.entryPointV07);
+		expect(detectErc4337Pattern(instructions)).toBe(true);
+	});
+
+	it('returns false for non-ERC-4337 contracts', () => {
+		const instructions = parseBytecode(ERC4337_CONTRACTS.notErc4337);
+		expect(detectErc4337Pattern(instructions)).toBe(false);
+	});
+
+	it('ignores selector inside PUSH32 data', () => {
+		const instructions = parseBytecode(ERC4337_CONTRACTS.selectorInPush32);
+		expect(detectErc4337Pattern(instructions)).toBe(false);
+	});
+});
+
+describe('detectCoinbaseDependence', () => {
+	it('detects COINBASE + comparison + branching', () => {
+		const instructions = parseBytecode(COINBASE_CONTRACTS.withComparisonAndBranch);
+		expect(detectCoinbaseDependence(instructions)).toBe(true);
+	});
+
+	it('detects COINBASE + GT + branching', () => {
+		const instructions = parseBytecode(COINBASE_CONTRACTS.withGtAndBranch);
+		expect(detectCoinbaseDependence(instructions)).toBe(true);
+	});
+
+	it('returns false for COINBASE alone', () => {
+		const instructions = parseBytecode(COINBASE_CONTRACTS.coinbaseOnly);
+		expect(detectCoinbaseDependence(instructions)).toBe(false);
+	});
+
+	it('returns false for COINBASE without comparison', () => {
+		const instructions = parseBytecode(COINBASE_CONTRACTS.coinbaseNoComparison);
+		expect(detectCoinbaseDependence(instructions)).toBe(false);
+	});
+
+	it('ignores COINBASE in PUSH data', () => {
+		const instructions = parseBytecode(COINBASE_CONTRACTS.inPushData);
+		expect(detectCoinbaseDependence(instructions)).toBe(false);
+	});
+});
+
+describe('detectMinimalProxy', () => {
+	it('detects canonical EIP-1167 minimal proxy', () => {
+		expect(detectMinimalProxy(MINIMAL_PROXY_CONTRACTS.canonical)).toBe(true);
+	});
+
+	it('detects EIP-1167 with different implementation address', () => {
+		expect(detectMinimalProxy(MINIMAL_PROXY_CONTRACTS.uniswapImpl)).toBe(true);
+	});
+
+	it('rejects wrong prefix', () => {
+		expect(detectMinimalProxy(MINIMAL_PROXY_CONTRACTS.wrongPrefix)).toBe(false);
+	});
+
+	it('rejects wrong suffix', () => {
+		expect(detectMinimalProxy(MINIMAL_PROXY_CONTRACTS.wrongSuffix)).toBe(false);
+	});
+
+	it('rejects too short bytecode', () => {
+		expect(detectMinimalProxy(MINIMAL_PROXY_CONTRACTS.tooShort)).toBe(false);
+	});
+
+	it('rejects too long bytecode', () => {
+		expect(detectMinimalProxy(MINIMAL_PROXY_CONTRACTS.tooLong)).toBe(false);
+	});
+
+	it('rejects normal bytecode', () => {
+		expect(detectMinimalProxy(MINIMAL_PROXY_CONTRACTS.normalBytecode)).toBe(false);
+	});
+
+	it('returns false for undefined bytecode', () => {
+		expect(detectMinimalProxy(undefined)).toBe(false);
+	});
+
+	it('detects via runAllDetectors with bytecode', () => {
+		const instructions = parseBytecode(MINIMAL_PROXY_CONTRACTS.canonical);
+		const result = runAllDetectors(instructions, MINIMAL_PROXY_CONTRACTS.canonical);
+		expect(result.hasMinimalProxy).toBe(true);
+		expect(result.isDelegatedCall).toBe(true);
+	});
+});
+
+describe('detectDiamondProxy', () => {
+	it('detects diamondCut selector', () => {
+		const instructions = parseBytecode(DIAMOND_PROXY_CONTRACTS.diamondCutSelector);
+		expect(detectDiamondProxy(instructions)).toBe(true);
+	});
+
+	it('detects facets selector', () => {
+		const instructions = parseBytecode(DIAMOND_PROXY_CONTRACTS.facetsSelector);
+		expect(detectDiamondProxy(instructions)).toBe(true);
+	});
+
+	it('detects facetAddress selector', () => {
+		const instructions = parseBytecode(DIAMOND_PROXY_CONTRACTS.facetAddressSelector);
+		expect(detectDiamondProxy(instructions)).toBe(true);
+	});
+
+	it('detects facetFunctionSelectors selector', () => {
+		const instructions = parseBytecode(DIAMOND_PROXY_CONTRACTS.facetFunctionSelectorsSelector);
+		expect(detectDiamondProxy(instructions)).toBe(true);
+	});
+
+	it('detects facetAddresses selector', () => {
+		const instructions = parseBytecode(DIAMOND_PROXY_CONTRACTS.facetAddressesSelector);
+		expect(detectDiamondProxy(instructions)).toBe(true);
+	});
+
+	it('returns false for non-diamond contracts', () => {
+		const instructions = parseBytecode(DIAMOND_PROXY_CONTRACTS.notDiamond);
+		expect(detectDiamondProxy(instructions)).toBe(false);
+	});
+
+	it('ignores selector inside PUSH32 data', () => {
+		const instructions = parseBytecode(DIAMOND_PROXY_CONTRACTS.selectorInPush32);
+		expect(detectDiamondProxy(instructions)).toBe(false);
 	});
 });

@@ -15,6 +15,7 @@ export type WarningType =
 	| 'TOKEN_NO_AUTH'
 	| 'TOKEN_REPLAY_RISK'
 	| 'TOKEN_APPROVAL_NO_AUTH'
+	| 'TOKEN_PERMIT2_NO_AUTH'
 	| 'TOKEN_WITH_AUTH'
 	| 'EIP712_SAFE'
 	| 'BLIND_SIGNATURE'
@@ -23,7 +24,20 @@ export type WarningType =
 	| 'ETH_SIGN_DEPRECATED'
 	| 'DEPLOYER_FRESH'
 	| 'DEPLOYER_LOW_NONCE'
-	| 'DEPLOYER_NEW_CONTRACT';
+	| 'DEPLOYER_NEW_CONTRACT'
+	| 'PROXY_PATTERN'
+	| 'TX_ORIGIN_PHISHING'
+	| 'EIP7702_DELEGATION'
+	| 'TIMESTAMP_DEPENDENCE'
+	| 'MULTICALL_CAPABILITY'
+	| 'EXTCODESIZE_GUARD'
+	| 'ERC4337_PATTERN'
+	| 'COINBASE_DEPENDENCE'
+	| 'MINIMAL_PROXY'
+	| 'DIAMOND_PROXY'
+	| 'CALLCODE'
+	| 'EXTCODECOPY_USAGE'
+	| 'BALANCE_DRAIN';
 
 export type WarningSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
 
@@ -42,8 +56,16 @@ export interface Instruction {
 	size?: number;
 }
 
+export interface ProxyDetectionResult {
+	isProxy: boolean;
+	hasImplementationSlot: boolean;
+	hasAdminSlot: boolean;
+	hasBeaconSlot: boolean;
+}
+
 export interface DetectionResults {
 	isDelegatedCall: boolean;
+	hasCallcode: boolean;
 	hasAutoForwarder: boolean;
 	hasUnlimitedApprovals: boolean;
 	hasSelfDestruct: boolean;
@@ -53,6 +75,18 @@ export interface DetectionResults {
 	hasChainIdComparison: boolean;
 	isEip712Pattern: boolean;
 	tokenTransfer: TokenTransferAnalysis;
+	proxy: ProxyDetectionResult;
+	hasTxOrigin: boolean;
+	isEip7702Delegation: boolean;
+	hasTimestampDependence: boolean;
+	hasMulticall: boolean;
+	hasExtcodesizeGuard: boolean;
+	hasErc4337Pattern: boolean;
+	hasCoinbaseDependence: boolean;
+	hasExtcodecopy: boolean;
+	hasBalanceDrain: boolean;
+	hasMinimalProxy: boolean;
+	hasDiamondProxy: boolean;
 }
 
 export interface ChainIdDetectionResult {

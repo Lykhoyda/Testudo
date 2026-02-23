@@ -2,7 +2,11 @@ import {
 	APPROVAL_SELECTORS,
 	BATCH_SELECTORS,
 	COMPARISON_OPCODES,
-	OPCODES,
+	DIAMOND_SELECTORS,
+	EIP1967_SLOTS,
+	ERC4337_ENTRYPOINTS,
+	ERC4337_SELECTORS,
+	MULTICALL_SELECTORS,
 	PERMIT2_SELECTORS,
 	TOKEN_SELECTORS,
 } from './opcode';
@@ -10,29 +14,90 @@ import type {
 	ChainIdDetectionResult,
 	DetectionResults,
 	Instruction,
+	ProxyDetectionResult,
 	TokenSelector,
 	TokenTransferAnalysis,
 } from './types';
 
-export function detectAutoForwarder(instructions: Instruction[]): boolean {
-	let hasSelfBalance = false;
-	let hasCall = false;
+/** Window sizes for opcode pattern look-ahead/look-back searches (instruction count). */
+export const LOOK_AHEAD = {
+	/** Trigger opcode → comparison opcodes → JUMPI branching (CHAINID, TIMESTAMP, COINBASE) */
+	branching: 10,
+	/** Tight auth checks: CALLER/ORIGIN/EXTCODESIZE → stack ops → EQ (usually immediate) */
+	auth: 5,
+	/** Nonce increment pattern: SLOAD → arithmetic (ADD/SUB) → SSTORE */
+	nonce: 8,
+	/** Address preparation: PUSH20 address → stack arg setup → CALL/STATICCALL */
+	address: 15,
+} as const;
 
+function pushDataToHex(data: Uint8Array): string {
+	return Array.from(data)
+		.map((b) => b.toString(16).padStart(2, '0'))
+		.join('');
+}
+
+function hasPush4Selector(instructions: Instruction[], selectors: readonly string[]): boolean {
 	for (const instruction of instructions) {
-		if (instruction.opcode === OPCODES['47']) {
-			hasSelfBalance = true;
-		}
-		if (instruction.opcode === OPCODES.F1) {
-			hasCall = true;
+		if (instruction.opcode === 'PUSH4' && instruction.data) {
+			const hex = pushDataToHex(instruction.data);
+			if (selectors.includes(hex)) {
+				return true;
+			}
 		}
 	}
+	return false;
+}
 
-	return hasSelfBalance && hasCall;
+function detectComparisonBranching(instructions: Instruction[], triggerOpcode: string): boolean {
+	for (let i = 0; i < instructions.length; i++) {
+		if (instructions[i].opcode === triggerOpcode) {
+			const lookAheadLimit = Math.min(i + LOOK_AHEAD.branching, instructions.length);
+			let hasComparison = false;
+			let hasBranching = false;
+			for (let j = i + 1; j < lookAheadLimit; j++) {
+				const op = instructions[j].opcode;
+				if (COMPARISON_OPCODES.includes(op as (typeof COMPARISON_OPCODES)[number])) {
+					hasComparison = true;
+				}
+				if (op === 'JUMPI') {
+					hasBranching = true;
+				}
+			}
+			if (hasComparison && hasBranching) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+function hasOpcode(instructions: Instruction[], opcodeName: string): boolean {
+	for (const instruction of instructions) {
+		if (instruction.opcode === opcodeName) {
+			return true;
+		}
+	}
+	return false;
+}
+
+export function detectAutoForwarder(instructions: Instruction[]): boolean {
+	for (let i = 0; i < instructions.length; i++) {
+		if (instructions[i].opcode === 'SELFBALANCE') {
+			const lookAheadLimit = Math.min(i + LOOK_AHEAD.address, instructions.length);
+			for (let j = i + 1; j < lookAheadLimit; j++) {
+				if (instructions[j].opcode === 'CALL') {
+					return true;
+				}
+			}
+		}
+	}
+	return false;
 }
 
 export function detectUnlimitedApproval(instructions: Instruction[]): boolean {
 	for (const instruction of instructions) {
-		if (instruction.opcode === OPCODES['7F']) {
+		if (instruction.opcode === 'PUSH32') {
 			if (instruction.data?.every((byte) => byte === 0xff)) {
 				return true;
 			}
@@ -43,31 +108,19 @@ export function detectUnlimitedApproval(instructions: Instruction[]): boolean {
 }
 
 export function detectDelegateCall(instructions: Instruction[]): boolean {
-	for (const instruction of instructions) {
-		if (instruction.opcode === OPCODES.F4) {
-			return true;
-		}
-	}
+	return hasOpcode(instructions, 'DELEGATECALL');
+}
 
-	return false;
+export function detectCallcode(instructions: Instruction[]): boolean {
+	return hasOpcode(instructions, 'CALLCODE');
 }
 
 export function detectSelfDestruct(instructions: Instruction[]): boolean {
-	for (const instruction of instructions) {
-		if (instruction.opcode === OPCODES.FF) {
-			return true;
-		}
-	}
-	return false;
+	return hasOpcode(instructions, 'SELFDESTRUCT');
 }
 
 export function detectCreate2(instructions: Instruction[]): boolean {
-	for (const instruction of instructions) {
-		if (instruction.opcode === OPCODES.F5) {
-			return true;
-		}
-	}
-	return false;
+	return hasOpcode(instructions, 'CREATE2');
 }
 
 export function detectChainId(instructions: Instruction[]): ChainIdDetectionResult {
@@ -78,14 +131,14 @@ export function detectChainId(instructions: Instruction[]): ChainIdDetectionResu
 
 	for (let i = 0; i < instructions.length; i++) {
 		const instruction = instructions[i];
-		if (instruction.opcode === OPCODES['46']) {
+		if (instruction.opcode === 'CHAINID') {
 			hasChainId = true;
 
-			const lookAheadLimit = Math.min(i + 10, instructions.length);
+			const lookAheadLimit = Math.min(i + LOOK_AHEAD.branching, instructions.length);
 			for (let j = i + 1; j < lookAheadLimit; j++) {
 				const nextOpcode = instructions[j].opcode;
 
-				if (nextOpcode === OPCODES['57']) {
+				if (nextOpcode === 'JUMPI') {
 					hasBranching = true;
 				}
 
@@ -93,7 +146,7 @@ export function detectChainId(instructions: Instruction[]): ChainIdDetectionResu
 					hasComparison = true;
 				}
 
-				if (nextOpcode === OPCODES['20']) {
+				if (nextOpcode === 'KECCAK256') {
 					isEip712Pattern = true;
 				}
 			}
@@ -111,6 +164,7 @@ const SELECTOR_NAME_MAP: Record<
 	[TOKEN_SELECTORS.transferFrom]: { name: 'transferFrom', standard: 'ERC20' },
 	[TOKEN_SELECTORS.approve]: { name: 'approve', standard: 'ERC20' },
 	[TOKEN_SELECTORS.increaseAllowance]: { name: 'increaseAllowance', standard: 'ERC20' },
+	[TOKEN_SELECTORS.decreaseAllowance]: { name: 'decreaseAllowance', standard: 'ERC20' },
 	[TOKEN_SELECTORS.permit]: { name: 'permit', standard: 'ERC20' },
 	[TOKEN_SELECTORS.safeTransferFrom]: { name: 'safeTransferFrom', standard: 'ERC721' },
 	[TOKEN_SELECTORS.safeTransferFromWithData]: {
@@ -136,9 +190,7 @@ export function detectTokenSelectors(instructions: Instruction[]): TokenSelector
 
 	for (const instruction of instructions) {
 		if (instruction.opcode === 'PUSH4' && instruction.data) {
-			const selectorHex = Array.from(instruction.data)
-				.map((b) => b.toString(16).padStart(2, '0'))
-				.join('');
+			const selectorHex = pushDataToHex(instruction.data);
 
 			if (allSelectors.includes(selectorHex as (typeof allSelectors)[number])) {
 				const info = SELECTOR_NAME_MAP[selectorHex];
@@ -170,13 +222,8 @@ export function detectEcrecover(instructions: Instruction[]): boolean {
 	for (let i = 0; i < instructions.length; i++) {
 		const instruction = instructions[i];
 		// Check for both STATICCALL (0xFA) and CALL (0xF1) - older contracts use CALL for precompiles
-		if (
-			instruction.opcode === OPCODES.FA ||
-			instruction.opcode === 'STATICCALL' ||
-			instruction.opcode === OPCODES.F1 ||
-			instruction.opcode === 'CALL'
-		) {
-			const lookBackLimit = Math.max(0, i - 10);
+		if (instruction.opcode === 'STATICCALL' || instruction.opcode === 'CALL') {
+			const lookBackLimit = Math.max(0, i - LOOK_AHEAD.address);
 			for (let j = i - 1; j >= lookBackLimit; j--) {
 				const prevInstruction = instructions[j];
 				if (prevInstruction.opcode === 'PUSH1' && prevInstruction.data) {
@@ -203,11 +250,11 @@ export function detectEcrecover(instructions: Instruction[]): boolean {
 export function detectMsgSenderCheck(instructions: Instruction[]): boolean {
 	for (let i = 0; i < instructions.length; i++) {
 		const instruction = instructions[i];
-		if (instruction.opcode === OPCODES['33'] || instruction.opcode === 'CALLER') {
-			const lookAheadLimit = Math.min(i + 5, instructions.length);
+		if (instruction.opcode === 'CALLER') {
+			const lookAheadLimit = Math.min(i + LOOK_AHEAD.branching, instructions.length);
 			for (let j = i + 1; j < lookAheadLimit; j++) {
 				const nextOpcode = instructions[j].opcode;
-				if (nextOpcode === OPCODES['14'] || nextOpcode === 'EQ') {
+				if (nextOpcode === 'EQ') {
 					return true;
 				}
 			}
@@ -218,33 +265,40 @@ export function detectMsgSenderCheck(instructions: Instruction[]): boolean {
 }
 
 export function detectNonceTracking(instructions: Instruction[]): boolean {
-	let hasSload = false;
-	let hasSstore = false;
+	for (let i = 0; i < instructions.length; i++) {
+		if (instructions[i].opcode !== 'SLOAD') continue;
 
-	for (const instruction of instructions) {
-		if (instruction.opcode === OPCODES['54'] || instruction.opcode === 'SLOAD') {
-			hasSload = true;
+		const afterSload = Math.min(i + LOOK_AHEAD.nonce, instructions.length);
+		let hasArithmetic = false;
+		let hasSstore = false;
+
+		for (let j = i + 1; j < afterSload; j++) {
+			const op = instructions[j].opcode;
+			if (op === 'ADD' || op === 'SUB') {
+				hasArithmetic = true;
+			}
+			if (op === 'SSTORE' && hasArithmetic) {
+				hasSstore = true;
+				break;
+			}
 		}
-		if (instruction.opcode === OPCODES['55'] || instruction.opcode === 'SSTORE') {
-			hasSstore = true;
+
+		if (hasArithmetic && hasSstore) {
+			return true;
 		}
 	}
 
-	return hasSload && hasSstore;
+	return false;
 }
 
 export function detectFallbackLocation(instructions: Instruction[]): boolean {
-	const calldataSizeIdx = instructions.findIndex(
-		(i) => i.opcode === OPCODES['36'] || i.opcode === 'CALLDATASIZE',
-	);
+	const calldataSizeIdx = instructions.findIndex((i) => i.opcode === 'CALLDATASIZE');
 
 	if (calldataSizeIdx === -1) {
 		return false;
 	}
 
-	const callIdx = instructions.findIndex(
-		(i, idx) => idx > calldataSizeIdx && (i.opcode === OPCODES.F1 || i.opcode === 'CALL'),
-	);
+	const callIdx = instructions.findIndex((i, idx) => idx > calldataSizeIdx && i.opcode === 'CALL');
 
 	if (callIdx === -1) {
 		return false;
@@ -254,10 +308,7 @@ export function detectFallbackLocation(instructions: Instruction[]): boolean {
 	const hasDispatcher = betweenInstructions.some((i, idx, arr) => {
 		if (i.opcode === 'PUSH4') {
 			const nextInstruction = arr[idx + 1];
-			if (
-				nextInstruction &&
-				(nextInstruction.opcode === OPCODES['14'] || nextInstruction.opcode === 'EQ')
-			) {
+			if (nextInstruction && nextInstruction.opcode === 'EQ') {
 				return true;
 			}
 		}
@@ -270,8 +321,8 @@ export function detectFallbackLocation(instructions: Instruction[]): boolean {
 export function detectHardcodedDestination(instructions: Instruction[]): boolean {
 	for (let i = 0; i < instructions.length; i++) {
 		const instruction = instructions[i];
-		if (instruction.opcode === OPCODES.F1 || instruction.opcode === 'CALL') {
-			const lookBackLimit = Math.max(0, i - 15);
+		if (instruction.opcode === 'CALL') {
+			const lookBackLimit = Math.max(0, i - LOOK_AHEAD.address);
 			for (let j = i - 1; j >= lookBackLimit; j--) {
 				const prevInstruction = instructions[j];
 				if (prevInstruction.opcode === 'PUSH20' && prevInstruction.data) {
@@ -359,12 +410,146 @@ export function analyzeTokenTransfers(instructions: Instruction[]): TokenTransfe
 	};
 }
 
-export function runAllDetectors(instructions: Instruction[]): DetectionResults {
+export function detectProxyPattern(instructions: Instruction[]): ProxyDetectionResult {
+	let hasImplementationSlot = false;
+	let hasAdminSlot = false;
+	let hasBeaconSlot = false;
+
+	for (const instruction of instructions) {
+		if (instruction.opcode === 'PUSH32' && instruction.data) {
+			const hex = pushDataToHex(instruction.data);
+			if (hex === EIP1967_SLOTS.implementation) {
+				hasImplementationSlot = true;
+			} else if (hex === EIP1967_SLOTS.admin) {
+				hasAdminSlot = true;
+			} else if (hex === EIP1967_SLOTS.beacon) {
+				hasBeaconSlot = true;
+			}
+		}
+	}
+
+	return {
+		isProxy: hasImplementationSlot || hasBeaconSlot,
+		hasImplementationSlot,
+		hasAdminSlot,
+		hasBeaconSlot,
+	};
+}
+
+export function detectTxOrigin(instructions: Instruction[]): boolean {
+	for (let i = 0; i < instructions.length; i++) {
+		const instruction = instructions[i];
+		if (instruction.opcode === 'ORIGIN') {
+			const lookAheadLimit = Math.min(i + LOOK_AHEAD.auth, instructions.length);
+			for (let j = i + 1; j < lookAheadLimit; j++) {
+				if (instructions[j].opcode === 'EQ') {
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+export function detectTimestampDependence(instructions: Instruction[]): boolean {
+	return detectComparisonBranching(instructions, 'TIMESTAMP');
+}
+
+export function detectMulticall(instructions: Instruction[]): boolean {
+	return hasPush4Selector(instructions, Object.values(MULTICALL_SELECTORS));
+}
+
+export function detectExtcodesizeGuard(instructions: Instruction[]): boolean {
+	for (let i = 0; i < instructions.length; i++) {
+		if (instructions[i].opcode === 'EXTCODESIZE') {
+			const lookAheadLimit = Math.min(i + LOOK_AHEAD.auth, instructions.length);
+			for (let j = i + 1; j < lookAheadLimit; j++) {
+				const op = instructions[j].opcode;
+				if (op === 'ISZERO' || op === 'EQ' || op === 'GT') {
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+export function detectErc4337Pattern(instructions: Instruction[]): boolean {
+	for (const instruction of instructions) {
+		if (instruction.opcode === 'PUSH4' && instruction.data) {
+			const hex = pushDataToHex(instruction.data);
+			if (
+				Object.values(ERC4337_SELECTORS).includes(
+					hex as (typeof ERC4337_SELECTORS)[keyof typeof ERC4337_SELECTORS],
+				)
+			) {
+				return true;
+			}
+		}
+
+		if (instruction.opcode === 'PUSH20' && instruction.data) {
+			const addressHex = pushDataToHex(instruction.data);
+			if (ERC4337_ENTRYPOINTS.includes(addressHex as (typeof ERC4337_ENTRYPOINTS)[number])) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+export function detectBalanceDrain(instructions: Instruction[]): boolean {
+	for (let i = 0; i < instructions.length; i++) {
+		if (instructions[i].opcode === 'BALANCE') {
+			const lookAheadLimit = Math.min(i + LOOK_AHEAD.address, instructions.length);
+			let hasComparison = false;
+			for (let j = i + 1; j < lookAheadLimit; j++) {
+				const op = instructions[j].opcode;
+				if (COMPARISON_OPCODES.includes(op as (typeof COMPARISON_OPCODES)[number])) {
+					hasComparison = true;
+				}
+				if (hasComparison && (op === 'CALL' || op === 'SELFDESTRUCT')) {
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+export function detectExtcodecopy(instructions: Instruction[]): boolean {
+	return hasOpcode(instructions, 'EXTCODECOPY');
+}
+
+export function detectCoinbaseDependence(instructions: Instruction[]): boolean {
+	return detectComparisonBranching(instructions, 'COINBASE');
+}
+
+export function detectMinimalProxy(bytecode?: string): boolean {
+	if (!bytecode) return false;
+	const clean = (bytecode.startsWith('0x') ? bytecode.slice(2) : bytecode).toLowerCase();
+	const prefix = '363d3d373d3d3d363d73';
+	const suffix = '5af43d82803e903d91602b57fd5bf3';
+	return clean.startsWith(prefix) && clean.endsWith(suffix) && clean.length === 90;
+}
+
+export function detectDiamondProxy(instructions: Instruction[]): boolean {
+	return hasPush4Selector(instructions, Object.values(DIAMOND_SELECTORS));
+}
+
+export function detectEip7702Delegation(bytecode: string): boolean {
+	const clean = bytecode.startsWith('0x') ? bytecode.slice(2) : bytecode;
+	return clean.toLowerCase().startsWith('ef0100') && clean.length === 46;
+}
+
+export function runAllDetectors(instructions: Instruction[], bytecode?: string): DetectionResults {
 	const chainIdResult = detectChainId(instructions);
 	const tokenTransferResult = analyzeTokenTransfers(instructions);
 
 	return {
 		isDelegatedCall: detectDelegateCall(instructions),
+		hasCallcode: detectCallcode(instructions),
 		hasAutoForwarder: detectAutoForwarder(instructions),
 		hasUnlimitedApprovals: detectUnlimitedApproval(instructions),
 		hasSelfDestruct: detectSelfDestruct(instructions),
@@ -374,5 +559,17 @@ export function runAllDetectors(instructions: Instruction[]): DetectionResults {
 		hasChainIdComparison: chainIdResult.hasComparison,
 		isEip712Pattern: chainIdResult.isEip712Pattern,
 		tokenTransfer: tokenTransferResult,
+		proxy: detectProxyPattern(instructions),
+		hasTxOrigin: detectTxOrigin(instructions),
+		isEip7702Delegation: bytecode ? detectEip7702Delegation(bytecode) : false,
+		hasTimestampDependence: detectTimestampDependence(instructions),
+		hasMulticall: detectMulticall(instructions),
+		hasExtcodesizeGuard: detectExtcodesizeGuard(instructions),
+		hasErc4337Pattern: detectErc4337Pattern(instructions),
+		hasCoinbaseDependence: detectCoinbaseDependence(instructions),
+		hasExtcodecopy: detectExtcodecopy(instructions),
+		hasBalanceDrain: detectBalanceDrain(instructions),
+		hasMinimalProxy: detectMinimalProxy(bytecode),
+		hasDiamondProxy: detectDiamondProxy(instructions),
 	};
 }

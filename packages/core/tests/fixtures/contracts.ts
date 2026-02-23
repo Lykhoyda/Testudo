@@ -50,6 +50,12 @@ export const AUTO_FORWARDER_CONTRACTS = {
 	selfBalanceOnly: '0x4700',
 	callOnly: '0xf100',
 	spaced: '0x4760016002600301f1',
+	// SELFBALANCE followed by 16+ instructions before CALL (beyond LOOK_AHEAD.address=15)
+	beyondProximity: `0x47${'6001'.repeat(16)}f1`,
+	// CALL appears BEFORE SELFBALANCE (wrong order)
+	reversedOrder: '0xf14700',
+	// SELFBALANCE at very end, no CALL after
+	selfBalanceAtEnd: '0x600160024700',
 };
 
 export const UNLIMITED_APPROVAL_CONTRACTS = {
@@ -174,6 +180,139 @@ export const HARDCODED_DESTINATION_CONTRACTS = {
 	callerDestination: `0x73${'00'.repeat(19)}00f1`,
 	precompileDestination: `0x73${'00'.repeat(19)}01f1`,
 	noHardcodedAddr: '0x60006000f1',
+};
+
+export const PROXY_CONTRACTS = {
+	eip1967Implementation: `0x7f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc54f4`,
+	eip1967Admin: `0x7fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d610354`,
+	eip1967Beacon: `0x7fa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d5054`,
+	eip1967Full: `0x7f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc547fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d610354f4`,
+	notProxy: '0x6001600201',
+};
+
+export const TX_ORIGIN_CONTRACTS = {
+	originEq: '0x3214',
+	originCallerEq: '0x323314',
+	originOnly: '0x3200',
+	originFarFromEq: '0x3260016002600360041400',
+	originInPushData: '0x603200',
+};
+
+export const EIP7702_CONTRACTS = {
+	validDelegation: `0xef0100${'ab'.repeat(20)}`,
+	wrongPrefix: `0xef0200${'ab'.repeat(20)}`,
+	tooShort: '0xef0100ab',
+	tooLong: `0xef0100${'ab'.repeat(21)}`,
+	normalBytecode: '0x6001600201',
+};
+
+export const TIMESTAMP_CONTRACTS = {
+	withComparisonAndBranch: '0x4260011460105700',
+	withGtAndBranch: '0x426001116010570054',
+	timestampOnly: '0x4200',
+	timestampNoComparison: '0x42600157',
+	inPushData: '0x604200',
+};
+
+export const NONCE_TRACKING_CONTRACTS = {
+	incrementPattern: '0x60005460010155',
+	subtractPattern: '0x60005460010355',
+	sloadWithoutArithmetic: '0x60005460015500',
+	sstoreWithoutSload: '0x60016001015500',
+};
+
+export const DECREASE_ALLOWANCE_CONTRACTS = {
+	decreaseAllowance: '0x63a457c2d7',
+};
+
+export const MULTICALL_CONTRACTS = {
+	multicall: '0x63ac9650d8',
+	aggregate: '0x63252dba42',
+	tryAggregate: '0x63bce38bd7',
+	aggregate3: '0x6382ad56cb',
+	noMulticall: '0x6001600201',
+	selectorInPush32: `0x7fac9650d8${'00'.repeat(28)}`,
+};
+
+export const EXTCODESIZE_CONTRACTS = {
+	withIszero: '0x3b15',
+	withEq: '0x3b14',
+	withGt: '0x3b11',
+	alone: '0x3b00',
+	inPushData: '0x603b00',
+};
+
+export const ERC4337_CONTRACTS = {
+	handleOpsSelector: '0x631fad948c',
+	handleAggregatedOpsSelector: '0x634b1d7cf5',
+	validateUserOpSelector: '0x633a871cdd',
+	entryPointV06: `0x735ff137d4b0fdcd49dca30c7cf57e578a026d2789f4`,
+	entryPointV07: `0x730000000071727de22e5e9d8baf0edac6f37da032f4`,
+	notErc4337: '0x6001600201',
+	selectorInPush32: `0x7f1fad948c${'00'.repeat(28)}`,
+};
+
+export const COINBASE_CONTRACTS = {
+	withComparisonAndBranch: '0x4160011460105700',
+	withGtAndBranch: '0x416001116010570054',
+	coinbaseOnly: '0x4100',
+	coinbaseNoComparison: '0x41600157',
+	inPushData: '0x604100',
+};
+
+export const MINIMAL_PROXY_CONTRACTS = {
+	canonical:
+		'0x363d3d373d3d3d363d73bebebebebebebebebebebebebebebebebebebebe5af43d82803e903d91602b57fd5bf3',
+	uniswapImpl:
+		'0x363d3d373d3d3d363d731f98431c8ad98523631ae4a59f267346ea31f9845af43d82803e903d91602b57fd5bf3',
+	wrongPrefix:
+		'0x373d3d373d3d3d363d73bebebebebebebebebebebebebebebebebebebebe5af43d82803e903d91602b57fd5bf3',
+	wrongSuffix:
+		'0x363d3d373d3d3d363d73bebebebebebebebebebebebebebebebebebebebe5af43d82803e903d91602b57fd5bf4',
+	tooShort: '0x363d3d373d3d3d363d73bebe5af43d82803e903d91602b57fd5bf3',
+	tooLong:
+		'0x363d3d373d3d3d363d73bebebebebebebebebebebebebebebebebebebeee5af43d82803e903d91602b57fd5bf300',
+	normalBytecode: '0x6001600201',
+};
+
+export const DIAMOND_PROXY_CONTRACTS = {
+	diamondCutSelector: '0x631f931c1c',
+	facetsSelector: '0x637a0ed627',
+	facetAddressSelector: '0x63cdffacc6',
+	facetFunctionSelectorsSelector: '0x63adfca15e',
+	facetAddressesSelector: '0x6352ef6b2c',
+	notDiamond: '0x6001600201',
+	selectorInPush32: `0x7f1f931c1c${'00'.repeat(28)}`,
+};
+
+export const BALANCE_DRAIN_CONTRACTS = {
+	balanceCompareCall: '0x3114f1',
+	balanceGtCall: '0x3111f1',
+	balanceCompareSelfdestruct: '0x3114ff',
+	balanceOnly: '0x3100',
+	balanceNoCompare: '0x31f1',
+	balanceInPushData: '0x603100',
+	selfbalanceNotBalance: '0x4714f1',
+};
+
+export const EXTCODECOPY_CONTRACTS = {
+	minimal: '0x3c',
+	withCreate2: '0x3cf5',
+	withCreate2AndSelfdestruct: '0x3cf5ff',
+	inPushData: '0x603c00',
+};
+
+export const CALLCODE_CONTRACTS = {
+	minimal: '0xf2',
+	withSetup: '0x6000600060006000945af2',
+	f2AsPushData: '0x60f200',
+	bothCallcodeAndDelegatecall: '0xf2f4',
+};
+
+export const PERMIT2_CONTRACTS = {
+	permit2NoAuth: '0x6330f28b7a',
+	permit2BatchNoAuth: '0x63edd9444b',
+	permit2WithAuth: '0x6330f28b7a6001fa3360001014600054600100015500',
 };
 
 export const DRAINER_PATTERNS = {

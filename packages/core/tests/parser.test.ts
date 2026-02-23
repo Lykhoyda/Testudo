@@ -62,8 +62,79 @@ describe('parseBytecode', () => {
 	});
 
 	it('should handle unknown opcodes', () => {
-		const result = parseBytecode('0x00');
+		const result = parseBytecode('0x0c');
 		expect(result).toHaveLength(1);
-		expect(result[0]?.opcode).toBe('00');
+		expect(result[0]?.opcode).toBe('0C');
+	});
+
+	it('should handle truncated PUSH instruction at end of bytecode', () => {
+		// PUSH2 (0x61) expects 2 bytes but only 1 is available
+		const result = parseBytecode('0x61ff');
+		expect(result).toHaveLength(1);
+		expect(result[0]?.opcode).toBe('PUSH2');
+		expect(result[0]?.data).toHaveLength(1);
+	});
+
+	it('should handle PUSH1 with zero bytes remaining', () => {
+		// PUSH1 (0x60) at end with no data byte
+		const result = parseBytecode('0x60');
+		expect(result).toHaveLength(1);
+		expect(result[0]?.opcode).toBe('PUSH1');
+		expect(result[0]?.data).toHaveLength(0);
+	});
+
+	it('should parse PUSH0 (EIP-3855) correctly', () => {
+		const result = parseBytecode('0x5f');
+		expect(result).toHaveLength(1);
+		expect(result[0]?.opcode).toBe('PUSH0');
+		expect(result[0]?.data).toBeUndefined();
+		expect(result[0]?.size).toBe(1);
+	});
+
+	it('should handle odd-length hex string gracefully', () => {
+		// Odd-length hex strings can occur with corrupted bytecode
+		const result = parseBytecode('0x6');
+		expect(result).toBeDefined();
+	});
+
+	it('should parse consecutive PUSH instructions consuming all bytes', () => {
+		// PUSH1 x5: each consumes 2 bytes
+		const result = parseBytecode('0x60016002600360046005');
+		expect(result).toHaveLength(5);
+		for (const instr of result) {
+			expect(instr.opcode).toBe('PUSH1');
+			expect(instr.data).toHaveLength(1);
+		}
+	});
+
+	it('should track byte indices correctly across PUSH sizes', () => {
+		// PUSH1(0x60, 1 data) + PUSH2(0x61, 2 data) + STOP
+		const result = parseBytecode('0x60ff61aabb00');
+		expect(result).toHaveLength(3);
+		expect(result[0]?.byteIndex).toBe(0);
+		expect(result[0]?.opcode).toBe('PUSH1');
+		expect(result[1]?.byteIndex).toBe(2);
+		expect(result[1]?.opcode).toBe('PUSH2');
+		expect(result[1]?.data).toEqual(new Uint8Array([0xaa, 0xbb]));
+		expect(result[2]?.byteIndex).toBe(5);
+		expect(result[2]?.opcode).toBe('STOP');
+	});
+
+	it('should parse CALLCODE opcode', () => {
+		const result = parseBytecode('0xf2');
+		expect(result).toHaveLength(1);
+		expect(result[0]?.opcode).toBe('CALLCODE');
+	});
+
+	it('should parse CREATE2 opcode', () => {
+		const result = parseBytecode('0xf5');
+		expect(result).toHaveLength(1);
+		expect(result[0]?.opcode).toBe('CREATE2');
+	});
+
+	it('should parse STATICCALL opcode', () => {
+		const result = parseBytecode('0xfa');
+		expect(result).toHaveLength(1);
+		expect(result[0]?.opcode).toBe('STATICCALL');
 	});
 });
