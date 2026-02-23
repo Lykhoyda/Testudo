@@ -9,7 +9,13 @@
 </p>
 
 <p align="center">
-  <a href="https://testudomock-dapp-production.up.railway.app">Try the Demo Playground</a>
+  <a href="https://chromewebstore.google.com/detail/testudo/gpidnceilfbhhcpheagjpkdioohmkpmb">
+    <img src="https://img.shields.io/badge/Chrome_Web_Store-Install-4285F4?logo=googlechrome&logoColor=white" alt="Install from Chrome Web Store">
+  </a>
+  &nbsp;
+  <a href="https://testudomock-dapp-production.up.railway.app">
+    <img src="https://img.shields.io/badge/Playground-Try_Demo-00C853" alt="Try the Demo Playground">
+  </a>
 </p>
 
 ## Problem
@@ -47,6 +53,12 @@ All results are **explainable**: "This contract HAS capability X because of opco
 
 ## Installation
 
+### From Chrome Web Store
+
+Install directly: **[Testudo on Chrome Web Store](https://chromewebstore.google.com/detail/testudo/gpidnceilfbhhcpheagjpkdioohmkpmb)**
+
+### From Source
+
 ```bash
 # Install dependencies
 yarn install
@@ -58,7 +70,7 @@ yarn build
 yarn test
 ```
 
-### Load Extension in Chrome
+#### Load Extension in Chrome
 
 1. Build the extension: `yarn workspace @testudo/extension run build`
 2. Open `chrome://extensions`
@@ -76,9 +88,6 @@ packages/
 
 apps/
   mock-dapp/        # Demo playground for testing
-
-docs/
-  adr/              # Architecture Decision Records
 ```
 
 > **Note**: The Threat Intelligence API lives in a [separate private repository](https://github.com/Lykhoyda/testudo-api).
@@ -103,12 +112,6 @@ The playground simulates various transaction types:
 - **Permit/Permit2 signatures** — gasless approval attacks
 - **Blind signatures** — phishing pattern detection
 - **eth_sign** — hard block with typed confirmation
-
-## Documentation
-
-- [Roadmap](docs/ROADMAP.md)
-- [Architectural Decisions](docs/DECISIONS.md)
-- [ADRs](docs/adr/README.md)
 
 ## License
 
