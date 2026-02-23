@@ -118,7 +118,7 @@ window.addEventListener('message', async (event) => {
 					requestId,
 					result,
 				},
-				'*',
+				window.location.origin,
 			);
 		} catch (error) {
 			console.error('[Testudo Content] Analysis error:', error);
@@ -135,7 +135,7 @@ window.addEventListener('message', async (event) => {
 						error: String(error),
 					},
 				},
-				'*',
+				window.location.origin,
 			);
 		}
 	}
@@ -156,7 +156,7 @@ window.addEventListener('message', async (event) => {
 						blocked: false,
 					},
 				},
-				'*',
+				window.location.origin,
 			);
 			return;
 		}
@@ -173,7 +173,7 @@ window.addEventListener('message', async (event) => {
 					requestId,
 					result,
 				},
-				'*',
+				window.location.origin,
 			);
 		} catch (error) {
 			console.error('[Testudo Content] Address check error:', error);
@@ -188,7 +188,7 @@ window.addEventListener('message', async (event) => {
 						blocked: false,
 					},
 				},
-				'*',
+				window.location.origin,
 			);
 		}
 	}
@@ -199,7 +199,10 @@ window.addEventListener('message', async (event) => {
 		const nullResult = { name: null, symbol: null, decimals: null };
 
 		if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
-			window.postMessage({ type: 'TESTUDO_TOKEN_RESULT', requestId, result: nullResult }, '*');
+			window.postMessage(
+				{ type: 'TESTUDO_TOKEN_RESULT', requestId, result: nullResult },
+				window.location.origin,
+			);
 			return;
 		}
 
@@ -208,11 +211,14 @@ window.addEventListener('message', async (event) => {
 			.then((result) => {
 				window.postMessage(
 					{ type: 'TESTUDO_TOKEN_RESULT', requestId, result: result ?? nullResult },
-					'*',
+					window.location.origin,
 				);
 			})
 			.catch(() => {
-				window.postMessage({ type: 'TESTUDO_TOKEN_RESULT', requestId, result: nullResult }, '*');
+				window.postMessage(
+					{ type: 'TESTUDO_TOKEN_RESULT', requestId, result: nullResult },
+					window.location.origin,
+				);
 			});
 	}
 
@@ -224,11 +230,14 @@ window.addEventListener('message', async (event) => {
 			.then((result) => {
 				window.postMessage(
 					{ type: 'TESTUDO_SETTINGS_RESULT', requestId, result: result ?? {} },
-					'*',
+					window.location.origin,
 				);
 			})
 			.catch(() => {
-				window.postMessage({ type: 'TESTUDO_SETTINGS_RESULT', requestId, result: {} }, '*');
+				window.postMessage(
+					{ type: 'TESTUDO_SETTINGS_RESULT', requestId, result: {} },
+					window.location.origin,
+				);
 			});
 	}
 

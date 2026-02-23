@@ -18,7 +18,7 @@ function sendTestudoRequest<T>(
 
 		window.addEventListener('message', handler);
 
-		window.postMessage({ type: requestType, requestId, ...payload }, '*');
+		window.postMessage({ type: requestType, requestId, ...payload }, window.location.origin);
 
 		setTimeout(() => {
 			window.removeEventListener('message', handler);
@@ -77,7 +77,7 @@ export function requestAnalysis(delegateAddress: string): Promise<AnalysisResult
 }
 
 export function recordBlocked(): void {
-	window.postMessage({ type: 'TESTUDO_RECORD_BLOCKED' }, '*');
+	window.postMessage({ type: 'TESTUDO_RECORD_BLOCKED' }, window.location.origin);
 }
 
 export interface TokenResolveResult {

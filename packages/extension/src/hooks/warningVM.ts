@@ -136,7 +136,7 @@ function resolve(value: boolean): void {
 
 export function cancel(): void {
 	if (!state.value.loading) {
-		window.postMessage({ type: 'TESTUDO_RECORD_BLOCKED' }, '*');
+		window.postMessage({ type: 'TESTUDO_RECORD_BLOCKED' }, window.location.origin);
 	}
 	resolve(false);
 }
