@@ -37,7 +37,10 @@ export type WarningType =
 	| 'DIAMOND_PROXY'
 	| 'CALLCODE'
 	| 'EXTCODECOPY_USAGE'
-	| 'BALANCE_DRAIN';
+	| 'BALANCE_DRAIN'
+	| 'REENTRANCY_RISK'
+	| 'GAS_MANIPULATION'
+	| 'EXTCODEHASH_CHECK';
 
 export type WarningSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
 
@@ -85,6 +88,9 @@ export interface DetectionResults {
 	hasCoinbaseDependence: boolean;
 	hasExtcodecopy: boolean;
 	hasBalanceDrain: boolean;
+	hasReentrancyRisk: boolean;
+	hasGasManipulation: boolean;
+	hasExtcodehash: boolean;
 	hasMinimalProxy: boolean;
 	hasDiamondProxy: boolean;
 }

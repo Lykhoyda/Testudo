@@ -356,6 +356,41 @@ export function generateWarnings(detectionResults: DetectionResults): Warning[] 
 		});
 	}
 
+	if (detectionResults.hasReentrancyRisk) {
+		warnings.push({
+			type: 'REENTRANCY_RISK',
+			severity: 'HIGH',
+			title: 'Reentrancy Vulnerability Pattern',
+			description:
+				'Contract writes to storage after an external call. This violates the checks-effects-interactions pattern and may allow reentrancy attacks that drain funds.',
+			technical:
+				'CALL/DELEGATECALL/CALLCODE followed by SSTORE within proximity window — state change after external call',
+		});
+	}
+
+	if (detectionResults.hasGasManipulation) {
+		warnings.push({
+			type: 'GAS_MANIPULATION',
+			severity: 'MEDIUM',
+			title: 'Gas-Dependent Behavior',
+			description:
+				'Contract branches based on remaining gas. Behavior may differ depending on gas limits, which can be exploited for gas griefing or conditional execution attacks.',
+			technical: 'GAS (0x5A) + comparison + JUMPI branching pattern',
+		});
+	}
+
+	if (detectionResults.hasExtcodehash) {
+		warnings.push({
+			type: 'EXTCODEHASH_CHECK',
+			severity: 'INFO',
+			title: 'Code Hash Verification',
+			description:
+				'Contract reads EXTCODEHASH to verify contract integrity. With EIP-7702 delegations, EOA code hashes change when delegation is active, which may affect compatibility.',
+			technical:
+				'EXTCODEHASH opcode (0x3F) detected — code identity check that may interact with EIP-7702',
+		});
+	}
+
 	if (detectionResults.hasDiamondProxy) {
 		warnings.push({
 			type: 'DIAMOND_PROXY',

@@ -439,6 +439,15 @@ describe('Warning Generation', () => {
 			expect(callcodeWarning).toBeDefined();
 			expect(delegateWarning).toBeDefined();
 		});
+
+		it('generates HIGH warning for reentrancy risk', () => {
+			const result = createMockDetectionResults({ hasReentrancyRisk: true });
+			const warnings = generateWarnings(result);
+
+			const reWarning = warnings.find((w) => w.type === 'REENTRANCY_RISK');
+			expect(reWarning).toBeDefined();
+			expect(reWarning?.severity).toBe('HIGH');
+		});
 	});
 
 	describe('MEDIUM Severity Warnings', () => {
@@ -491,6 +500,15 @@ describe('Warning Generation', () => {
 			expect(tokenWarning).toBeDefined();
 			expect(tokenWarning?.severity).toBe('MEDIUM');
 		});
+
+		it('generates MEDIUM warning for gas manipulation', () => {
+			const result = createMockDetectionResults({ hasGasManipulation: true });
+			const warnings = generateWarnings(result);
+
+			const gasWarning = warnings.find((w) => w.type === 'GAS_MANIPULATION');
+			expect(gasWarning).toBeDefined();
+			expect(gasWarning?.severity).toBe('MEDIUM');
+		});
 	});
 
 	describe('INFO Severity Warnings', () => {
@@ -503,6 +521,15 @@ describe('Warning Generation', () => {
 
 			expect(warnings[0].type).toBe('EIP712_SAFE');
 			expect(warnings[0].severity).toBe('INFO');
+		});
+
+		it('generates INFO warning for EXTCODEHASH', () => {
+			const result = createMockDetectionResults({ hasExtcodehash: true });
+			const warnings = generateWarnings(result);
+
+			const hashWarning = warnings.find((w) => w.type === 'EXTCODEHASH_CHECK');
+			expect(hashWarning).toBeDefined();
+			expect(hashWarning?.severity).toBe('INFO');
 		});
 	});
 
@@ -1300,5 +1327,73 @@ describe('Drainer Pattern End-to-End Pipeline', () => {
 		expect(blocked).toBe(false);
 		const mpWarning = warnings.find((w) => w.type === 'MINIMAL_PROXY');
 		expect(mpWarning).toBeDefined();
+	});
+
+	it('Reentrancy: CALL then SSTORE → HIGH blocked', () => {
+		const instructions = parseBytecode('0xf160015500');
+		const detectionResults = runAllDetectors(instructions);
+		const warnings = generateWarnings(detectionResults);
+		const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+		expect(detectionResults.hasReentrancyRisk).toBe(true);
+		expect(risk).toBe('HIGH');
+		expect(blocked).toBe(true);
+		const reWarning = warnings.find((w) => w.type === 'REENTRANCY_RISK');
+		expect(reWarning).toBeDefined();
+		expect(reWarning?.severity).toBe('HIGH');
+	});
+
+	it('Reentrancy + DELEGATECALL: multiple HIGH → CRITICAL blocked', () => {
+		// DELEGATECALL + SSTORE (reentrancy via delegatecall)
+		const instructions = parseBytecode('0xf460015500');
+		const detectionResults = runAllDetectors(instructions);
+		const warnings = generateWarnings(detectionResults);
+		const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+		expect(detectionResults.hasReentrancyRisk).toBe(true);
+		expect(detectionResults.isDelegatedCall).toBe(true);
+		expect(risk).toBe('CRITICAL');
+		expect(blocked).toBe(true);
+	});
+
+	it('Gas manipulation: GAS + comparison + branch → MEDIUM not blocked', () => {
+		const instructions = parseBytecode('0x5a60011460105700');
+		const detectionResults = runAllDetectors(instructions);
+		const warnings = generateWarnings(detectionResults);
+		const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+		expect(detectionResults.hasGasManipulation).toBe(true);
+		const gasWarning = warnings.find((w) => w.type === 'GAS_MANIPULATION');
+		expect(gasWarning).toBeDefined();
+		expect(gasWarning?.severity).toBe('MEDIUM');
+		expect(risk).toBe('MEDIUM');
+		expect(blocked).toBe(false);
+	});
+
+	it('EXTCODEHASH: code hash check → INFO not blocked', () => {
+		const instructions = parseBytecode('0x3f');
+		const detectionResults = runAllDetectors(instructions);
+		const warnings = generateWarnings(detectionResults);
+		const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+		expect(detectionResults.hasExtcodehash).toBe(true);
+		const hashWarning = warnings.find((w) => w.type === 'EXTCODEHASH_CHECK');
+		expect(hashWarning).toBeDefined();
+		expect(hashWarning?.severity).toBe('INFO');
+		expect(risk).toBe('LOW');
+		expect(blocked).toBe(false);
+	});
+
+	it('Reentrancy + gas manipulation: HIGH + MEDIUM → CRITICAL blocked', () => {
+		// CALL + PUSH1 + SSTORE + GAS + comparison + JUMPI
+		const instructions = parseBytecode('0xf1600155005a60011460105700');
+		const detectionResults = runAllDetectors(instructions);
+		const warnings = generateWarnings(detectionResults);
+		const { risk, blocked } = deriveRiskFromWarnings(warnings);
+
+		expect(detectionResults.hasReentrancyRisk).toBe(true);
+		expect(detectionResults.hasGasManipulation).toBe(true);
+		expect(risk).toBe('CRITICAL');
+		expect(blocked).toBe(true);
 	});
 });

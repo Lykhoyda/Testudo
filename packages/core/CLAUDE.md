@@ -36,7 +36,7 @@ analyzeContract(address, options?)
   → deriveRiskFromWarnings(warnings) # Warning[] → risk level + blocked flag
 ```
 
-## Detectors (detectors.ts — 27 functions)
+## Detectors (detectors.ts — 30 functions)
 
 `runAllDetectors()` orchestrates all detectors and returns `DetectionResults`.
 
@@ -62,6 +62,9 @@ analyzeContract(address, options?)
 | ERC-4337 Account Abstraction | detectErc4337Pattern | EntryPoint addresses + handleOps/validateUserOp | INFO (mitigates DELEGATECALL) |
 | COINBASE Dependence | detectCoinbaseDependence | COINBASE + comparison + JUMPI | MEDIUM |
 | EIP-1167 Minimal Proxy | detectMinimalProxy | Canonical 45-byte bytecode pattern | INFO (mitigates DELEGATECALL) |
+| Reentrancy Pattern | detectReentrancyRisk | CALL/DELEGATECALL/CALLCODE → SSTORE (STATICCALL excluded) | HIGH |
+| Gas Manipulation | detectGasManipulation | GAS + comparison + JUMPI branching | MEDIUM |
+| EXTCODEHASH | detectExtcodehash | EXTCODEHASH opcode (EIP-7702 code hash interaction) | INFO |
 | Diamond Proxy (EIP-2535) | detectDiamondProxy | diamondCut/facets/facetAddress selectors | MEDIUM (mitigates DELEGATECALL) |
 
 ## Deployer Risk (deployer-risk.ts)
@@ -86,20 +89,20 @@ Pure scoring — no I/O. Extension provides `DeployerInfo`, core returns `Deploy
 
 ```bash
 yarn workspace @testudo/core run build    # rolldown + tsc
-yarn workspace @testudo/core run test     # vitest, 346 tests
+yarn workspace @testudo/core run test     # vitest, 375 tests
 ```
 
 - viem is marked `external` in rolldown config (prevents double-bundling with extension)
 - Output: ESM, ~25KB
 
-## Tests (346 total)
+## Tests (373 total)
 
 | File | Count | Tests |
 |------|-------|-------|
 | parser.test.ts | 18 | PUSH opcode handling, edge cases, PUSH0, truncation |
-| detectors.test.ts | 191 | All detectors with real bytecode fixtures |
+| detectors.test.ts | 212 | All detectors with real bytecode fixtures |
 | malicious-db.test.ts | 8 | Known address lookups |
-| integration.test.ts | 107 | Full pipeline, warnings, risk scoring, drainer patterns, combination threats, deployer interactions |
+| integration.test.ts | 115 | Full pipeline, warnings, risk scoring, drainer patterns, combination threats, deployer interactions |
 | deployer-risk.test.ts | 22 | Risk matrix scoring |
 
 ## Important Patterns
@@ -116,3 +119,8 @@ yarn workspace @testudo/core run test     # vitest, 346 tests
 - **BALANCE vs SELFBALANCE**: BALANCE (0x31) checks another address's balance; SELFBALANCE (0x47) checks the contract's own. `detectBalanceDrain` looks for BALANCE → comparison → CALL/SELFDESTRUCT (drain indicator). `detectAutoForwarder` looks for SELFBALANCE → CALL (auto-forward).
 - **EXTCODECOPY escalation**: EXTCODECOPY alone is INFO (legitimate in factories). EXTCODECOPY + CREATE2 (without SELFDESTRUCT) is MEDIUM — code injection deployment pattern. EXTCODECOPY + CREATE2 + SELFDESTRUCT remains METAMORPHIC (CRITICAL).
 - **Permit2 warning completeness**: Every `contextualRisk === 'CRITICAL'` path in `generateWarnings` must have a corresponding warning emission. The Permit2 branch (`type === 'permit'`) was previously missing.
+- **Reentrancy: STATICCALL excluded**: STATICCALL is read-only by EVM spec — cannot cause reentrancy. Only CALL, DELEGATECALL, CALLCODE are checked for SSTORE-after-call pattern. Prevents false positives on ecrecover (STATICCALL to precompile) + nonce (SSTORE) patterns in smart wallets.
+- **Set-based lookups**: All selector and comparison matching uses pre-computed `Set.has()` instead of `Array.includes()`. O(1) vs O(n) in hot paths (detectTokenSelectors, detectComparisonBranching, hasPush4Selector, detectErc4337Pattern).
+- **EXTCODEHASH + EIP-7702**: EXTCODEHASH returns different values for delegated vs non-delegated EOAs. Contracts checking code hash may have unexpected behavior with EIP-7702 delegations.
+- **ReentrancyGuard false positive (known)**: OpenZeppelin `nonReentrant` modifier produces SSTORE (mutex unlock) after external CALL. This triggers `detectReentrancyRisk`. Accepted for EIP-7702 context — delegation targets with CALL+SSTORE but no auth patterns are genuinely suspicious. Monitor user FP reports to calibrate.
+- **ReadonlySet immutability**: All pre-computed Sets use `ReadonlySet<string>` type annotation to prevent accidental `.add()`/`.delete()` at compile time.

@@ -315,6 +315,48 @@ export const PERMIT2_CONTRACTS = {
 	permit2WithAuth: '0x6330f28b7a6001fa3360001014600054600100015500',
 };
 
+export const REENTRANCY_CONTRACTS = {
+	// CALL (0xF1) followed by SSTORE (0x55) — state change after external call
+	callThenSstore: '0xf160015500',
+	// STATICCALL (0xFA) followed by SSTORE — read-only, NOT reentrancy
+	staticcallThenSstore: '0xfa60015500',
+	// DELEGATECALL (0xF4) followed by SSTORE
+	delegatecallThenSstore: '0xf460015500',
+	// CALLCODE (0xF2) followed by SSTORE
+	callcodeThenSstore: '0xf260015500',
+	// SSTORE before CALL — correct pattern (checks-effects-interactions)
+	sstoreBeforeCall: '0x60015500f1',
+	// CALL only, no SSTORE after
+	callOnly: '0xf100',
+	// SSTORE only, no CALL before
+	sstoreOnly: '0x60015500',
+	// CALL with SSTORE at exactly 14 instructions (inside LOOK_AHEAD.address=15 window)
+	atBoundaryInside: `0xf1${'6001'.repeat(13)}5500`,
+	// CALL with SSTORE at exactly 15 instructions (boundary of LOOK_AHEAD.address window)
+	atBoundaryEdge: `0xf1${'6001'.repeat(14)}5500`,
+	// CALL with SSTORE far beyond proximity window (16+ instructions apart)
+	beyondProximity: `0xf1${'6001'.repeat(16)}5500`,
+};
+
+export const GAS_MANIPULATION_CONTRACTS = {
+	// GAS (0x5A) + comparison + JUMPI
+	withComparisonAndBranch: '0x5a60011460105700',
+	// GAS + GT + JUMPI
+	withGtAndBranch: '0x5a6001116010570054',
+	// GAS alone
+	gasOnly: '0x5a00',
+	// GAS without comparison
+	gasNoComparison: '0x5a600157',
+	// GAS in PUSH data
+	inPushData: '0x605a00',
+};
+
+export const EXTCODEHASH_CONTRACTS = {
+	minimal: '0x3f',
+	withComparison: '0x3f14',
+	inPushData: '0x603f00',
+};
+
 export const DRAINER_PATTERNS = {
 	infernoStyle: '0x63a22cb46573deadbeefdeadbeefdeadbeefdeadbeefdeadbeeef1',
 	crimeEnjoyerWithToken: '0x3663a9059cbb60006000f1',

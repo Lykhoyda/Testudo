@@ -116,6 +116,26 @@ export const MULTICALL_SELECTORS = {
 	aggregate3: '82ad56cb',
 } as const;
 
+export const ERC4337_SELECTORS = {
+	handleOps: '1fad948c',
+	handleAggregatedOps: '4b1d7cf5',
+	getUserOpHash: 'a6193531',
+	validateUserOp: '3a871cdd',
+} as const;
+
+export const ERC4337_ENTRYPOINTS = [
+	'5ff137d4b0fdcd49dca30c7cf57e578a026d2789',
+	'0000000071727de22e5e9d8baf0edac6f37da032',
+] as const;
+
+export const DIAMOND_SELECTORS = {
+	diamondCut: '1f931c1c',
+	facets: '7a0ed627',
+	facetAddress: 'cdffacc6',
+	facetFunctionSelectors: 'adfca15e',
+	facetAddresses: '52ef6b2c',
+} as const;
+
 export const EIP1967_SLOTS = {
 	implementation: '360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc',
 	admin: 'b53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103',

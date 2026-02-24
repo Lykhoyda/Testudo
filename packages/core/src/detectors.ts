@@ -19,6 +19,17 @@ import type {
 	TokenTransferAnalysis,
 } from './types';
 
+// Pre-computed Sets for O(1) lookups in hot paths (ReadonlySet prevents accidental mutation)
+const COMPARISON_SET: ReadonlySet<string> = new Set(COMPARISON_OPCODES);
+const TOKEN_SELECTOR_SET: ReadonlySet<string> = new Set(Object.values(TOKEN_SELECTORS));
+const APPROVAL_SELECTOR_SET: ReadonlySet<string> = new Set(APPROVAL_SELECTORS);
+const PERMIT2_SELECTOR_SET: ReadonlySet<string> = new Set(PERMIT2_SELECTORS);
+const BATCH_SELECTOR_SET: ReadonlySet<string> = new Set(BATCH_SELECTORS);
+const MULTICALL_SELECTOR_SET: ReadonlySet<string> = new Set(Object.values(MULTICALL_SELECTORS));
+const DIAMOND_SELECTOR_SET: ReadonlySet<string> = new Set(Object.values(DIAMOND_SELECTORS));
+const ERC4337_SELECTOR_SET: ReadonlySet<string> = new Set(Object.values(ERC4337_SELECTORS));
+const ERC4337_ENTRYPOINT_SET: ReadonlySet<string> = new Set(ERC4337_ENTRYPOINTS);
+
 /** Window sizes for opcode pattern look-ahead/look-back searches (instruction count). */
 export const LOOK_AHEAD = {
 	/** Trigger opcode → comparison opcodes → JUMPI branching (CHAINID, TIMESTAMP, COINBASE) */
@@ -37,11 +48,11 @@ function pushDataToHex(data: Uint8Array): string {
 		.join('');
 }
 
-function hasPush4Selector(instructions: Instruction[], selectors: readonly string[]): boolean {
+function hasPush4Selector(instructions: Instruction[], selectors: ReadonlySet<string>): boolean {
 	for (const instruction of instructions) {
 		if (instruction.opcode === 'PUSH4' && instruction.data) {
 			const hex = pushDataToHex(instruction.data);
-			if (selectors.includes(hex)) {
+			if (selectors.has(hex)) {
 				return true;
 			}
 		}
@@ -57,7 +68,7 @@ function detectComparisonBranching(instructions: Instruction[], triggerOpcode: s
 			let hasBranching = false;
 			for (let j = i + 1; j < lookAheadLimit; j++) {
 				const op = instructions[j].opcode;
-				if (COMPARISON_OPCODES.includes(op as (typeof COMPARISON_OPCODES)[number])) {
+				if (COMPARISON_SET.has(op)) {
 					hasComparison = true;
 				}
 				if (op === 'JUMPI') {
@@ -142,7 +153,7 @@ export function detectChainId(instructions: Instruction[]): ChainIdDetectionResu
 					hasBranching = true;
 				}
 
-				if (COMPARISON_OPCODES.includes(nextOpcode as (typeof COMPARISON_OPCODES)[number])) {
+				if (COMPARISON_SET.has(nextOpcode)) {
 					hasComparison = true;
 				}
 
@@ -186,22 +197,19 @@ const SELECTOR_NAME_MAP: Record<
 
 export function detectTokenSelectors(instructions: Instruction[]): TokenSelector[] {
 	const detectedSelectors: TokenSelector[] = [];
-	const allSelectors = Object.values(TOKEN_SELECTORS);
 
 	for (const instruction of instructions) {
 		if (instruction.opcode === 'PUSH4' && instruction.data) {
 			const selectorHex = pushDataToHex(instruction.data);
 
-			if (allSelectors.includes(selectorHex as (typeof allSelectors)[number])) {
+			if (TOKEN_SELECTOR_SET.has(selectorHex)) {
 				const info = SELECTOR_NAME_MAP[selectorHex];
 				let type: 'transfer' | 'approval' | 'batch' | 'permit' = 'transfer';
-				if (PERMIT2_SELECTORS.includes(selectorHex as (typeof PERMIT2_SELECTORS)[number])) {
+				if (PERMIT2_SELECTOR_SET.has(selectorHex)) {
 					type = 'permit';
-				} else if (
-					APPROVAL_SELECTORS.includes(selectorHex as (typeof APPROVAL_SELECTORS)[number])
-				) {
+				} else if (APPROVAL_SELECTOR_SET.has(selectorHex)) {
 					type = 'approval';
-				} else if (BATCH_SELECTORS.includes(selectorHex as (typeof BATCH_SELECTORS)[number])) {
+				} else if (BATCH_SELECTOR_SET.has(selectorHex)) {
 					type = 'batch';
 				}
 
@@ -456,7 +464,7 @@ export function detectTimestampDependence(instructions: Instruction[]): boolean 
 }
 
 export function detectMulticall(instructions: Instruction[]): boolean {
-	return hasPush4Selector(instructions, Object.values(MULTICALL_SELECTORS));
+	return hasPush4Selector(instructions, MULTICALL_SELECTOR_SET);
 }
 
 export function detectExtcodesizeGuard(instructions: Instruction[]): boolean {
@@ -479,18 +487,14 @@ export function detectErc4337Pattern(instructions: Instruction[]): boolean {
 	for (const instruction of instructions) {
 		if (instruction.opcode === 'PUSH4' && instruction.data) {
 			const hex = pushDataToHex(instruction.data);
-			if (
-				Object.values(ERC4337_SELECTORS).includes(
-					hex as (typeof ERC4337_SELECTORS)[keyof typeof ERC4337_SELECTORS],
-				)
-			) {
+			if (ERC4337_SELECTOR_SET.has(hex)) {
 				return true;
 			}
 		}
 
 		if (instruction.opcode === 'PUSH20' && instruction.data) {
 			const addressHex = pushDataToHex(instruction.data);
-			if (ERC4337_ENTRYPOINTS.includes(addressHex as (typeof ERC4337_ENTRYPOINTS)[number])) {
+			if (ERC4337_ENTRYPOINT_SET.has(addressHex)) {
 				return true;
 			}
 		}
@@ -506,7 +510,7 @@ export function detectBalanceDrain(instructions: Instruction[]): boolean {
 			let hasComparison = false;
 			for (let j = i + 1; j < lookAheadLimit; j++) {
 				const op = instructions[j].opcode;
-				if (COMPARISON_OPCODES.includes(op as (typeof COMPARISON_OPCODES)[number])) {
+				if (COMPARISON_SET.has(op)) {
 					hasComparison = true;
 				}
 				if (hasComparison && (op === 'CALL' || op === 'SELFDESTRUCT')) {
@@ -526,6 +530,32 @@ export function detectCoinbaseDependence(instructions: Instruction[]): boolean {
 	return detectComparisonBranching(instructions, 'COINBASE');
 }
 
+// STATICCALL excluded: read-only by EVM spec, cannot cause reentrancy
+const MUTABLE_CALL_SET: ReadonlySet<string> = new Set(['CALL', 'DELEGATECALL', 'CALLCODE']);
+
+export function detectReentrancyRisk(instructions: Instruction[]): boolean {
+	for (let i = 0; i < instructions.length; i++) {
+		const op = instructions[i].opcode;
+		if (MUTABLE_CALL_SET.has(op)) {
+			const lookAheadLimit = Math.min(i + LOOK_AHEAD.address, instructions.length);
+			for (let j = i + 1; j < lookAheadLimit; j++) {
+				if (instructions[j].opcode === 'SSTORE') {
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+export function detectGasManipulation(instructions: Instruction[]): boolean {
+	return detectComparisonBranching(instructions, 'GAS');
+}
+
+export function detectExtcodehash(instructions: Instruction[]): boolean {
+	return hasOpcode(instructions, 'EXTCODEHASH');
+}
+
 export function detectMinimalProxy(bytecode?: string): boolean {
 	if (!bytecode) return false;
 	const clean = (bytecode.startsWith('0x') ? bytecode.slice(2) : bytecode).toLowerCase();
@@ -535,7 +565,7 @@ export function detectMinimalProxy(bytecode?: string): boolean {
 }
 
 export function detectDiamondProxy(instructions: Instruction[]): boolean {
-	return hasPush4Selector(instructions, Object.values(DIAMOND_SELECTORS));
+	return hasPush4Selector(instructions, DIAMOND_SELECTOR_SET);
 }
 
 export function detectEip7702Delegation(bytecode: string): boolean {
@@ -569,6 +599,9 @@ export function runAllDetectors(instructions: Instruction[], bytecode?: string):
 		hasCoinbaseDependence: detectCoinbaseDependence(instructions),
 		hasExtcodecopy: detectExtcodecopy(instructions),
 		hasBalanceDrain: detectBalanceDrain(instructions),
+		hasReentrancyRisk: detectReentrancyRisk(instructions),
+		hasGasManipulation: detectGasManipulation(instructions),
+		hasExtcodehash: detectExtcodehash(instructions),
 		hasMinimalProxy: detectMinimalProxy(bytecode),
 		hasDiamondProxy: detectDiamondProxy(instructions),
 	};

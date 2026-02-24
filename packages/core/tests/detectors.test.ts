@@ -14,14 +14,17 @@ import {
 	detectEip7702Delegation,
 	detectErc4337Pattern,
 	detectExtcodecopy,
+	detectExtcodehash,
 	detectExtcodesizeGuard,
 	detectFallbackLocation,
+	detectGasManipulation,
 	detectHardcodedDestination,
 	detectMinimalProxy,
 	detectMsgSenderCheck,
 	detectMulticall,
 	detectNonceTracking,
 	detectProxyPattern,
+	detectReentrancyRisk,
 	detectSelfDestruct,
 	detectTimestampDependence,
 	detectTokenSelectors,
@@ -45,15 +48,18 @@ import {
 	EIP7702_CONTRACTS,
 	ERC4337_CONTRACTS,
 	EXTCODECOPY_CONTRACTS,
+	EXTCODEHASH_CONTRACTS,
 	EXTCODESIZE_CONTRACTS,
 	FALLBACK_CONTRACTS,
 	FALSE_POSITIVE_CONTRACTS,
+	GAS_MANIPULATION_CONTRACTS,
 	HARDCODED_DESTINATION_CONTRACTS,
 	MINIMAL_PROXY_CONTRACTS,
 	MULTI_THREAT_CONTRACTS,
 	MULTICALL_CONTRACTS,
 	NONCE_TRACKING_CONTRACTS,
 	PROXY_CONTRACTS,
+	REENTRANCY_CONTRACTS,
 	SAFE_CONTRACTS,
 	SELFDESTRUCT_CONTRACTS,
 	TIMESTAMP_CONTRACTS,
@@ -1344,5 +1350,119 @@ describe('detectDiamondProxy', () => {
 	it('ignores selector inside PUSH32 data', () => {
 		const instructions = parseBytecode(DIAMOND_PROXY_CONTRACTS.selectorInPush32);
 		expect(detectDiamondProxy(instructions)).toBe(false);
+	});
+});
+
+describe('detectReentrancyRisk', () => {
+	it('detects CALL followed by SSTORE', () => {
+		const instructions = parseBytecode(REENTRANCY_CONTRACTS.callThenSstore);
+		expect(detectReentrancyRisk(instructions)).toBe(true);
+	});
+
+	it('returns false for STATICCALL followed by SSTORE (read-only)', () => {
+		const instructions = parseBytecode(REENTRANCY_CONTRACTS.staticcallThenSstore);
+		expect(detectReentrancyRisk(instructions)).toBe(false);
+	});
+
+	it('detects DELEGATECALL followed by SSTORE', () => {
+		const instructions = parseBytecode(REENTRANCY_CONTRACTS.delegatecallThenSstore);
+		expect(detectReentrancyRisk(instructions)).toBe(true);
+	});
+
+	it('detects CALLCODE followed by SSTORE', () => {
+		const instructions = parseBytecode(REENTRANCY_CONTRACTS.callcodeThenSstore);
+		expect(detectReentrancyRisk(instructions)).toBe(true);
+	});
+
+	it('returns false when SSTORE is before CALL (correct pattern)', () => {
+		const instructions = parseBytecode(REENTRANCY_CONTRACTS.sstoreBeforeCall);
+		expect(detectReentrancyRisk(instructions)).toBe(false);
+	});
+
+	it('returns false for CALL without SSTORE after', () => {
+		const instructions = parseBytecode(REENTRANCY_CONTRACTS.callOnly);
+		expect(detectReentrancyRisk(instructions)).toBe(false);
+	});
+
+	it('returns false for SSTORE without CALL before', () => {
+		const instructions = parseBytecode(REENTRANCY_CONTRACTS.sstoreOnly);
+		expect(detectReentrancyRisk(instructions)).toBe(false);
+	});
+
+	it('detects SSTORE at 14 instructions after CALL (inside window)', () => {
+		const instructions = parseBytecode(REENTRANCY_CONTRACTS.atBoundaryInside);
+		expect(detectReentrancyRisk(instructions)).toBe(true);
+	});
+
+	it('returns false when SSTORE is at boundary edge (15 instructions)', () => {
+		const instructions = parseBytecode(REENTRANCY_CONTRACTS.atBoundaryEdge);
+		expect(detectReentrancyRisk(instructions)).toBe(false);
+	});
+
+	it('returns false when SSTORE is beyond proximity window', () => {
+		const instructions = parseBytecode(REENTRANCY_CONTRACTS.beyondProximity);
+		expect(detectReentrancyRisk(instructions)).toBe(false);
+	});
+
+	it('sets hasReentrancyRisk in runAllDetectors', () => {
+		const instructions = parseBytecode(REENTRANCY_CONTRACTS.callThenSstore);
+		const results = runAllDetectors(instructions);
+		expect(results.hasReentrancyRisk).toBe(true);
+	});
+});
+
+describe('detectGasManipulation', () => {
+	it('detects GAS with comparison and branch', () => {
+		const instructions = parseBytecode(GAS_MANIPULATION_CONTRACTS.withComparisonAndBranch);
+		expect(detectGasManipulation(instructions)).toBe(true);
+	});
+
+	it('detects GAS with GT and branch', () => {
+		const instructions = parseBytecode(GAS_MANIPULATION_CONTRACTS.withGtAndBranch);
+		expect(detectGasManipulation(instructions)).toBe(true);
+	});
+
+	it('returns false for GAS alone', () => {
+		const instructions = parseBytecode(GAS_MANIPULATION_CONTRACTS.gasOnly);
+		expect(detectGasManipulation(instructions)).toBe(false);
+	});
+
+	it('returns false for GAS without comparison', () => {
+		const instructions = parseBytecode(GAS_MANIPULATION_CONTRACTS.gasNoComparison);
+		expect(detectGasManipulation(instructions)).toBe(false);
+	});
+
+	it('ignores GAS in PUSH data', () => {
+		const instructions = parseBytecode(GAS_MANIPULATION_CONTRACTS.inPushData);
+		expect(detectGasManipulation(instructions)).toBe(false);
+	});
+
+	it('sets hasGasManipulation in runAllDetectors', () => {
+		const instructions = parseBytecode(GAS_MANIPULATION_CONTRACTS.withComparisonAndBranch);
+		const results = runAllDetectors(instructions);
+		expect(results.hasGasManipulation).toBe(true);
+	});
+});
+
+describe('detectExtcodehash', () => {
+	it('detects EXTCODEHASH opcode', () => {
+		const instructions = parseBytecode(EXTCODEHASH_CONTRACTS.minimal);
+		expect(detectExtcodehash(instructions)).toBe(true);
+	});
+
+	it('detects EXTCODEHASH with comparison', () => {
+		const instructions = parseBytecode(EXTCODEHASH_CONTRACTS.withComparison);
+		expect(detectExtcodehash(instructions)).toBe(true);
+	});
+
+	it('ignores EXTCODEHASH in PUSH data', () => {
+		const instructions = parseBytecode(EXTCODEHASH_CONTRACTS.inPushData);
+		expect(detectExtcodehash(instructions)).toBe(false);
+	});
+
+	it('sets hasExtcodehash in runAllDetectors', () => {
+		const instructions = parseBytecode(EXTCODEHASH_CONTRACTS.minimal);
+		const results = runAllDetectors(instructions);
+		expect(results.hasExtcodehash).toBe(true);
 	});
 });
