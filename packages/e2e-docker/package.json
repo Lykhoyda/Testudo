@@ -1,0 +1,16 @@
+{
+	"name": "@testudo/e2e-docker",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"test": "playwright test",
+		"test:headed": "playwright test --headed",
+		"cache": "synpress ./wallet-setup"
+	},
+	"devDependencies": {
+		"@playwright/test": "~1.48.0",
+		"@synthetixio/synpress": "^4.0.10",
+		"serve": "^14.2.4"
+	}
+}

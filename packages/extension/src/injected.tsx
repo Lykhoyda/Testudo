@@ -38,6 +38,8 @@ import type {
 	WarningOptions,
 } from './utils/types';
 
+(window as unknown as { __TESTUDO_LOADED__: boolean }).__TESTUDO_LOADED__ = true;
+
 // ============================================================================
 // PREACT MOUNT
 // ============================================================================

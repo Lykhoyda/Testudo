@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Testudo Synpress Test dApp</title>
+	<style>
+		body { font-family: monospace; padding: 2rem; background: #1a1a2e; color: #e0e0e0; }
+		h1 { color: #00d4aa; }
+		button { margin: 0.5rem; padding: 0.5rem 1rem; cursor: pointer; background: #00d4aa; border: none; color: #1a1a2e; font-weight: bold; border-radius: 4px; }
+		button:hover { background: #00b894; }
+		.status { margin-top: 1rem; padding: 1rem; border: 1px solid #333; border-radius: 4px; min-height: 2rem; }
+		.label { color: #888; }
+	</style>
+</head>
+<body>
+	<h1>Synpress Test dApp</h1>
+
+	<p><span class="label">Testudo loaded:</span> <span id="testudo-status">checking...</span></p>
+	<p><span class="label">Provider:</span> <span id="provider-status">not detected</span></p>
+
+	<button id="connect-button">Connect MetaMask</button>
+
+	<p><span class="label">Connected address:</span> <span id="connected-address"></span></p>
+
+	<div class="status" id="status"></div>
+
+	<script>
+		function checkTestudo() {
+			const el = document.getElementById('testudo-status');
+			el.textContent = window.__TESTUDO_LOADED__ ? 'YES' : 'NO';
+			if (window.__TESTUDO_LOADED__) el.style.color = '#00d4aa';
+		}
+
+		function checkProvider() {
+			const el = document.getElementById('provider-status');
+			if (window.ethereum) {
+				el.textContent = window.ethereum.isMetaMask ? 'MetaMask detected' : 'Provider detected';
+				el.style.color = '#00d4aa';
+			}
+		}
+
+		const poll = setInterval(() => {
+			checkTestudo();
+			checkProvider();
+			if (window.__TESTUDO_LOADED__ && window.ethereum) clearInterval(poll);
+		}, 200);
+
+		document.getElementById('connect-button').addEventListener('click', async () => {
+			const statusEl = document.getElementById('status');
+			try {
+				if (!window.ethereum) {
+					statusEl.textContent = 'Error: No wallet provider found';
+					return;
+				}
+				const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+				document.getElementById('connected-address').textContent = accounts[0] || '';
+				statusEl.textContent = 'Connected';
+			} catch (err) {
+				statusEl.textContent = 'Error: ' + err.message;
+			}
+		});
+	</script>
+</body>
+</html>

@@ -11,6 +11,8 @@
 		"test:e2e": "yarn workspace @testudo/e2e run test",
 		"test:e2e:headed": "yarn workspace @testudo/e2e run test:headed",
 		"test:e2e:ui": "yarn workspace @testudo/e2e run test:ui",
+		"test:e2e-docker": "yarn workspace @testudo/e2e-docker run test",
+		"cache:synpress": "yarn workspace @testudo/e2e-docker run cache",
 		"dev": "yarn workspace @testudo/extension run watch",
 		"dev:dapp": "yarn workspace @testudo/mock-dapp run dev",
 		"build:dapp": "yarn workspace @testudo/mock-dapp run build",

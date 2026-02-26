@@ -29,3 +29,6 @@ CLAUDE.md
 test-results/
 playwright-report/
 playwright/.cache/
+
+# Synpress wallet cache
+.cache-synpress/
