@@ -6,6 +6,8 @@
 	"scripts": {
 		"test": "playwright test",
 		"test:headed": "playwright test --headed",
+		"test:patterns": "playwright test tests/attack-patterns.spec.ts tests/safe-delegation.spec.ts",
+		"deploy:contracts": "bash scripts/deploy-test-contracts.sh",
 		"cache": "synpress ./wallet-setup"
 	},
 	"devDependencies": {

@@ -118,7 +118,9 @@ async function resolveTokenViaRpc(address: string): Promise<TokenResult> {
 	const fallback: TokenResult = { name: null, symbol: null, decimals: null };
 	try {
 		const tokenAddress = address.toLowerCase() as Address;
-		const client = getOrCreateClient(DEFAULT_RPC);
+		const settings = await getSettings();
+		const rpcUrl = settings.rpcUrl || DEFAULT_RPC;
+		const client = getOrCreateClient(rpcUrl);
 
 		const results = await client.multicall({
 			contracts: [
@@ -383,7 +385,9 @@ async function performThreeLayerAnalysis(
 	// ========================================================================
 	const apiUrl = await getApiUrl();
 
-	const client = getOrCreateClient(DEFAULT_RPC);
+	const settings = await getSettings();
+	const rpcUrl = settings.rpcUrl || DEFAULT_RPC;
+	const client = getOrCreateClient(rpcUrl);
 
 	async function fetchDeployerStaticCached(addr: string): Promise<DeployerStaticInfo | null> {
 		const cached = deployerCache.get(addr);
@@ -397,7 +401,7 @@ async function performThreeLayerAnalysis(
 		// Layer 1: API Lookup (includes GoPlus fallback server-side)
 		checkAddressThreat(normalizedAddress, { baseUrl: apiUrl }),
 		// Layer 2: Local Bytecode Analysis
-		analyzeContract(normalizedAddress as `0x${string}`),
+		analyzeContract(normalizedAddress as `0x${string}`, { rpcUrl }),
 		// Layer 3: Deployer Reputation (Blockscout + RPC, fail-open)
 		fetchDeployerStaticCached(normalizedAddress),
 	]);

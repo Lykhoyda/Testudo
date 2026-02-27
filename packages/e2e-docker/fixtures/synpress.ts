@@ -116,6 +116,7 @@ export const test = base.extend<{
 					{
 						settings: {
 							apiUrl: 'http://localhost:3001',
+							rpcUrl: 'http://localhost:8545',
 							showMediumRiskToast: true,
 							autoRecordScans: true,
 						},

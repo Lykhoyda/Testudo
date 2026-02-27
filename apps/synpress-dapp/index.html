@@ -7,10 +7,17 @@
 	<style>
 		body { font-family: monospace; padding: 2rem; background: #1a1a2e; color: #e0e0e0; }
 		h1 { color: #00d4aa; }
+		h2 { color: #888; margin-top: 2rem; }
 		button { margin: 0.5rem; padding: 0.5rem 1rem; cursor: pointer; background: #00d4aa; border: none; color: #1a1a2e; font-weight: bold; border-radius: 4px; }
 		button:hover { background: #00b894; }
+		button.danger { background: #e74c3c; color: white; }
+		button.danger:hover { background: #c0392b; }
+		button.safe { background: #2ecc71; }
+		button.safe:hover { background: #27ae60; }
 		.status { margin-top: 1rem; padding: 1rem; border: 1px solid #333; border-radius: 4px; min-height: 2rem; }
 		.label { color: #888; }
+		.addr { font-size: 0.75rem; color: #666; }
+		.delegation-buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
 	</style>
 </head>
 <body>
@@ -23,43 +30,122 @@
 
 	<p><span class="label">Connected address:</span> <span id="connected-address"></span></p>
 
+	<h2>EIP-7702 Delegation Tests</h2>
+	<p class="addr">Real mainnet contracts deployed to local Anvil via anvil_setCode</p>
+	<div class="delegation-buttons">
+		<button class="danger" id="delegate-crime-enjoyer">Delegate: CrimeEnjoyer (real)</button>
+		<button class="danger" id="delegate-inferno-drainer">Delegate: Inferno Drainer (real)</button>
+		<button class="danger" id="delegate-metamorphic">Delegate: Metamorphic (synthetic)</button>
+		<button class="safe" id="delegate-safe">Delegate: Safe Wallet (synthetic)</button>
+	</div>
+
 	<div class="status" id="status"></div>
 
 	<script>
+		var TEST_CONTRACTS = {
+			'crime-enjoyer': '0x930fcc37d6042c79211ee18a02857cb1fd7f0d0b',
+			'inferno-drainer': '0x00008c22f9f6f3101533f520e229bbb54be90000',
+			'metamorphic': '0xCCCC000000000000000000000000000000000004',
+			'safe-wallet': '0xCCCC000000000000000000000000000000000005'
+		};
+
+		function createAuthorizationTypedData(delegateAddress) {
+			return {
+				types: {
+					EIP712Domain: [
+						{ name: 'name', type: 'string' },
+						{ name: 'version', type: 'string' },
+						{ name: 'chainId', type: 'uint256' }
+					],
+					Authorization: [
+						{ name: 'chainId', type: 'uint256' },
+						{ name: 'address', type: 'address' },
+						{ name: 'nonce', type: 'uint256' }
+					]
+				},
+				primaryType: 'Authorization',
+				domain: {
+					name: 'EIP-7702 Authorization',
+					version: '1',
+					chainId: 1
+				},
+				message: {
+					chainId: '1',
+					address: delegateAddress,
+					nonce: '0'
+				}
+			};
+		}
+
+		async function signDelegation(contractKey) {
+			var statusEl = document.getElementById('status');
+			var address = TEST_CONTRACTS[contractKey];
+
+			if (!window.ethereum) {
+				statusEl.textContent = 'Error: No wallet provider found';
+				return;
+			}
+
+			statusEl.textContent = 'Requesting delegation to ' + address + '...';
+
+			try {
+				var accounts = await window.ethereum.request({ method: 'eth_accounts' });
+				var from = accounts[0];
+				if (!from) {
+					statusEl.textContent = 'Error: No connected account. Connect MetaMask first.';
+					return;
+				}
+
+				var typedData = createAuthorizationTypedData(address);
+				var result = await window.ethereum.request({
+					method: 'eth_signTypedData_v4',
+					params: [from, JSON.stringify(typedData)]
+				});
+				statusEl.textContent = 'Delegation signed: ' + result;
+			} catch (err) {
+				statusEl.textContent = 'Result: ' + (err.message || err);
+			}
+		}
+
 		function checkTestudo() {
-			const el = document.getElementById('testudo-status');
+			var el = document.getElementById('testudo-status');
 			el.textContent = window.__TESTUDO_LOADED__ ? 'YES' : 'NO';
 			if (window.__TESTUDO_LOADED__) el.style.color = '#00d4aa';
 		}
 
 		function checkProvider() {
-			const el = document.getElementById('provider-status');
+			var el = document.getElementById('provider-status');
 			if (window.ethereum) {
 				el.textContent = window.ethereum.isMetaMask ? 'MetaMask detected' : 'Provider detected';
 				el.style.color = '#00d4aa';
 			}
 		}
 
-		const poll = setInterval(() => {
+		var poll = setInterval(function() {
 			checkTestudo();
 			checkProvider();
 			if (window.__TESTUDO_LOADED__ && window.ethereum) clearInterval(poll);
 		}, 200);
 
-		document.getElementById('connect-button').addEventListener('click', async () => {
-			const statusEl = document.getElementById('status');
+		document.getElementById('connect-button').addEventListener('click', async function() {
+			var statusEl = document.getElementById('status');
 			try {
 				if (!window.ethereum) {
 					statusEl.textContent = 'Error: No wallet provider found';
 					return;
 				}
-				const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+				var accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
 				document.getElementById('connected-address').textContent = accounts[0] || '';
 				statusEl.textContent = 'Connected';
 			} catch (err) {
 				statusEl.textContent = 'Error: ' + err.message;
 			}
 		});
+
+		document.getElementById('delegate-crime-enjoyer').addEventListener('click', function() { signDelegation('crime-enjoyer'); });
+		document.getElementById('delegate-inferno-drainer').addEventListener('click', function() { signDelegation('inferno-drainer'); });
+		document.getElementById('delegate-metamorphic').addEventListener('click', function() { signDelegation('metamorphic'); });
+		document.getElementById('delegate-safe').addEventListener('click', function() { signDelegation('safe-wallet'); });
 	</script>
 </body>
 </html>

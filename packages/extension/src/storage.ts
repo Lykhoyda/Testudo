@@ -15,6 +15,7 @@ export interface WhitelistEntry {
 
 export interface Settings {
 	apiUrl: string | null;
+	rpcUrl: string | null;
 	showMediumRiskToast: boolean;
 	autoRecordScans: boolean;
 }
@@ -34,6 +35,7 @@ const MAX_HISTORY_SIZE = 100;
 
 const DEFAULT_SETTINGS: Settings = {
 	apiUrl: null,
+	rpcUrl: null,
 	showMediumRiskToast: true,
 	autoRecordScans: true,
 };
@@ -247,6 +249,24 @@ export async function updateSettings(updates: Partial<Settings>): Promise<boolea
 				new URL(updated.apiUrl);
 			} catch {
 				console.error('[Testudo Storage] Invalid API URL');
+				return false;
+			}
+		}
+
+		// Validate RPC URL if provided
+		if (updated.rpcUrl) {
+			try {
+				const parsed = new URL(updated.rpcUrl);
+				const isLocal =
+					parsed.hostname === 'localhost' ||
+					parsed.hostname === '127.0.0.1' ||
+					parsed.hostname === '[::1]';
+				if (!isLocal && parsed.protocol !== 'https:') {
+					console.error('[Testudo Storage] RPC URL must use HTTPS (except localhost)');
+					return false;
+				}
+			} catch {
+				console.error('[Testudo Storage] Invalid RPC URL');
 				return false;
 			}
 		}
