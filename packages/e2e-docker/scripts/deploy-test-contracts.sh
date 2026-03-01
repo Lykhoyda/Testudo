@@ -13,6 +13,7 @@ CONTRACTS=(
   "inferno-drainer:0x00008c22f9f6f3101533f520e229bbb54be90000"
   "metamorphic:0xCCCC000000000000000000000000000000000004"
   "safe-wallet:0xCCCC000000000000000000000000000000000005"
+  "mock-erc20:0xCCCC000000000000000000000000000000000006"
 )
 
 if ! cast rpc eth_chainId --rpc-url "$RPC_URL" > /dev/null 2>&1; then
@@ -52,5 +53,22 @@ for entry in "${CONTRACTS[@]}"; do
 
   echo "    Verified: $deployed_len chars deployed (matches source)"
 done
+
+# Set up mock ERC-20 token balance for fund safety tests.
+# Anvil account 0 gets 1000 tokens (18 decimals).
+MOCK_TOKEN="0xCCCC000000000000000000000000000000000006"
+ANVIL_ACCOUNT_0="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+
+BALANCE_SLOT=$(cast index address "$ANVIL_ACCOUNT_0" 0)
+BALANCE_VALUE="0x00000000000000000000000000000000000000000000003635c9adc5dea00000"
+
+echo "Setting mock ERC-20 balance for $ANVIL_ACCOUNT_0..."
+cast rpc anvil_setStorageAt "$MOCK_TOKEN" "$BALANCE_SLOT" "$BALANCE_VALUE" --rpc-url "$RPC_URL" > /dev/null
+
+VERIFY=$(cast call "$MOCK_TOKEN" "balanceOf(address)(uint256)" "$ANVIL_ACCOUNT_0" --rpc-url "$RPC_URL")
+echo "  Verified: balanceOf = $VERIFY"
+
+VERIFY_ALLOW=$(cast call "$MOCK_TOKEN" "allowance(address,address)(uint256)" "$ANVIL_ACCOUNT_0" "$ANVIL_ACCOUNT_0" --rpc-url "$RPC_URL")
+echo "  Verified: allowance = $VERIFY_ALLOW"
 
 echo "All test contracts deployed successfully."

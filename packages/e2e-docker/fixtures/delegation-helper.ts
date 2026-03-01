@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { expect } from '@playwright/test';
 
 /**
  * Test contracts deployed to Anvil via `anvil_setCode`.
@@ -65,4 +66,18 @@ export async function triggerDelegation(page: Page, contractKey: ContractKey): P
 			if (statusEl) statusEl.textContent = 'Result: ' + (e.message || e);
 		});
 	}, address);
+}
+
+export async function blockDelegation(page: Page, contractKey: ContractKey): Promise<void> {
+	await triggerDelegation(page, contractKey);
+
+	const modal = page.locator('#testudo-warning-overlay');
+	await expect(modal).toBeVisible({ timeout: 30_000 });
+	await expect(page.locator('#testudo-cancel')).toBeVisible({ timeout: 30_000 });
+	await page.click('#testudo-cancel');
+
+	await expect(modal).not.toBeVisible({ timeout: 10_000 });
+	await expect(page.locator('#status')).toContainText('Delegation blocked', {
+		timeout: 10_000,
+	});
 }
