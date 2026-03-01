@@ -381,6 +381,23 @@ async function performThreeLayerAnalysis(
 	}
 
 	// ========================================================================
+	// LAYER 0.5: Known Malicious DB (local, instant — matches performAddressOnlyCheck)
+	// ========================================================================
+	const knownMalicious = checkKnownMalicious(normalizedAddress);
+	if (knownMalicious) {
+		console.log('[Testudo Background] Known malicious address (local DB):', normalizedAddress);
+		const result: ExtendedAnalysisResult = {
+			risk: 'CRITICAL',
+			threats: [knownMalicious.type],
+			address: normalizedAddress as `0x${string}`,
+			blocked: true,
+			source: 'local-malicious-db',
+		};
+		analysisCache.set(normalizedAddress, { result, timestamp: Date.now() });
+		return result;
+	}
+
+	// ========================================================================
 	// LAYER 1 + LAYER 2: Run API and Local Analysis in parallel
 	// ========================================================================
 	const apiUrl = await getApiUrl();
