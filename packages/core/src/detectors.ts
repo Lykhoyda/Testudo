@@ -564,6 +564,15 @@ export function detectMinimalProxy(bytecode?: string): boolean {
 	return clean.startsWith(prefix) && clean.endsWith(suffix) && clean.length === 90;
 }
 
+export function extractMinimalProxyTarget(bytecode?: string): string | null {
+	if (!bytecode) return null;
+	const clean = (bytecode.startsWith('0x') ? bytecode.slice(2) : bytecode).toLowerCase();
+	const prefix = '363d3d373d3d3d363d73';
+	const suffix = '5af43d82803e903d91602b57fd5bf3';
+	if (!(clean.startsWith(prefix) && clean.endsWith(suffix) && clean.length === 90)) return null;
+	return `0x${clean.slice(prefix.length, prefix.length + 40)}`;
+}
+
 export function detectDiamondProxy(instructions: Instruction[]): boolean {
 	return hasPush4Selector(instructions, DIAMOND_SELECTOR_SET);
 }

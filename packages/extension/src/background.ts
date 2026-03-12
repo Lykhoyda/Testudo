@@ -541,12 +541,25 @@ function applyDecisionMatrix(
 
 	if (apiUnavailable) {
 		// API Timeout + Local Clean → ALLOW (degraded mode)
-		if (local.risk === 'LOW' || local.risk === 'UNKNOWN') {
+		if (local.risk === 'LOW') {
 			console.log('[Testudo Background] API unavailable, local clean:', address);
 			return {
 				...baseResult,
 				risk: 'LOW',
 				threats: [],
+				blocked: false,
+				source: 'local',
+				apiUnavailable: true,
+			};
+		}
+
+		// API Timeout + Local UNKNOWN → UNKNOWN (fail-to-warning per ADR-006)
+		if (local.risk === 'UNKNOWN') {
+			console.log('[Testudo Background] API unavailable, local unknown:', address);
+			return {
+				...baseResult,
+				risk: 'UNKNOWN',
+				threats: local.threats,
 				blocked: false,
 				source: 'local',
 				apiUnavailable: true,

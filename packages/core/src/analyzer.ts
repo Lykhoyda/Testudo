@@ -1,12 +1,16 @@
 import type { Address } from 'viem';
-import { runAllDetectors } from './detectors';
-import { fetchBytecode } from './fetcher';
+import { extractMinimalProxyTarget, runAllDetectors } from './detectors';
+import { fetchBytecode, resolveProxyImplementation } from './fetcher';
 import { isKnownSafe } from './malicious-db';
 import { parseBytecode } from './parser';
 import type { AnalysisResult, DetectionResults, Warning } from './types';
 
+const MAX_PROXY_DEPTH = 2;
+
 export interface AnalyzeOptions {
 	rpcUrl?: string;
+	/** @internal Used to prevent infinite proxy resolution loops */
+	_proxyDepth?: number;
 }
 
 export function generateWarnings(detectionResults: DetectionResults): Warning[] {
@@ -472,6 +476,8 @@ export async function analyzeContract(
 	// Note: Malicious address checks are now handled by the API layer (ANT-194)
 	// The core analyzer focuses on pure bytecode analysis
 
+	const currentDepth = options?._proxyDepth ?? 0;
+
 	try {
 		const bytecode = await fetchBytecode(normalizedAddress, options?.rpcUrl);
 
@@ -488,18 +494,43 @@ export async function analyzeContract(
 		const detectionResults = runAllDetectors(instructions, bytecode);
 		const warnings = generateWarnings(detectionResults);
 
-		const threats: string[] = warnings
+		// Resolve proxy implementation if detected and within depth limit
+		let implementationAddress: Address | undefined;
+		let implementationAnalysis: AnalysisResult | undefined;
+
+		if (currentDepth < MAX_PROXY_DEPTH) {
+			const implAddr = await resolveImplementation(
+				detectionResults,
+				bytecode,
+				normalizedAddress,
+				options?.rpcUrl,
+			);
+
+			if (implAddr) {
+				implementationAddress = implAddr.toLowerCase() as Address;
+				implementationAnalysis = await analyzeContract(implementationAddress, {
+					rpcUrl: options?.rpcUrl,
+					_proxyDepth: currentDepth + 1,
+				});
+			}
+		}
+
+		// Merge implementation warnings into proxy result
+		const allWarnings = mergeImplementationWarnings(warnings, implementationAnalysis);
+		const threats: string[] = allWarnings
 			.filter((w) => w.severity !== 'INFO')
 			.map((w) => w.type.toLowerCase());
 
-		const { risk, blocked } = deriveRiskFromWarnings(warnings);
+		const { risk, blocked } = deriveRiskFromWarnings(allWarnings);
 
 		return {
 			address: normalizedAddress,
 			risk,
 			threats,
-			warnings: warnings.length > 0 ? warnings : undefined,
+			warnings: allWarnings.length > 0 ? allWarnings : undefined,
 			blocked,
+			implementationAddress,
+			implementationAnalysis,
 		};
 	} catch (error) {
 		return {
@@ -510,4 +541,41 @@ export async function analyzeContract(
 			error: String(error),
 		};
 	}
+}
+
+async function resolveImplementation(
+	detectionResults: DetectionResults,
+	bytecode: string,
+	proxyAddress: Address,
+	rpcUrl?: string,
+): Promise<string | null> {
+	// EIP-1167 minimal proxy: address embedded in bytecode (no RPC needed)
+	if (detectionResults.hasMinimalProxy) {
+		return extractMinimalProxyTarget(bytecode);
+	}
+
+	// EIP-1967 proxy: resolve implementation from storage slot
+	if (detectionResults.proxy?.isProxy && detectionResults.proxy.hasImplementationSlot) {
+		return resolveProxyImplementation(proxyAddress, rpcUrl);
+	}
+
+	return null;
+}
+
+function mergeImplementationWarnings(
+	proxyWarnings: Warning[],
+	implAnalysis?: AnalysisResult,
+): Warning[] {
+	if (!implAnalysis?.warnings?.length) return proxyWarnings;
+
+	// Tag implementation warnings so users know where they came from
+	const implWarnings = implAnalysis.warnings
+		.filter((w) => w.severity !== 'INFO')
+		.map((w) => ({
+			...w,
+			title: `[Implementation] ${w.title}`,
+			technical: w.technical ? `${w.technical} (via proxy implementation)` : undefined,
+		}));
+
+	return [...proxyWarnings, ...implWarnings];
 }

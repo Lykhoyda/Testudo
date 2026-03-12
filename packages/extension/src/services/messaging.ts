@@ -7,7 +7,7 @@ function sendTestudoRequest<T>(
 	timeoutMs = 10000,
 ): Promise<T> {
 	return new Promise((resolve, reject) => {
-		const requestId = Math.random().toString(36).substring(7);
+		const requestId = crypto.randomUUID();
 
 		const handler = (event: MessageEvent) => {
 			if (event.data?.type === responseType && event.data?.requestId === requestId) {
@@ -93,13 +93,4 @@ export function requestTokenResolve(address: string): Promise<TokenResolveResult
 		{ address },
 		3000,
 	).catch(() => ({ name: null, symbol: null, decimals: null }));
-}
-
-export function requestSettings(): Promise<Record<string, unknown>> {
-	return sendTestudoRequest<Record<string, unknown>>(
-		'TESTUDO_GET_SETTINGS',
-		'TESTUDO_SETTINGS_RESULT',
-		{},
-		3000,
-	).catch(() => ({}));
 }

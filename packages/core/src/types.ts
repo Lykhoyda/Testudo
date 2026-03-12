@@ -126,6 +126,8 @@ export interface AnalysisResult {
 	source?: string;
 	error?: string;
 	deployerRisk?: DeployerRiskAssessment;
+	implementationAddress?: Address;
+	implementationAnalysis?: AnalysisResult;
 }
 
 export interface KnownMaliciousContract {

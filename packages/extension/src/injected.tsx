@@ -10,7 +10,6 @@ import * as warningVM from './hooks/warningVM';
 import { isBlindSignature, parseBlindSignature } from './parsers/blind-signature';
 import { detectPhishingPatterns } from './parsers/phishing';
 import {
-	formatApprovalAmount,
 	isApprovalTransaction,
 	isKnownMarketplace,
 	isNftApprovalTransaction,
@@ -25,12 +24,7 @@ import {
 	isEIP7702Authorization,
 	isPermitSignature,
 } from './parsers/typed-data';
-import {
-	batchCheckAddresses,
-	recordBlocked,
-	requestAddressCheck,
-	requestAnalysis,
-} from './services/messaging';
+import { batchCheckAddresses, requestAddressCheck, requestAnalysis } from './services/messaging';
 import type {
 	AnalysisResult,
 	TypedDataMessage,
@@ -548,10 +542,6 @@ Object.defineProperty(window, 'ethereum', {
 		}
 	},
 });
-
-// Suppress unused variable warnings for functions used via provider interception
-void recordBlocked;
-void formatApprovalAmount;
 
 declare global {
 	interface Window {

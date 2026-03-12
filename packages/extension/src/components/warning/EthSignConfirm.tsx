@@ -16,7 +16,7 @@ export function EthSignConfirm({
 	return (
 		<div class="testudo-confirm-section">
 			<label class="testudo-confirm-label" for="testudo-confirm-input">
-				Type <strong style="color:#e74c3c">I ACCEPT THE RISK</strong> to proceed
+				Type <strong class="testudo-text-danger">I ACCEPT THE RISK</strong> to proceed
 			</label>
 			<input
 				type="text"

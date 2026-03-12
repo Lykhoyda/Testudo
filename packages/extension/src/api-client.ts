@@ -132,38 +132,3 @@ export async function checkAddressThreat(
 		error: lastError,
 	};
 }
-
-// Batch check multiple addresses (for future use)
-export async function checkAddressesBatch(
-	addresses: string[],
-	options?: ApiClientOptions,
-): Promise<Map<string, ApiClientResult>> {
-	const results = new Map<string, ApiClientResult>();
-
-	// For now, check sequentially to respect rate limits
-	// Could be optimized with Promise.all if API supports batch endpoint
-	for (const address of addresses) {
-		const result = await checkAddressThreat(address, options);
-		results.set(address.toLowerCase(), result);
-
-		// If rate limited, stop further requests
-		if (result.rateLimited) {
-			console.warn('[API Client] Rate limited, stopping batch');
-			break;
-		}
-	}
-
-	return results;
-}
-
-// Get API health status
-export async function checkApiHealth(baseUrl?: string): Promise<boolean> {
-	const url = `${baseUrl || DEFAULT_API_URL}/health`;
-
-	try {
-		const response = await fetchWithTimeout(url, 2000);
-		return response.ok;
-	} catch {
-		return false;
-	}
-}

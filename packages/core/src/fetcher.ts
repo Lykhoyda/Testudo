@@ -1,5 +1,7 @@
+import type { Address } from 'viem';
 import { createPublicClient, http } from 'viem';
 import { mainnet } from 'viem/chains';
+import { EIP1967_SLOTS } from './opcode';
 
 const DEFAULT_RPC = 'https://eth.llamarpc.com';
 
@@ -31,4 +33,34 @@ export async function fetchBytecode(address: string, rpcUrl?: string): Promise<s
 	});
 
 	return bytecode === '0x' ? null : (bytecode as `0x${string}`);
+}
+
+export async function resolveProxyImplementation(
+	proxyAddress: Address,
+	rpcUrl?: string,
+): Promise<Address | null> {
+	const client = getClient(rpcUrl);
+
+	try {
+		const slotValue = await client.getStorageAt({
+			address: proxyAddress,
+			slot: `0x${EIP1967_SLOTS.implementation}`,
+		});
+
+		if (!slotValue || slotValue === `0x${'0'.repeat(64)}`) {
+			return null;
+		}
+
+		// Extract rightmost 20 bytes (address) from the 32-byte slot value
+		const implAddress = `0x${slotValue.slice(-40)}` as Address;
+
+		// Validate it's not the zero address
+		if (implAddress === '0x0000000000000000000000000000000000000000') {
+			return null;
+		}
+
+		return implAddress;
+	} catch {
+		return null;
+	}
 }

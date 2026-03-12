@@ -31,10 +31,11 @@ export {
 	detectTokenSelectors,
 	detectTxOrigin,
 	detectUnlimitedApproval,
+	extractMinimalProxyTarget,
 	LOOK_AHEAD,
 	runAllDetectors,
 } from './detectors';
-export { fetchBytecode } from './fetcher';
+export { fetchBytecode, resolveProxyImplementation } from './fetcher';
 export {
 	checkKnownMalicious,
 	isKnownSafe,
