@@ -39,32 +39,40 @@ import type {
 // ============================================================================
 
 let modalRoot: HTMLDivElement | null = null;
+let shadowRoot: ShadowRoot | null = null;
 
-function mountModalTree(root: HTMLDivElement): void {
+function mountModalTree(root: ShadowRoot): void {
+	const container = document.createElement('div');
+	root.appendChild(container);
 	render(
 		<>
 			<WarningModal />
 			<InfoToast />
 			<UnknownToast />
 		</>,
-		root,
+		container,
 	);
 }
 
 function ensureModalRoot(): void {
-	if (modalRoot?.isConnected) return;
+	if (modalRoot?.isConnected && shadowRoot) return;
 
-	injectWarningStyles();
+	const target = document.body || document.documentElement;
 
 	if (modalRoot && !modalRoot.isConnected) {
-		document.body.appendChild(modalRoot);
+		target.appendChild(modalRoot);
 		return;
 	}
 
 	modalRoot = document.createElement('div');
 	modalRoot.id = 'testudo-root';
-	document.body.appendChild(modalRoot);
-	mountModalTree(modalRoot);
+	modalRoot.style.cssText =
+		'display:block!important;position:static!important;visibility:visible!important;';
+	target.appendChild(modalRoot);
+
+	shadowRoot = modalRoot.attachShadow({ mode: 'open' });
+	injectWarningStyles(shadowRoot);
+	mountModalTree(shadowRoot);
 }
 
 // ============================================================================

@@ -1,4 +1,11 @@
 export const WARNING_STYLES = `
+:host {
+  all: initial;
+  display: block !important;
+  position: static !important;
+  visibility: visible !important;
+}
+
 @keyframes testudo-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -760,10 +767,10 @@ export const WARNING_STYLES = `
 }
 `;
 
-export function injectWarningStyles(): void {
-	if (document.getElementById('testudo-warning-styles')) return;
+export function injectWarningStyles(root: ShadowRoot | HTMLElement = document.head): void {
+	if (root.querySelector('#testudo-warning-styles')) return;
 	const style = document.createElement('style');
 	style.id = 'testudo-warning-styles';
 	style.textContent = WARNING_STYLES;
-	document.head.appendChild(style);
+	root.appendChild(style);
 }
