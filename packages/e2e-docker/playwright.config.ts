@@ -6,7 +6,7 @@ export default defineConfig({
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,
 	workers: 1,
-	timeout: 120_000,
+	timeout: process.env.CI ? 180_000 : 120_000,
 	reporter: 'html',
 	use: {
 		trace: 'on-first-retry',

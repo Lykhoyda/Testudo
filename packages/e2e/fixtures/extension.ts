@@ -31,7 +31,6 @@ export const test = base.extend<{
 		const setupPage = await context.newPage();
 		await setupPage.goto(`chrome-extension://${extensionId}/popup.html`);
 
-		// Set the API URL in storage using the popup page context
 		await setupPage.evaluate(() => {
 			return new Promise<void>((resolve) => {
 				chrome.storage.local.set(
@@ -42,30 +41,17 @@ export const test = base.extend<{
 							autoRecordScans: true,
 						},
 					},
-					() => {
-						console.log('[E2E Setup] Storage set with local API URL');
-						resolve();
-					},
+					() => resolve(),
 				);
 			});
 		});
 
-		// Verify the setting was saved
-		const settings = await setupPage.evaluate(() => {
-			return new Promise((resolve) => {
-				chrome.storage.local.get('settings', (result) => {
-					resolve(result.settings);
-				});
-			});
-		});
-		console.log('[E2E Setup] Verified settings:', settings);
-
-		// Wait for the service worker to be ready by polling for a response
 		let bgReady = false;
-		for (let i = 0; i < 10; i++) {
+		const maxAttempts = 8;
+		for (let i = 0; i < maxAttempts; i++) {
 			const response = await setupPage.evaluate(() => {
 				return new Promise((resolve) => {
-					const timeout = setTimeout(() => resolve(null), 1000);
+					const timeout = setTimeout(() => resolve(null), 2000);
 					chrome.runtime.sendMessage({ type: 'GET_STATS' }, (result) => {
 						clearTimeout(timeout);
 						resolve(result);
@@ -73,17 +59,16 @@ export const test = base.extend<{
 				});
 			});
 
-			if (response) {
-				console.log('[E2E Setup] Service worker is ready');
+			if (response !== null && response !== undefined) {
 				bgReady = true;
 				break;
 			}
-			console.log(`[E2E Setup] Waiting for service worker... (attempt ${i + 1})`);
-			await new Promise((resolve) => setTimeout(resolve, 500));
+			const delay = Math.min(500 * 2 ** i, 4000);
+			await new Promise((resolve) => setTimeout(resolve, delay));
 		}
 
 		if (!bgReady) {
-			console.error('[E2E Setup] WARNING: Service worker may not be ready!');
+			console.warn('[E2E Setup] Service worker may not be ready');
 		}
 
 		await setupPage.close();

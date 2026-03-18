@@ -24,11 +24,12 @@ export const TEST_CONTRACTS = {
 export type ContractKey = keyof typeof TEST_CONTRACTS;
 
 export async function waitForTestudo(page: Page): Promise<void> {
+	const timeout = process.env.CI ? 20_000 : 15_000;
 	await page.waitForFunction(
 		() =>
 			(window as unknown as { __TESTUDO_LOADED__: boolean }).__TESTUDO_LOADED__ === true,
 		null,
-		{ timeout: 15_000 },
+		{ timeout },
 	);
 }
 

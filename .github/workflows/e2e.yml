@@ -1,0 +1,174 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_docker_tests:
+        description: 'Run Docker E2E tests'
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gate:
+    name: Lint & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'yarn'
+
+      - run: yarn install --immutable
+
+      - name: Lint
+        run: yarn biome check .
+
+      - name: Build core
+        run: yarn workspace @testudo/core run build
+
+      - name: Core tests
+        run: yarn workspace @testudo/core run test
+
+      - name: Extension tests
+        run: yarn workspace @testudo/extension run test
+
+  e2e-basic:
+    name: E2E Basic
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'yarn'
+
+      - run: yarn install --immutable
+
+      - name: Build core
+        run: yarn workspace @testudo/core run build
+
+      - name: Build extension
+        run: yarn workspace @testudo/extension run build
+
+      - name: Build mock-dapp
+        run: yarn workspace @testudo/mock-dapp run build
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Start API
+        run: |
+          docker compose -f docker-compose.ci.yml up -d postgres testudo-api
+          timeout 60 bash -c 'until curl -sf http://localhost:3001/health; do sleep 2; done'
+
+      - name: Install Playwright browsers
+        run: yarn workspace @testudo/e2e exec playwright install chromium --with-deps
+
+      - name: Run E2E tests
+        run: xvfb-run --auto-servernum yarn test:e2e
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-basic-report
+          path: |
+            packages/e2e/playwright-report/
+            packages/e2e/test-results/
+          retention-days: 7
+
+      - name: Stop services
+        if: always()
+        run: docker compose -f docker-compose.ci.yml down
+
+  e2e-docker:
+    name: E2E Docker (Synpress + Anvil)
+    needs: quality-gate
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_docker_tests == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'yarn'
+
+      - run: yarn install --immutable
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build core
+        run: yarn workspace @testudo/core run build
+
+      - name: Build extension
+        run: yarn workspace @testudo/extension run build
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Start Docker services
+        run: |
+          docker compose -f docker-compose.ci.yml up -d
+          timeout 90 bash -c 'until curl -sf http://localhost:3001/health; do sleep 2; done'
+          timeout 30 bash -c 'until cast bn --rpc-url http://localhost:8545; do sleep 1; done'
+
+      - name: Deploy test contracts
+        run: yarn workspace @testudo/e2e-docker run deploy:contracts
+
+      - name: Restore Synpress cache
+        id: synpress-cache
+        uses: actions/cache@v4
+        with:
+          path: packages/e2e-docker/.cache-synpress
+          key: synpress-v1-${{ runner.os }}-${{ hashFiles('yarn.lock', 'packages/e2e-docker/wallet-setup/**') }}
+
+      - name: Generate Synpress cache
+        if: steps.synpress-cache.outputs.cache-hit != 'true'
+        run: xvfb-run --auto-servernum yarn cache:synpress
+
+      - name: Install Playwright browsers
+        run: yarn workspace @testudo/e2e-docker exec playwright install chromium --with-deps
+
+      - name: Run E2E Docker tests
+        run: xvfb-run --auto-servernum yarn test:e2e-docker
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-docker-report
+          path: |
+            packages/e2e-docker/playwright-report/
+            packages/e2e-docker/test-results/
+          retention-days: 7
+
+      - name: Collect Docker logs
+        if: failure()
+        continue-on-error: true
+        run: docker compose -f docker-compose.ci.yml logs --no-color > docker-logs.txt
+
+      - name: Upload Docker logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-logs
+          path: docker-logs.txt
+          retention-days: 7
+
+      - name: Stop services
+        if: always()
+        run: docker compose -f docker-compose.ci.yml down

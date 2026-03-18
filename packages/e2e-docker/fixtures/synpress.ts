@@ -31,6 +31,27 @@ function findMetaMaskPath(): string {
 	return path.join(CACHE_DIR, mmDir);
 }
 
+async function waitForExtensions(
+	ctx: BrowserContext,
+	expectedCount: number,
+	timeout: number,
+): Promise<void> {
+	const deadline = Date.now() + timeout;
+	while (Date.now() < deadline) {
+		const sws = ctx
+			.serviceWorkers()
+			.filter((sw) => sw.url().includes('chrome-extension://'));
+		if (sws.length >= expectedCount) return;
+		await new Promise((r) => setTimeout(r, 500));
+	}
+	const found = ctx
+		.serviceWorkers()
+		.filter((sw) => sw.url().includes('chrome-extension://'));
+	throw new Error(
+		`Expected ${expectedCount} extension service workers, found ${found.length} after ${timeout}ms`,
+	);
+}
+
 export const test = base.extend<{
 	context: BrowserContext;
 	metamaskPage: Page;
@@ -61,6 +82,8 @@ export const test = base.extend<{
 			],
 		});
 
+		await waitForExtensions(context, 2, 20_000);
+
 		try {
 			await use(context);
 		} finally {
@@ -77,6 +100,9 @@ export const test = base.extend<{
 				timeout: 30_000,
 			});
 		}
+
+		await mmPage.waitForLoadState('domcontentloaded');
+		await mmPage.locator('button:visible').first().waitFor({ timeout: 15_000 });
 
 		await unlockForFixture(mmPage, WALLET_PASSWORD);
 		await use(mmPage);
@@ -127,21 +153,23 @@ export const test = base.extend<{
 		});
 
 		let bgReady = false;
-		for (let i = 0; i < 10; i++) {
+		const maxAttempts = 8;
+		for (let i = 0; i < maxAttempts; i++) {
 			const response = await setupPage.evaluate(() => {
 				return new Promise((resolve) => {
-					const timeout = setTimeout(() => resolve(null), 1000);
+					const timeout = setTimeout(() => resolve(null), 2000);
 					chrome.runtime.sendMessage({ type: 'GET_STATS' }, (result) => {
 						clearTimeout(timeout);
 						resolve(result);
 					});
 				});
 			});
-			if (response) {
+			if (response !== null && response !== undefined) {
 				bgReady = true;
 				break;
 			}
-			await new Promise((resolve) => setTimeout(resolve, 500));
+			const delay = Math.min(500 * 2 ** i, 4000);
+			await new Promise((resolve) => setTimeout(resolve, delay));
 		}
 
 		if (!bgReady) {
