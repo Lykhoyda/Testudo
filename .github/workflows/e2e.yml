@@ -135,6 +135,9 @@ jobs:
       - name: Deploy test contracts
         run: yarn workspace @testudo/e2e-docker run deploy:contracts
 
+      - name: Install Playwright browsers
+        run: yarn workspace @testudo/e2e-docker exec playwright install chromium --with-deps
+
       - name: Restore Synpress cache
         id: synpress-cache
         uses: actions/cache@v4
@@ -145,9 +148,6 @@ jobs:
       - name: Generate Synpress cache
         if: steps.synpress-cache.outputs.cache-hit != 'true'
         run: xvfb-run --auto-servernum yarn cache:synpress
-
-      - name: Install Playwright browsers
-        run: yarn workspace @testudo/e2e-docker exec playwright install chromium --with-deps
 
       - name: Run E2E Docker tests
         run: xvfb-run --auto-servernum yarn test:e2e-docker
