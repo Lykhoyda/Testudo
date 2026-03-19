@@ -3,11 +3,14 @@
  *
  * Runs in isolated content script context.
  * Bridges communication between:
- * - Injected script (page context) via window.postMessage
+ * - Injected script (page context) via CustomEvent channel (nonce-gated)
  * - Background script (extension context) via chrome.runtime.sendMessage
  *
  * Also responsible for injecting the injected.js script into the page.
  */
+
+import { createChannel } from './services/channel';
+import { MessageTypes } from './utils/message-types';
 
 // Inject bundled fonts into the page so the warning modal can use them
 function injectFonts() {
@@ -49,11 +52,13 @@ function injectFonts() {
 	(document.head || document.documentElement).appendChild(style);
 }
 
-// Inject the injected.js script into the page
-function injectScript() {
+// Inject the injected.js script into the page with a nonce for secure channel
+function injectScript(): string {
+	const nonce = crypto.randomUUID();
 	const script = document.createElement('script');
 	script.src = chrome.runtime.getURL('injected.js');
 	script.type = 'module';
+	script.dataset.testudoNonce = nonce;
 
 	// Insert at document_start to ensure we intercept before any dApp code runs
 	(document.head || document.documentElement).appendChild(script);
@@ -61,11 +66,13 @@ function injectScript() {
 	script.onload = () => {
 		script.remove(); // Clean up after injection
 	};
+
+	return nonce;
 }
 
 // Inject immediately
 injectFonts();
-injectScript();
+const nonce = injectScript();
 
 // Fire-and-forget wake-up ping — pre-warms the SW on every page load
 chrome.runtime.sendMessage({ type: 'HEARTBEAT' }).catch(() => {});
@@ -91,175 +98,105 @@ if (DAPP_DOMAINS.some((d) => location.hostname === d || location.hostname.endsWi
 	}, HEARTBEAT_MS);
 }
 
-// Listen for messages from injected script
-window.addEventListener('message', async (event) => {
-	// Only accept messages from same window
-	if (event.source !== window) return;
+// Set up nonce-gated channel to communicate with injected script
+function initChannel(channelNonce: string) {
+	const channel = createChannel(channelNonce);
 
-	// Handle analysis request
-	if (event.data?.type === 'TESTUDO_ANALYZE_REQUEST') {
-		const { requestId, delegateAddress } = event.data;
+	function reply(type: string, requestId: string, result: unknown) {
+		channel.sendResponse({ type, requestId, result });
+	}
 
-		console.log('[Testudo Content] Received analysis request:', delegateAddress);
+	channel.onRequest(async (msg) => {
+		const { requestId } = msg;
 
-		try {
-			// Send to background script for analysis
-			const result = await chrome.runtime.sendMessage({
-				type: 'ANALYZE_DELEGATION',
-				delegateAddress,
-			});
-
-			console.log('[Testudo Content] Analysis result:', result);
-
-			// Send result back to injected script
-			window.postMessage(
-				{
-					type: 'TESTUDO_ANALYSIS_RESULT',
-					requestId,
-					result,
-				},
-				window.location.origin,
-			);
-		} catch (error) {
-			console.error('[Testudo Content] Analysis error:', error);
-
-			// Send error result
-			window.postMessage(
-				{
-					type: 'TESTUDO_ANALYSIS_RESULT',
-					requestId,
-					result: {
+		switch (msg.type) {
+			case MessageTypes.ANALYZE_REQUEST: {
+				const delegateAddress = msg.delegateAddress as string;
+				if (!/^0x[a-fA-F0-9]{40}$/.test(delegateAddress)) {
+					reply(MessageTypes.ANALYZE_RESULT, requestId, {
+						risk: 'UNKNOWN',
+						threats: [],
+						address: delegateAddress,
+					});
+					return;
+				}
+				try {
+					const result = await chrome.runtime.sendMessage({
+						type: 'ANALYZE_DELEGATION',
+						delegateAddress,
+					});
+					reply(MessageTypes.ANALYZE_RESULT, requestId, result);
+				} catch (error) {
+					reply(MessageTypes.ANALYZE_RESULT, requestId, {
 						risk: 'UNKNOWN',
 						threats: [],
 						address: delegateAddress,
 						error: String(error),
-					},
-				},
-				window.location.origin,
-			);
-		}
-	}
+					});
+				}
+				break;
+			}
 
-	// Handle address check request (eth_sendTransaction)
-	if (event.data?.type === 'TESTUDO_CHECK_ADDRESS') {
-		const { requestId, address } = event.data;
-
-		if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
-			window.postMessage(
-				{
-					type: 'TESTUDO_ADDRESS_CHECK_RESULT',
-					requestId,
-					result: {
+			case MessageTypes.CHECK_ADDRESS: {
+				const address = msg.address as string;
+				if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+					reply(MessageTypes.ADDRESS_CHECK_RESULT, requestId, {
 						risk: 'UNKNOWN',
 						threats: [],
 						address,
 						blocked: false,
-					},
-				},
-				window.location.origin,
-			);
-			return;
-		}
-
-		try {
-			const result = await chrome.runtime.sendMessage({
-				type: 'CHECK_ADDRESS',
-				address,
-			});
-
-			window.postMessage(
-				{
-					type: 'TESTUDO_ADDRESS_CHECK_RESULT',
-					requestId,
-					result,
-				},
-				window.location.origin,
-			);
-		} catch (error) {
-			console.error('[Testudo Content] Address check error:', error);
-			window.postMessage(
-				{
-					type: 'TESTUDO_ADDRESS_CHECK_RESULT',
-					requestId,
-					result: {
+					});
+					return;
+				}
+				try {
+					const result = await chrome.runtime.sendMessage({ type: 'CHECK_ADDRESS', address });
+					reply(MessageTypes.ADDRESS_CHECK_RESULT, requestId, result);
+				} catch {
+					reply(MessageTypes.ADDRESS_CHECK_RESULT, requestId, {
 						risk: 'UNKNOWN',
 						threats: [],
 						address,
 						blocked: false,
-					},
-				},
-				window.location.origin,
-			);
+					});
+				}
+				break;
+			}
+
+			case MessageTypes.RESOLVE_TOKEN: {
+				const address = msg.address as string;
+				const nullResult = { name: null, symbol: null, decimals: null };
+				if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+					reply(MessageTypes.TOKEN_RESULT, requestId, nullResult);
+					return;
+				}
+				chrome.runtime
+					.sendMessage({ type: 'RESOLVE_TOKEN', address })
+					.then((result) => reply(MessageTypes.TOKEN_RESULT, requestId, result ?? nullResult))
+					.catch(() => reply(MessageTypes.TOKEN_RESULT, requestId, nullResult));
+				break;
+			}
+
+			case MessageTypes.GET_SETTINGS: {
+				chrome.runtime
+					.sendMessage({ type: 'GET_SETTINGS' })
+					.then((result) => reply(MessageTypes.SETTINGS_RESULT, requestId, result ?? {}))
+					.catch(() => reply(MessageTypes.SETTINGS_RESULT, requestId, {}));
+				break;
+			}
+
+			case MessageTypes.RECORD_BLOCKED: {
+				chrome.runtime.sendMessage({ type: 'RECORD_BLOCKED' }).catch(() => {});
+				break;
+			}
 		}
-	}
+	});
+}
 
-	// Handle token resolution request (runs in background to avoid CSP)
-	if (event.data?.type === 'TESTUDO_RESOLVE_TOKEN') {
-		const { requestId, address } = event.data;
-		const nullResult = { name: null, symbol: null, decimals: null };
-
-		if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
-			window.postMessage(
-				{ type: 'TESTUDO_TOKEN_RESULT', requestId, result: nullResult },
-				window.location.origin,
-			);
-			return;
-		}
-
-		chrome.runtime
-			.sendMessage({ type: 'RESOLVE_TOKEN', address })
-			.then((result) => {
-				window.postMessage(
-					{ type: 'TESTUDO_TOKEN_RESULT', requestId, result: result ?? nullResult },
-					window.location.origin,
-				);
-			})
-			.catch(() => {
-				window.postMessage(
-					{ type: 'TESTUDO_TOKEN_RESULT', requestId, result: nullResult },
-					window.location.origin,
-				);
-			});
-	}
-
-	// Handle settings request
-	if (event.data?.type === 'TESTUDO_GET_SETTINGS') {
-		const { requestId } = event.data;
-		chrome.runtime
-			.sendMessage({ type: 'GET_SETTINGS' })
-			.then((result) => {
-				window.postMessage(
-					{ type: 'TESTUDO_SETTINGS_RESULT', requestId, result: result ?? {} },
-					window.location.origin,
-				);
-			})
-			.catch(() => {
-				window.postMessage(
-					{ type: 'TESTUDO_SETTINGS_RESULT', requestId, result: {} },
-					window.location.origin,
-				);
-			});
-	}
-
-	// Handle blocked record
-	if (event.data?.type === 'TESTUDO_RECORD_BLOCKED') {
-		console.log('[Testudo Content] Recording blocked delegation');
-		await chrome.runtime.sendMessage({ type: 'RECORD_BLOCKED' });
-	}
-});
+initChannel(nonce);
 
 // Listen for messages from background script (e.g., for popup updates)
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 	if (message.type === 'GET_PAGE_STATUS') {
-		// Could be used by popup to show current page status
-		sendResponse({
-			active: true,
-			url: window.location.href,
-		});
+		sendResponse({ active: true, url: window.location.href });
 	}
-	return true;
 });
-
-console.log('[Testudo Content] Content script loaded');
-
-export {};

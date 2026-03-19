@@ -1,4 +1,8 @@
+import { MessageTypes } from '../utils/message-types';
 import type { AnalysisResult, ExtractedAddress } from '../utils/types';
+import { createChannel, readNonce } from './channel';
+
+const channel = createChannel(readNonce());
 
 function sendTestudoRequest<T>(
 	requestType: string,
@@ -9,19 +13,18 @@ function sendTestudoRequest<T>(
 	return new Promise((resolve, reject) => {
 		const requestId = crypto.randomUUID();
 
-		const handler = (event: MessageEvent) => {
-			if (event.data?.type === responseType && event.data?.requestId === requestId) {
-				window.removeEventListener('message', handler);
-				resolve(event.data.result);
+		const unsubscribe = channel.onResponse((msg) => {
+			if (msg.type === responseType && msg.requestId === requestId) {
+				unsubscribe();
+				clearTimeout(timer);
+				resolve(msg.result as T);
 			}
-		};
+		});
 
-		window.addEventListener('message', handler);
+		channel.sendRequest({ type: requestType, requestId, ...payload });
 
-		window.postMessage({ type: requestType, requestId, ...payload }, window.location.origin);
-
-		setTimeout(() => {
-			window.removeEventListener('message', handler);
+		const timer = setTimeout(() => {
+			unsubscribe();
 			reject(new Error(`${requestType} timeout`));
 		}, timeoutMs);
 	});
@@ -29,8 +32,8 @@ function sendTestudoRequest<T>(
 
 export function requestAddressCheck(address: string): Promise<AnalysisResult> {
 	return sendTestudoRequest<AnalysisResult>(
-		'TESTUDO_CHECK_ADDRESS',
-		'TESTUDO_ADDRESS_CHECK_RESULT',
+		MessageTypes.CHECK_ADDRESS,
+		MessageTypes.ADDRESS_CHECK_RESULT,
 		{ address },
 	);
 }
@@ -71,13 +74,15 @@ export async function batchCheckAddresses(
 }
 
 export function requestAnalysis(delegateAddress: string): Promise<AnalysisResult> {
-	return sendTestudoRequest<AnalysisResult>('TESTUDO_ANALYZE_REQUEST', 'TESTUDO_ANALYSIS_RESULT', {
-		delegateAddress,
-	});
+	return sendTestudoRequest<AnalysisResult>(
+		MessageTypes.ANALYZE_REQUEST,
+		MessageTypes.ANALYZE_RESULT,
+		{ delegateAddress },
+	);
 }
 
 export function recordBlocked(): void {
-	window.postMessage({ type: 'TESTUDO_RECORD_BLOCKED' }, window.location.origin);
+	channel.sendRequest({ type: MessageTypes.RECORD_BLOCKED, requestId: crypto.randomUUID() });
 }
 
 export interface TokenResolveResult {
@@ -88,8 +93,8 @@ export interface TokenResolveResult {
 
 export function requestTokenResolve(address: string): Promise<TokenResolveResult> {
 	return sendTestudoRequest<TokenResolveResult>(
-		'TESTUDO_RESOLVE_TOKEN',
-		'TESTUDO_TOKEN_RESULT',
+		MessageTypes.RESOLVE_TOKEN,
+		MessageTypes.TOKEN_RESULT,
 		{ address },
 		3000,
 	).catch(() => ({ name: null, symbol: null, decimals: null }));

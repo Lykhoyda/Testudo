@@ -1,4 +1,5 @@
 import { computed, signal } from '@preact/signals';
+import { recordBlocked } from '../services/messaging';
 import type {
 	AnalysisResult,
 	ApprovalInfo,
@@ -136,7 +137,7 @@ function resolve(value: boolean): void {
 
 export function cancel(): void {
 	if (!state.value.loading) {
-		window.postMessage({ type: 'TESTUDO_RECORD_BLOCKED' }, window.location.origin);
+		recordBlocked();
 	}
 	resolve(false);
 }
