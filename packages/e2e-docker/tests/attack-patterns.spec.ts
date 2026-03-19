@@ -5,7 +5,7 @@ import { expect, test } from '../fixtures/synpress';
 interface AttackPattern {
 	key: ContractKey;
 	name: string;
-	expectedThreat: string;
+	expectedThreats: string[];
 	expectedRiskLevel: string;
 }
 
@@ -15,9 +15,11 @@ interface AttackPattern {
  * CrimeEnjoyer: Real bytecode only triggers MEDIUM (CHAINID_READ) from bytecode analysis.
  *   In production, the API layer flags it as CRITICAL (known malicious address).
  *   Without API (test env), fail-safe kicks in: API timeout + local suspicious → BLOCK.
+ *   expectedThreats includes both API label and bytecode label since either may appear first.
  *
  * Inferno Drainer: Real bytecode triggers CRITICAL from bytecode analysis alone
  *   (DELEGATECALL + TOKEN_WITH_AUTH + GAS_MANIPULATION).
+ *   API also recognizes it, so either source label may appear first.
  *
  * Metamorphic: Synthetic — real metamorphic contracts self-destruct by definition,
  *   so their bytecode can't be fetched from mainnet.
@@ -26,19 +28,19 @@ const MALICIOUS_PATTERNS: AttackPattern[] = [
 	{
 		key: 'crime-enjoyer',
 		name: 'CrimeEnjoyer (real mainnet — 0x930fcc37)',
-		expectedThreat: 'Reads network ID',
+		expectedThreats: ['Reads network ID', 'Known ETH drainer'],
 		expectedRiskLevel: 'CRITICAL',
 	},
 	{
 		key: 'inferno-drainer',
 		name: 'Inferno Drainer (real mainnet — 0x00008c22)',
-		expectedThreat: 'Uses DELEGATECALL',
+		expectedThreats: ['Uses DELEGATECALL', 'Inferno Drainer'],
 		expectedRiskLevel: 'CRITICAL',
 	},
 	{
 		key: 'metamorphic',
 		name: 'Metamorphic (synthetic — self-destructing pattern)',
-		expectedThreat: 'Metamorphic contract',
+		expectedThreats: ['Metamorphic contract'],
 		expectedRiskLevel: 'CRITICAL',
 	},
 ];
@@ -66,9 +68,17 @@ for (const pattern of MALICIOUS_PATTERNS) {
 			const alertTitle = modal.locator('.testudo-alert-title');
 			await expect(alertTitle).toContainText(pattern.expectedRiskLevel, { timeout: 5_000 });
 
-			// Verify specific threat type in threat list
-			const threatName = modal.locator('.testudo-threat-name').first();
-			await expect(threatName).toContainText(pattern.expectedThreat, { timeout: 5_000 });
+			// Verify threat list contains at least one expected threat
+			// (API label or bytecode label may appear first depending on environment)
+			const threatNames = modal.locator('.testudo-threat-name');
+			const allText = await threatNames.allTextContents();
+			const found = pattern.expectedThreats.some((expected) =>
+				allText.some((text) => text.includes(expected)),
+			);
+			expect(
+				found,
+				`Expected one of [${pattern.expectedThreats.join(', ')}] in threats: [${allText.join(', ')}]`,
+			).toBe(true);
 		});
 
 		test(`user can cancel delegation`, async ({
