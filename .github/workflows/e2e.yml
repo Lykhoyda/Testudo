@@ -28,7 +28,7 @@ jobs:
           node-version: 20
           cache: 'yarn'
 
-      - run: yarn install --immutable
+      - run: corepack enable && yarn install --immutable
 
       - name: Lint
         run: yarn biome check .
@@ -54,7 +54,7 @@ jobs:
           node-version: 20
           cache: 'yarn'
 
-      - run: yarn install --immutable
+      - run: corepack enable && yarn install --immutable
 
       - name: Build core
         run: yarn workspace @testudo/core run build
@@ -106,7 +106,7 @@ jobs:
           node-version: 20
           cache: 'yarn'
 
-      - run: yarn install --immutable
+      - run: corepack enable && yarn install --immutable
 
       - name: Login to GHCR
         run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
