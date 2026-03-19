@@ -136,7 +136,9 @@ jobs:
         run: yarn workspace @testudo/e2e-docker run deploy:contracts
 
       - name: Install Playwright browsers
-        run: yarn workspace @testudo/e2e-docker exec playwright install chromium --with-deps
+        run: |
+          yarn workspace @testudo/e2e-docker exec playwright install chromium --with-deps
+          npx playwright-core@1.48.2 install chromium
 
       - name: Restore Synpress cache
         id: synpress-cache
