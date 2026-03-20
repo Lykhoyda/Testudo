@@ -70,6 +70,11 @@ const THREAT_REGISTRY: Record<string, ThreatEntry> = {
 		shortDesc: 'Same signature can be reused multiple times',
 		format: 'Replay attack risk',
 	},
+	eip7702_replay_risk: {
+		icon: 'replay',
+		shortDesc: 'Valid on ALL chains — signature can be replayed on any network',
+		format: 'Cross-chain replay risk',
+	},
 	token_approval_no_auth: {
 		icon: 'token',
 		shortDesc: 'Unlimited access without verification',

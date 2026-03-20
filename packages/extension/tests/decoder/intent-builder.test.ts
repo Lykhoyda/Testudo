@@ -236,6 +236,19 @@ describe('buildDelegationIntent', () => {
 		expect(intent.chainName).toBe('Polygon');
 	});
 
+	it('surfaces replay risk for chainId 0', () => {
+		const intent = buildDelegationIntent(SPENDER, 0);
+		expect(intent.chainName).toBe('All Networks (Replay Risk)');
+		expect(intent.action).toContain('on All Networks (Replay Risk)');
+		const network = intent.details.find((d) => d.label === 'Network');
+		expect(network?.value).toBe('All Networks (Replay Risk)');
+	});
+
+	it('surfaces replay risk for string chainId "0"', () => {
+		const intent = buildDelegationIntent(SPENDER, '0');
+		expect(intent.chainName).toBe('All Networks (Replay Risk)');
+	});
+
 	it('marks delegate as danger with mono', () => {
 		const intent = buildDelegationIntent(SPENDER);
 		const delegate = intent.details.find((d) => d.label === 'Delegate');

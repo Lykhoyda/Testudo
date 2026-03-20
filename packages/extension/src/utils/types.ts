@@ -130,5 +130,6 @@ export interface WarningOptions {
 	nftApprovalInfo?: NftApprovalInfo;
 	blindSignatureInfo?: BlindSignatureInfo;
 	typedDataScanInfo?: TypedDataScanInfo;
+	chainId?: number | string;
 	intent?: HumanReadableIntent;
 }

@@ -174,14 +174,14 @@ yarn workspace @testudo/extension run build   # ~85ms
 - CSS injected as string via `warning-styles.ts` (page context, no chrome.runtime access)
 - Fonts bundled locally in `fonts/` (no external CDN)
 
-## Unit Tests (100 total)
+## Unit Tests (105 total)
 
 Located in `packages/extension/tests/`:
 
 | File | Count | Tests |
 |------|-------|-------|
-| decoder/format.test.ts | 33 | Token amount formatting, deadline, chain names |
-| decoder/intent-builder.test.ts | 32 | All 8 context-specific intent builders |
+| decoder/format.test.ts | 36 | Token amount formatting, deadline, chain names, chainId=0/hex |
+| decoder/intent-builder.test.ts | 34 | All 8 context-specific intent builders, replay risk |
 | decoder/token-resolver.test.ts | 16 | Well-known lookup, RPC fallback, cache |
 | services/deployer-lookup.test.ts | 8 | Blockscout API, viem RPC, error handling |
 | services/channel.test.ts | 11 | Channel isolation, nonce lifecycle, empty guard |

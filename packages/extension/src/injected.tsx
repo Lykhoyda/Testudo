@@ -1,4 +1,5 @@
 import '@preact/signals';
+import type { Warning } from '@testudo/core';
 import { render } from 'preact';
 import { InfoToast } from './components/warning/InfoToast';
 import { UnknownToast } from './components/warning/UnknownToast';
@@ -463,9 +464,11 @@ function wrapEthereumProvider(): void {
 					return originalRequest(args);
 				}
 
-				console.log('[Testudo] \u{1F50D} EIP-7702 authorization detected!');
+				console.log('[Testudo] EIP-7702 authorization detected!');
 				const delegateAddress = typedData.message.address as string;
-				console.log('[Testudo] Delegate address:', delegateAddress);
+				const rawChainId = typedData.message.chainId as number | string | undefined;
+				const isReplayRisk =
+					rawChainId === 0 || rawChainId === '0' || rawChainId === '0x0' || rawChainId === '0x00';
 
 				ensureModalRoot();
 				const loadingPromise = warningVM.showLoading({
@@ -482,19 +485,31 @@ function wrapEthereumProvider(): void {
 					return originalRequest(args);
 				}
 
-				console.log('[Testudo] Analysis result:', analysis);
+				if (isReplayRisk) {
+					const replayWarning: Warning = {
+						type: 'EIP7702_REPLAY_RISK',
+						severity: 'CRITICAL',
+						title: 'Cross-Chain Replay Risk',
+						description:
+							'This authorization uses chainId=0, making it valid on every EVM network. An attacker can replay your signature on any chain to drain funds across all networks.',
+					};
+					analysis = {
+						...analysis,
+						risk: 'CRITICAL',
+						blocked: true,
+						threats: ['eip7702_replay_risk', ...(analysis.threats ?? [])],
+						warnings: [replayWarning, ...(analysis.warnings ?? [])],
+					};
+				}
 
 				if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
-					const intent = buildIntent({ analysis }, null);
+					const intent = buildIntent({ analysis, chainId: rawChainId }, null);
 					warningVM.updateAnalysis(analysis, intent ?? undefined);
 					const userConfirmed = await loadingPromise;
 
 					if (!userConfirmed) {
-						console.log('[Testudo] \u274C User rejected dangerous delegation');
 						throw new Error('Testudo: Delegation blocked by user - dangerous contract detected');
 					}
-
-					console.log('[Testudo] \u26A0\uFE0F User proceeded despite warning');
 				} else if (analysis.risk === 'MEDIUM') {
 					warningVM.dismissLoading();
 					showInfo(analysis);

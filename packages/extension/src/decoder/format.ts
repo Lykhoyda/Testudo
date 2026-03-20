@@ -84,6 +84,7 @@ export function formatDeadline(unix: string): string {
 }
 
 const CHAIN_NAMES: Record<number, string> = {
+	0: 'All Networks (Replay Risk)',
 	1: 'Ethereum',
 	10: 'Optimism',
 	56: 'BNB Chain',

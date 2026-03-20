@@ -40,7 +40,8 @@ export type WarningType =
 	| 'BALANCE_DRAIN'
 	| 'REENTRANCY_RISK'
 	| 'GAS_MANIPULATION'
-	| 'EXTCODEHASH_CHECK';
+	| 'EXTCODEHASH_CHECK'
+	| 'EIP7702_REPLAY_RISK';
 
 export type WarningSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
 

@@ -143,6 +143,18 @@ describe('getChainName', () => {
 		expect(getChainName(10)).toBe('Optimism');
 	});
 
+	it('returns All Networks (Replay Risk) for chainId 0', () => {
+		expect(getChainName(0)).toBe('All Networks (Replay Risk)');
+	});
+
+	it('handles string chainId 0', () => {
+		expect(getChainName('0')).toBe('All Networks (Replay Risk)');
+	});
+
+	it('handles hex string chainId 0x0', () => {
+		expect(getChainName('0x0')).toBe('All Networks (Replay Risk)');
+	});
+
 	it('returns undefined for unknown chainId', () => {
 		expect(getChainName(99999)).toBeUndefined();
 	});
