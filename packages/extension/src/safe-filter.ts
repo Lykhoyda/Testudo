@@ -1,16 +1,25 @@
 // Set-based safe filter for known-safe addresses (ADR-007)
-// Replaces bloom-filters which uses Node.js Buffer (incompatible with service workers)
+// Ed25519 signature verification for CDN integrity (ADR-006 extension)
 
 const STORAGE_KEYS = {
 	FILTER: 'safeFilter',
 	VERSION: 'safeFilterVersion',
 	LAST_SYNC: 'safeFilterLastSync',
+	SEQUENCE: 'safeFilterSequence',
 } as const;
 
 const ALARM_NAME = 'sync-safe-filter';
 const SYNC_INTERVAL_MINUTES = 60 * 24 * 7; // 7 days
 
 const DEFAULT_CDN_URL = 'https://pub-76c6347fe0fc49d7b1497bc741c11d24.r2.dev';
+
+// Ed25519 public key (SPKI DER, base64) for manifest signature verification.
+// The corresponding private key is stored as a GitHub secret (SAFE_FILTER_SIGNING_KEY).
+// To rotate: generate new key pair, add new entry here with new keyId, publish
+// signed manifests with the new keyId, then remove old key after transition.
+const TRUSTED_PUBLIC_KEYS: Record<string, string> = {
+	'key-001': 'MCowBQYDK2VwAyEA/zRv2JLNd+dBKrQd4nVRg35FesTHz6Cy4hV9D4kZZyg=',
+};
 
 // Fallback safe addresses for development/offline mode
 // These are well-known legitimate contracts that should never be flagged
@@ -29,8 +38,11 @@ const FALLBACK_SAFE_ADDRESSES = new Set([
 
 interface SafeFilterManifest {
 	version: string;
+	sequence: number;
 	hash: string;
 	count: number;
+	keyId: string;
+	signature: string;
 }
 
 interface StoredFilterData {
@@ -64,7 +76,6 @@ export class SafeFilter {
 				console.log(`[SafeFilter] Loaded ${this.safeSet.size} addresses`);
 			} else {
 				console.log('[SafeFilter] No stored filter, using fallback set');
-				// Clear version to force re-sync on next attempt (self-heal from corruption)
 				await chrome.storage.local.remove(STORAGE_KEYS.VERSION);
 			}
 		} catch (error) {
@@ -94,17 +105,14 @@ export class SafeFilter {
 		this.isSyncing = true;
 
 		try {
-			// Check if online
 			if (!navigator.onLine) {
 				console.log('[SafeFilter] Offline, skipping sync');
 				return false;
 			}
 
-			// Fetch manifest to check version
+			// Fetch manifest
 			const manifestUrl = `${this.cdnUrl}/safe-filter.json`;
-			const manifestResponse = await fetch(manifestUrl, {
-				cache: 'no-cache',
-			});
+			const manifestResponse = await fetch(manifestUrl, { cache: 'no-cache' });
 
 			if (!manifestResponse.ok) {
 				console.warn('[SafeFilter] Failed to fetch manifest:', manifestResponse.status);
@@ -113,21 +121,46 @@ export class SafeFilter {
 
 			const manifest: SafeFilterManifest = await manifestResponse.json();
 
-			// Check if we need to update
-			const stored = await chrome.storage.local.get(STORAGE_KEYS.VERSION);
-			const currentVersion = stored[STORAGE_KEYS.VERSION] as string | undefined;
+			// Validate required fields
+			if (!manifest.signature || !manifest.keyId || typeof manifest.sequence !== 'number') {
+				console.error('[SafeFilter] Manifest missing required signing fields');
+				return false;
+			}
 
-			if (currentVersion === manifest.version) {
-				console.log('[SafeFilter] Already up to date:', manifest.version);
-				await this.updateLastSync();
-				return true;
+			// Verify signature before trusting any manifest data
+			const signatureValid = await this.verifyManifestSignature(manifest);
+			if (!signatureValid) {
+				console.error('[SafeFilter] Manifest signature verification FAILED');
+				return false;
+			}
+
+			// Rollback protection: monotonic sequence enforcement
+			const stored = await chrome.storage.local.get([STORAGE_KEYS.VERSION, STORAGE_KEYS.SEQUENCE]);
+			const storedSequence = (stored[STORAGE_KEYS.SEQUENCE] as number) ?? 0;
+
+			if (manifest.sequence < storedSequence) {
+				console.error(
+					`[SafeFilter] Rollback rejected: manifest sequence ${manifest.sequence} < stored ${storedSequence}`,
+				);
+				return false;
+			}
+
+			if (manifest.sequence === storedSequence) {
+				const currentVersion = stored[STORAGE_KEYS.VERSION] as string | undefined;
+				if (currentVersion === manifest.version) {
+					console.log('[SafeFilter] Already up to date:', manifest.version);
+					await this.updateLastSync();
+					return true;
+				}
+				console.error(
+					`[SafeFilter] Sequence collision: seq=${manifest.sequence} but version mismatch`,
+				);
+				return false;
 			}
 
 			// Fetch the address list
 			const filterUrl = `${this.cdnUrl}/safe-addresses.json`;
-			const filterResponse = await fetch(filterUrl, {
-				cache: 'no-cache',
-			});
+			const filterResponse = await fetch(filterUrl, { cache: 'no-cache' });
 
 			if (!filterResponse.ok) {
 				console.warn('[SafeFilter] Failed to fetch addresses:', filterResponse.status);
@@ -136,7 +169,7 @@ export class SafeFilter {
 
 			const filterData = await filterResponse.arrayBuffer();
 
-			// Verify hash integrity before using (security: prevent MITM/CDN compromise)
+			// Verify hash integrity (signed hash authenticates the data)
 			const calculatedHash = await this.calculateHash(filterData);
 			if (calculatedHash !== manifest.hash) {
 				console.error(
@@ -155,20 +188,22 @@ export class SafeFilter {
 				return false;
 			}
 
-			// Store the addresses
+			if (addresses.length !== manifest.count) {
+				console.error(
+					`[SafeFilter] Count mismatch: manifest says ${manifest.count}, got ${addresses.length}`,
+				);
+				return false;
+			}
+
+			// Store the addresses + sequence
 			await chrome.storage.local.set({
 				[STORAGE_KEYS.FILTER]: {
 					addresses,
 					count: addresses.length,
 				} as StoredFilterData,
 				[STORAGE_KEYS.VERSION]: manifest.version,
+				[STORAGE_KEYS.SEQUENCE]: manifest.sequence,
 			});
-
-			// Check for storage errors
-			if (chrome.runtime.lastError) {
-				console.error('[SafeFilter] Storage error:', chrome.runtime.lastError);
-				return false;
-			}
 
 			await this.updateLastSync();
 
@@ -176,7 +211,7 @@ export class SafeFilter {
 			this.safeSet = new Set(addresses.map((a) => a.toLowerCase()));
 
 			console.log(
-				`[SafeFilter] Updated to version ${manifest.version} (${addresses.length} addresses)`,
+				`[SafeFilter] Updated to version ${manifest.version} seq=${manifest.sequence} (${addresses.length} addresses)`,
 			);
 			return true;
 		} catch (error) {
@@ -184,6 +219,43 @@ export class SafeFilter {
 			return false;
 		} finally {
 			this.isSyncing = false;
+		}
+	}
+
+	private async verifyManifestSignature(manifest: SafeFilterManifest): Promise<boolean> {
+		const publicKeyBase64 = TRUSTED_PUBLIC_KEYS[manifest.keyId];
+		if (!publicKeyBase64) {
+			console.error(`[SafeFilter] Unknown keyId: ${manifest.keyId}`);
+			return false;
+		}
+
+		try {
+			const publicKeyDer = Uint8Array.from(atob(publicKeyBase64), (c) => c.charCodeAt(0));
+
+			const cryptoKey = await crypto.subtle.importKey(
+				'spki',
+				publicKeyDer,
+				{ name: 'Ed25519' },
+				false,
+				['verify'],
+			);
+
+			// Reconstruct the signed payload (alphabetical key order — must match signing script)
+			const payload = {
+				count: manifest.count,
+				hash: manifest.hash,
+				keyId: manifest.keyId,
+				sequence: manifest.sequence,
+				version: manifest.version,
+			};
+			const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
+
+			const signatureBytes = Uint8Array.from(atob(manifest.signature), (c) => c.charCodeAt(0));
+
+			return await crypto.subtle.verify('Ed25519', cryptoKey, signatureBytes, payloadBytes);
+		} catch (error) {
+			console.error('[SafeFilter] Signature verification error:', error);
+			return false;
 		}
 	}
 
@@ -220,7 +292,6 @@ export class SafeFilter {
 
 // Setup chrome.alarms for periodic sync
 export function setupSafeFilterAlarm(): void {
-	// Create alarm for weekly sync
 	chrome.alarms.create(ALARM_NAME, {
 		periodInMinutes: SYNC_INTERVAL_MINUTES,
 	});

@@ -25,6 +25,9 @@ CLAUDE.md
 .env.local
 .env.*.local
 
+# Safe Filter signing keys
+safe-filter-private.pem
+
 # Playwright E2E
 test-results/
 playwright-report/
