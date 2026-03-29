@@ -13,6 +13,8 @@ import { createPublicClient, hexToString, http } from 'viem';
 import { mainnet } from 'viem/chains';
 import type { ApiClientResult } from './api-client';
 import { checkAddressThreat } from './api-client';
+import type { ExtendedAnalysisResult } from './decision-matrix';
+import { applyDecisionMatrix } from './decision-matrix';
 import {
 	getSafeFilter,
 	handleSafeFilterAlarm,
@@ -38,13 +40,6 @@ const deployerCache = new Map<string, DeployerStaticInfo>();
 
 // Pending analysis requests to prevent duplicate concurrent requests for the same address
 const pendingAnalysis = new Map<string, Promise<ExtendedAnalysisResult>>();
-
-interface ExtendedAnalysisResult extends AnalysisResult {
-	whitelisted?: boolean;
-	cached?: boolean;
-	source?: string;
-	apiUnavailable?: boolean;
-}
 
 // Get API URL from settings or use build-time default
 async function getApiUrl(): Promise<string> {
@@ -265,7 +260,7 @@ async function performAddressOnlyCheck(
 
 	let result: ExtendedAnalysisResult;
 
-	if (api.success && api.data?.isMalicious) {
+	if (api.success && api.data?.isMalicious === true) {
 		result = {
 			...baseResult,
 			risk: 'CRITICAL',
@@ -273,7 +268,7 @@ async function performAddressOnlyCheck(
 			blocked: true,
 			source: 'api',
 		};
-	} else if (api.success) {
+	} else if (api.success && api.data != null && api.data.isMalicious === false) {
 		result = {
 			...baseResult,
 			risk: 'LOW',
@@ -484,108 +479,6 @@ async function performThreeLayerAnalysis(
 	await incrementScanned();
 
 	return finalResult;
-}
-
-function applyDecisionMatrix(
-	api: ApiClientResult,
-	local: AnalysisResult,
-	address: string,
-): ExtendedAnalysisResult {
-	const baseResult = {
-		address: address as `0x${string}`,
-		warnings: local.warnings,
-		deployerRisk: local.deployerRisk,
-	};
-
-	// API returned malicious → BLOCK (highest priority)
-	if (api.success && api.data?.isMalicious) {
-		console.log('[Testudo Background] API flagged as malicious:', address);
-		return {
-			...baseResult,
-			risk: 'CRITICAL',
-			threats: [api.data.threatType || 'KNOWN_MALICIOUS'],
-			blocked: true,
-			source: 'api',
-		};
-	}
-
-	// API available and clean
-	if (api.success && !api.data?.isMalicious) {
-		// API Clean + Local Clean → ALLOW
-		if (local.risk === 'LOW' || local.risk === 'UNKNOWN') {
-			console.log('[Testudo Background] Both API and local clean:', address);
-			return {
-				...baseResult,
-				risk: 'LOW',
-				threats: [],
-				blocked: false,
-				source: 'api+local',
-			};
-		}
-
-		// API Clean + Local Suspicious → WARN (local caught new pattern)
-		// Per ADR-006: API clean verdict is authoritative (includes GoPlus fallback)
-		// We warn the user but don't block (blocked: false)
-		console.log('[Testudo Background] API clean but local suspicious:', address);
-		return {
-			...baseResult,
-			risk: local.risk,
-			threats: local.threats,
-			blocked: false, // ADR-006: WARN, not BLOCK - trust API verdict
-			source: 'local',
-		};
-	}
-
-	// API unavailable (timeout, offline, error)
-	const apiUnavailable = !api.success;
-
-	if (apiUnavailable) {
-		// API Timeout + Local Clean → ALLOW (degraded mode)
-		if (local.risk === 'LOW') {
-			console.log('[Testudo Background] API unavailable, local clean:', address);
-			return {
-				...baseResult,
-				risk: 'LOW',
-				threats: [],
-				blocked: false,
-				source: 'local',
-				apiUnavailable: true,
-			};
-		}
-
-		// API Timeout + Local UNKNOWN → UNKNOWN (fail-to-warning per ADR-006)
-		if (local.risk === 'UNKNOWN') {
-			console.log('[Testudo Background] API unavailable, local unknown:', address);
-			return {
-				...baseResult,
-				risk: 'UNKNOWN',
-				threats: local.threats,
-				blocked: false,
-				source: 'local',
-				apiUnavailable: true,
-			};
-		}
-
-		// API Timeout + Local Suspicious → BLOCK (fail-safe)
-		console.log('[Testudo Background] API unavailable, local suspicious:', address);
-		return {
-			...baseResult,
-			risk: local.risk,
-			threats: local.threats,
-			blocked: true, // More aggressive when API unavailable
-			source: 'local',
-			apiUnavailable: true,
-		};
-	}
-
-	// Fallback (shouldn't reach here)
-	return {
-		...baseResult,
-		risk: 'UNKNOWN',
-		threats: ['Analysis inconclusive'],
-		blocked: false,
-		source: 'fallback',
-	};
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
