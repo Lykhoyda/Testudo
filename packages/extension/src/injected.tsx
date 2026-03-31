@@ -120,6 +120,8 @@ function showUnknownNotice(analysis: AnalysisResult): void {
 // ============================================================================
 
 let providerWrapped = false;
+let activeWrapper: ((args: { method: string; params?: unknown[] }) => Promise<unknown>) | null =
+	null;
 
 function wrapEthereumProvider(): void {
 	if (providerWrapped || typeof window.ethereum === 'undefined') {
@@ -132,7 +134,7 @@ function wrapEthereumProvider(): void {
 	const originalRequest = window.ethereum.request.bind(window.ethereum);
 
 	try {
-		window.ethereum.request = async (args: { method: string; params?: unknown[] }) => {
+		const wrappedRequest = async (args: { method: string; params?: unknown[] }) => {
 			// Intercept eth_sendTransaction
 			if (args.method === 'eth_sendTransaction') {
 				try {
@@ -529,9 +531,35 @@ function wrapEthereumProvider(): void {
 				return originalRequest(args);
 			}
 		};
+
+		// Harden: use Object.defineProperty to make .request non-writable and non-configurable.
+		// This prevents drainer kits from replacing or shadowing the wrapper via:
+		//   - Direct assignment: window.ethereum.request = malicious
+		//   - Object.defineProperty with different descriptor
+		// Check if .request is already locked (e.g. from a previous wrap on this object)
+		const existingDesc = Object.getOwnPropertyDescriptor(window.ethereum, 'request');
+		if (existingDesc && existingDesc.configurable === false) {
+			// Already locked by a prior wrap — cannot redefine, but check if it's ours
+			if (existingDesc.value === wrappedRequest) {
+				activeWrapper = wrappedRequest;
+			} else {
+				console.warn('[Testudo] .request already locked by another party');
+				activeWrapper = null;
+				providerWrapped = false;
+			}
+		} else {
+			Object.defineProperty(window.ethereum, 'request', {
+				value: wrappedRequest,
+				writable: false,
+				configurable: false,
+				enumerable: true,
+			});
+			activeWrapper = wrappedRequest;
+		}
 	} catch (wrapError) {
 		console.error('[Testudo] Failed to wrap provider (frozen object?):', wrapError);
 		providerWrapped = false;
+		activeWrapper = null;
 		return;
 	}
 
@@ -558,6 +586,7 @@ Object.defineProperty(window, 'ethereum', {
 		if (value !== ethereumValue && value !== wrappedProvider) {
 			ethereumValue = value;
 			providerWrapped = false;
+			activeWrapper = null;
 			wrappedProvider = value;
 			wrapEthereumProvider();
 		} else {
@@ -565,6 +594,19 @@ Object.defineProperty(window, 'ethereum', {
 		}
 	},
 });
+
+// Periodic integrity check: detect if a drainer removed or replaced our wrapper.
+// Runs every 2s as a backup — primary check happens on each intercepted request.
+setInterval(() => {
+	if (typeof window.ethereum !== 'undefined' && activeWrapper) {
+		const currentRequest = window.ethereum.request;
+		if (currentRequest !== activeWrapper) {
+			console.warn('[Testudo] Provider wrapper tampered — re-wrapping');
+			providerWrapped = false;
+			wrapEthereumProvider();
+		}
+	}
+}, 2000);
 
 declare global {
 	interface Window {
