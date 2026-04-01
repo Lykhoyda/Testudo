@@ -12,7 +12,6 @@
 #!.yarn/cache
 .pnp.*
 
-docs
 .claude
 .idea
 node_modules
@@ -35,3 +34,4 @@ playwright/.cache/
 
 # Synpress wallet cache
 .cache-synpress/
+git-crypt-key.bin
