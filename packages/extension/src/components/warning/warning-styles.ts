@@ -22,15 +22,15 @@ export const WARNING_STYLES = `
 }
 
 @keyframes testudo-pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
-  70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(255, 59, 92, 0.35); }
+  70% { box-shadow: 0 0 0 10px rgba(255, 59, 92, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 59, 92, 0); }
 }
 
 @keyframes testudo-pulse-ring-amber {
-  0% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.3); }
-  70% { box-shadow: 0 0 0 10px rgba(217, 119, 6, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(255, 170, 44, 0.25); }
+  70% { box-shadow: 0 0 0 10px rgba(255, 170, 44, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 170, 44, 0); }
 }
 
 @keyframes testudo-spin {
@@ -60,30 +60,30 @@ export const WARNING_STYLES = `
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(26, 26, 46, 0.85);
-  backdrop-filter: blur(8px) saturate(1.2);
+  background: rgba(7, 7, 12, 0.88);
+  backdrop-filter: blur(12px) saturate(1.1);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 999999;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   animation: testudo-fade-in 0.25s ease;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 .testudo-modal {
-  background: #1a1a2e;
-  border-radius: 12px;
-  border: 1px solid rgba(220, 38, 38, 0.15);
+  background: #0c0c14;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 59, 92, 0.12);
   max-width: 440px;
   width: 92%;
   max-height: 90vh;
-  color: #e5e7eb;
+  color: #c8c8d8;
   box-shadow:
-    0 0 0 1px rgba(220, 38, 38, 0.06),
-    0 24px 48px -8px rgba(0, 0, 0, 0.7),
-    0 0 80px -20px rgba(220, 38, 38, 0.08);
+    0 0 0 1px rgba(255, 59, 92, 0.04),
+    0 24px 48px -8px rgba(0, 0, 0, 0.8),
+    0 0 80px -20px rgba(255, 59, 92, 0.06);
   overflow: hidden;
   animation: testudo-modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
@@ -98,19 +98,20 @@ export const WARNING_STYLES = `
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent 0%, #dc2626 30%, #ef4444 50%, #dc2626 70%, transparent 100%);
-  opacity: 0.8;
+  background: linear-gradient(90deg, transparent 0%, #ff3b5c 30%, #ff3b5c 70%, transparent 100%);
+  opacity: 0.7;
 }
 
 .testudo-modal::after {
   content: '';
   position: absolute;
-  top: 2px;
+  top: 0;
   left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(220, 38, 38, 0.3), transparent);
-  overflow: hidden;
+  width: 40%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255, 59, 92, 0.8), transparent);
+  animation: testudo-scan-line 3s linear infinite;
+  opacity: 0.4;
 }
 
 .testudo-material-icon {
@@ -143,17 +144,17 @@ export const WARNING_STYLES = `
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-  background: rgba(220, 38, 38, 0.08);
-  border: 1px solid rgba(220, 38, 38, 0.2);
-  color: #ef4444;
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  background: rgba(255, 59, 92, 0.06);
+  border: 1px solid rgba(255, 59, 92, 0.15);
+  color: #ff3b5c;
   animation: testudo-pulse-ring 2s ease-in-out infinite;
 }
 
 .testudo-header-icon .testudo-material-icon {
-  font-size: 28px;
+  font-size: 26px;
 }
 
 .testudo-header-text {
@@ -161,24 +162,26 @@ export const WARNING_STYLES = `
 }
 
 .testudo-title {
-  font-size: 18px;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 15px;
   font-weight: 700;
-  color: #ffffff;
+  color: #f0f0f5;
   margin: 0 0 6px 0;
-  letter-spacing: -0.025em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   line-height: 1.3;
 }
 
 .testudo-subtitle {
   font-size: 13px;
-  color: #9ca3af;
+  color: #6e6e8a;
   margin: 0;
   line-height: 1.5;
   max-width: 340px;
 }
 
 .testudo-subtitle strong {
-  color: #e5e7eb;
+  color: #c8c8d8;
   font-weight: 600;
 }
 
@@ -188,9 +191,9 @@ export const WARNING_STYLES = `
   margin: 4px 16px 0;
   position: relative;
   overflow: hidden;
-  border-radius: 8px;
-  border: 1px solid rgba(220, 38, 38, 0.25);
-  background: rgba(220, 38, 38, 0.04);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 59, 92, 0.2);
+  background: rgba(255, 59, 92, 0.04);
   padding: 14px 16px;
 }
 
@@ -201,14 +204,14 @@ export const WARNING_STYLES = `
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(220, 38, 38, 0.4), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 59, 92, 0.35), transparent);
 }
 
 .testudo-alert-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #ef4444;
+  color: #ff3b5c;
   position: relative;
 }
 
@@ -217,27 +220,28 @@ export const WARNING_STYLES = `
 }
 
 .testudo-alert-title {
-  font-size: 11px;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .testudo-alert-medium {
-  border-color: rgba(217, 119, 6, 0.25);
-  background: rgba(217, 119, 6, 0.04);
+  border-color: rgba(255, 170, 44, 0.2);
+  background: rgba(255, 170, 44, 0.03);
 }
 
 .testudo-alert-medium::before {
-  background: linear-gradient(90deg, transparent, rgba(217, 119, 6, 0.4), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 170, 44, 0.35), transparent);
 }
 
 .testudo-alert-medium .testudo-alert-header {
-  color: #d97706;
+  color: #ffaa2c;
 }
 
 .testudo-alert-description {
-  color: #9ca3af;
+  color: #6e6e8a;
   font-size: 13px;
   font-weight: 400;
   line-height: 1.6;
@@ -253,7 +257,7 @@ export const WARNING_STYLES = `
 
 .testudo-intent-action {
   font-size: 13px;
-  color: #9ca3af;
+  color: #6e6e8a;
   line-height: 1.6;
   margin-bottom: 8px;
   padding: 0 4px;
@@ -263,10 +267,10 @@ export const WARNING_STYLES = `
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #242442;
+  background: #12121e;
   border-radius: 6px;
   padding: 10px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.04);
   transition: border-color 0.15s;
 }
 
@@ -275,11 +279,12 @@ export const WARNING_STYLES = `
 }
 
 .testudo-address-label {
-  font-size: 11px;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 9px;
   font-weight: 600;
-  color: #6b7280;
+  color: #3e3e55;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
 }
 
 .testudo-address-value {
@@ -291,14 +296,14 @@ export const WARNING_STYLES = `
 .testudo-address-text {
   font-family: 'Roboto Mono', ui-monospace, monospace;
   font-size: 13px;
-  color: #e5e7eb;
+  color: #c8c8d8;
   letter-spacing: 0.01em;
 }
 
 .testudo-copy-btn {
   background: none;
   border: none;
-  color: #6b7280;
+  color: #3e3e55;
   cursor: pointer;
   padding: 4px;
   display: flex;
@@ -309,8 +314,8 @@ export const WARNING_STYLES = `
 }
 
 .testudo-copy-btn:hover {
-  color: #9ca3af;
-  background: rgba(255, 255, 255, 0.06);
+  color: #6e6e8a;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .testudo-copy-btn .testudo-material-icon {
@@ -328,11 +333,12 @@ export const WARNING_STYLES = `
 }
 
 .testudo-threats-title {
-  font-size: 10px;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: #6b7280;
+  letter-spacing: 0.12em;
+  color: #3e3e55;
   margin-bottom: 8px;
   padding: 0 2px;
 }
@@ -341,7 +347,7 @@ export const WARNING_STYLES = `
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #242442;
+  background: #12121e;
   border-radius: 6px;
   padding: 10px 12px;
   border: 1px solid rgba(255, 255, 255, 0.03);
@@ -356,16 +362,16 @@ export const WARNING_STYLES = `
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: rgba(217, 119, 6, 0.08);
-  color: #d97706;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: rgba(255, 170, 44, 0.06);
+  color: #ffaa2c;
   flex-shrink: 0;
 }
 
 .testudo-threat-icon .testudo-material-icon {
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .testudo-threat-content {
@@ -377,13 +383,13 @@ export const WARNING_STYLES = `
 .testudo-threat-name {
   font-size: 13px;
   font-weight: 600;
-  color: #e5e7eb;
+  color: #c8c8d8;
   line-height: 1.3;
 }
 
 .testudo-threat-desc {
   font-size: 11px;
-  color: #6b7280;
+  color: #3e3e55;
   margin-top: 2px;
   line-height: 1.4;
 }
@@ -395,7 +401,7 @@ export const WARNING_STYLES = `
   flex-direction: column;
   gap: 12px;
   padding: 12px 16px 20px;
-  background: #1a1a2e;
+  background: #0c0c14;
   flex-shrink: 0;
   position: relative;
 }
@@ -407,40 +413,42 @@ export const WARNING_STYLES = `
   left: 16px;
   right: 16px;
   height: 1px;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .testudo-btn-cancel {
   width: 100%;
-  background: linear-gradient(180deg, #16a34a 0%, #15803d 100%);
+  background: linear-gradient(180deg, #00c77d 0%, #00a366 100%);
   color: white;
   border: none;
   border-radius: 8px;
   padding: 14px 20px;
-  font-size: 14px;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 12px;
   font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   transition: all 0.15s;
-  letter-spacing: 0.01em;
 }
 
 .testudo-btn-cancel:hover {
-  background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+  background: linear-gradient(180deg, #00e599 0%, #00c77d 100%);
   box-shadow:
-    0 2px 8px rgba(22, 163, 74, 0.25),
+    0 2px 12px rgba(0, 199, 125, 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .testudo-btn-cancel:active {
   transform: scale(0.985);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .testudo-btn-cancel .testudo-material-icon {
@@ -456,7 +464,7 @@ export const WARNING_STYLES = `
 .testudo-btn-link {
   background: none;
   border: none;
-  color: #6b7280;
+  color: #3e3e55;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -466,8 +474,8 @@ export const WARNING_STYLES = `
 }
 
 .testudo-btn-link:hover {
-  color: #9ca3af;
-  background: rgba(255, 255, 255, 0.05);
+  color: #6e6e8a;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .testudo-btn-danger {
@@ -476,7 +484,7 @@ export const WARNING_STYLES = `
   gap: 4px;
   background: none;
   border: none;
-  color: #6b7280;
+  color: #3e3e55;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -486,8 +494,8 @@ export const WARNING_STYLES = `
 }
 
 .testudo-btn-danger:hover {
-  color: #ef4444;
-  background: rgba(220, 38, 38, 0.06);
+  color: #ff3b5c;
+  background: rgba(255, 59, 92, 0.04);
 }
 
 .testudo-btn-danger .testudo-material-icon {
@@ -508,43 +516,49 @@ export const WARNING_STYLES = `
 }
 
 .testudo-confirm-label {
-  font-size: 12px;
-  color: #6b7280;
-  font-weight: 500;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 10px;
+  color: #3e3e55;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .testudo-confirm-input {
   width: 100%;
-  background: #242442;
-  border: 1px solid rgba(220, 38, 38, 0.2);
+  background: #12121e;
+  border: 1px solid rgba(255, 59, 92, 0.15);
   border-radius: 6px;
   padding: 10px 12px;
   font-size: 13px;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  color: #e5e7eb;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #c8c8d8;
   outline: none;
   transition: border-color 0.15s;
   box-sizing: border-box;
 }
 
 .testudo-confirm-input:focus {
-  border-color: rgba(220, 38, 38, 0.5);
-  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.08);
+  border-color: rgba(255, 59, 92, 0.4);
+  box-shadow: 0 0 0 2px rgba(255, 59, 92, 0.06);
 }
 
 .testudo-confirm-input::placeholder {
-  color: rgba(100, 116, 139, 0.5);
+  color: rgba(62, 62, 85, 0.6);
 }
 
 .testudo-btn-danger-confirm {
   width: 100%;
-  background: rgba(220, 38, 38, 0.06);
-  color: rgba(220, 38, 38, 0.3);
-  border: 1px solid rgba(220, 38, 38, 0.12);
+  background: rgba(255, 59, 92, 0.04);
+  color: rgba(255, 59, 92, 0.3);
+  border: 1px solid rgba(255, 59, 92, 0.08);
   border-radius: 8px;
   padding: 12px 20px;
-  font-size: 13px;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   cursor: not-allowed;
   display: flex;
   align-items: center;
@@ -554,15 +568,15 @@ export const WARNING_STYLES = `
 }
 
 .testudo-btn-danger-confirm.enabled {
-  background: rgba(220, 38, 38, 0.12);
-  color: #ef4444;
-  border-color: rgba(220, 38, 38, 0.3);
+  background: rgba(255, 59, 92, 0.08);
+  color: #ff3b5c;
+  border-color: rgba(255, 59, 92, 0.25);
   cursor: pointer;
 }
 
 .testudo-btn-danger-confirm.enabled:hover {
-  background: rgba(220, 38, 38, 0.2);
-  border-color: rgba(220, 38, 38, 0.5);
+  background: rgba(255, 59, 92, 0.15);
+  border-color: rgba(255, 59, 92, 0.4);
 }
 
 /* ── Loading ── */
@@ -572,9 +586,9 @@ export const WARNING_STYLES = `
 }
 
 .testudo-loading-icon {
-  background: rgba(59, 130, 246, 0.06);
-  border-color: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
+  background: rgba(0, 229, 153, 0.04);
+  border-color: rgba(0, 229, 153, 0.12);
+  color: #00e599;
   animation: none;
 }
 
@@ -582,7 +596,7 @@ export const WARNING_STYLES = `
   margin: 12px 16px;
   height: 2px;
   border-radius: 1px;
-  background: rgba(59, 130, 246, 0.08);
+  background: rgba(0, 229, 153, 0.06);
   overflow: hidden;
 }
 
@@ -590,7 +604,7 @@ export const WARNING_STYLES = `
   height: 100%;
   width: 50%;
   border-radius: 1px;
-  background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+  background: linear-gradient(90deg, transparent, #00e599, transparent);
   animation: testudo-loading-slide 1.4s ease-in-out infinite;
 }
 
@@ -601,14 +615,14 @@ export const WARNING_STYLES = `
   position: fixed;
   bottom: 16px;
   right: 16px;
-  background: #1a1a2e;
-  border-radius: 10px;
+  background: #0c0c14;
+  border-radius: 8px;
   padding: 14px 16px;
-  color: #e5e7eb;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #c8c8d8;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   z-index: 999998;
   max-width: 360px;
-  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.7);
   animation: testudo-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   gap: 10px;
@@ -642,7 +656,7 @@ export const WARNING_STYLES = `
 .testudo-toast-text,
 .testudo-toast-unknown-text {
   font-size: 12px;
-  color: #6b7280;
+  color: #3e3e55;
   margin-top: 4px;
   line-height: 1.5;
 }
@@ -651,7 +665,7 @@ export const WARNING_STYLES = `
 .testudo-toast-unknown-dismiss {
   background: none;
   border: none;
-  color: #6b7280;
+  color: #3e3e55;
   cursor: pointer;
   font-size: 11px;
   margin-top: 6px;
@@ -663,17 +677,17 @@ export const WARNING_STYLES = `
 
 .testudo-toast-dismiss:hover,
 .testudo-toast-unknown-dismiss:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #9ca3af;
+  background: rgba(255, 255, 255, 0.04);
+  color: #6e6e8a;
 }
 
 /* ── Info Toast (specifics) ── */
 
 .testudo-toast {
-  border: 1px solid rgba(217, 119, 6, 0.2);
+  border: 1px solid rgba(255, 170, 44, 0.15);
   box-shadow:
-    0 0 0 1px rgba(217, 119, 6, 0.06),
-    0 12px 32px -4px rgba(0, 0, 0, 0.5);
+    0 0 0 1px rgba(255, 170, 44, 0.04),
+    0 12px 32px -4px rgba(0, 0, 0, 0.7);
 }
 
 .testudo-toast::before {
@@ -683,15 +697,15 @@ export const WARNING_STYLES = `
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(217, 119, 6, 0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 170, 44, 0.25), transparent);
 }
 
 .testudo-toast-icon {
-  color: #d97706;
+  color: #ffaa2c;
 }
 
 .testudo-toast-title {
-  color: #d97706;
+  color: #ffaa2c;
 }
 
 .testudo-toast-title .testudo-toast-icon-inline {
@@ -703,21 +717,21 @@ export const WARNING_STYLES = `
 /* ── Unknown Toast (specifics) ── */
 
 .testudo-toast-unknown {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .testudo-toast-unknown-icon {
-  color: #6b7280;
+  color: #4a4a6a;
 }
 
 .testudo-toast-unknown-title {
-  color: #9ca3af;
+  color: #6e6e8a;
 }
 
 .testudo-toast-unknown-address {
   font-family: 'Roboto Mono', monospace;
   font-size: 11px;
-  color: #6b7280;
+  color: #3e3e55;
   margin-top: 5px;
 }
 
@@ -725,7 +739,7 @@ export const WARNING_STYLES = `
 
 .testudo-btn-cancel:focus-visible,
 .testudo-btn-danger-confirm:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid #00e599;
   outline-offset: 2px;
 }
 
@@ -734,21 +748,21 @@ export const WARNING_STYLES = `
 .testudo-copy-btn:focus-visible,
 .testudo-toast-dismiss:focus-visible,
 .testudo-toast-unknown-dismiss:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid #00e599;
   outline-offset: 1px;
   border-radius: 4px;
 }
 
 .testudo-confirm-input:focus-visible {
   outline: none;
-  border-color: rgba(59, 130, 246, 0.6);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+  border-color: rgba(0, 229, 153, 0.5);
+  box-shadow: 0 0 0 2px rgba(0, 229, 153, 0.1);
 }
 
 /* ── Utility Classes ── */
 
 .testudo-text-danger {
-  color: #ef4444;
+  color: #ff3b5c;
 }
 
 /* ── Reduced Motion ── */
