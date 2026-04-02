@@ -11,8 +11,8 @@
 		"cache": "synpress ./wallet-setup"
 	},
 	"devDependencies": {
-		"@playwright/test": "~1.48.0",
-		"@synthetixio/synpress": "^4.0.10",
+		"@playwright/test": "~1.59.0",
+		"@synthetixio/synpress": "^4.1.2",
 		"serve": "^14.2.4"
 	}
 }

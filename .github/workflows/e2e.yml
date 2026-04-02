@@ -138,14 +138,13 @@ jobs:
       - name: Install Playwright browsers
         run: |
           yarn workspace @testudo/e2e-docker exec playwright install chromium --with-deps
-          npx playwright-core@1.48.2 install chromium
 
       - name: Restore Synpress cache
         id: synpress-cache
         uses: actions/cache@v4
         with:
           path: packages/e2e-docker/.cache-synpress
-          key: synpress-v1-${{ runner.os }}-${{ hashFiles('yarn.lock', 'packages/e2e-docker/wallet-setup/**') }}
+          key: synpress-v2-${{ runner.os }}-${{ hashFiles('yarn.lock', 'packages/e2e-docker/wallet-setup/**') }}
 
       - name: Generate Synpress cache
         if: steps.synpress-cache.outputs.cache-hit != 'true'

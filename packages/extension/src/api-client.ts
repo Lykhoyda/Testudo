@@ -17,10 +17,20 @@ export interface ApiClientOptions {
 	timeout?: number;
 }
 
+export type ApiErrorCategory =
+	| 'offline'
+	| 'timeout'
+	| 'rate_limited'
+	| 'http_error'
+	| 'invalid_response'
+	| 'network_error'
+	| 'unknown';
+
 export interface ApiClientResult {
 	success: boolean;
 	data?: ThreatResponse;
 	error?: string;
+	errorCategory?: ApiErrorCategory;
 	offline?: boolean;
 	rateLimited?: boolean;
 }
@@ -35,7 +45,7 @@ async function fetchWithTimeout(
 
 	// Combine with external signal if provided
 	if (signal) {
-		signal.addEventListener('abort', () => controller.abort());
+		signal.addEventListener('abort', () => controller.abort(), { once: true });
 	}
 
 	try {
@@ -67,11 +77,13 @@ export async function checkAddressThreat(
 			success: false,
 			offline: true,
 			error: 'Offline',
+			errorCategory: 'offline',
 		};
 	}
 
 	const url = `${baseUrl}/api/v1/threats/address/${address.toLowerCase()}`;
 	let lastError: string = '';
+	let lastCategory: ApiErrorCategory = 'unknown';
 
 	for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
 		try {
@@ -88,12 +100,14 @@ export async function checkAddressThreat(
 					success: false,
 					rateLimited: true,
 					error: 'Rate limited',
+					errorCategory: 'rate_limited',
 				};
 			}
 
 			// Handle other errors
 			if (!response.ok) {
 				lastError = `HTTP ${response.status}`;
+				lastCategory = 'http_error';
 				continue;
 			}
 
@@ -103,6 +117,7 @@ export async function checkAddressThreat(
 			if (typeof rawData.isMalicious !== 'boolean' || typeof rawData.address !== 'string') {
 				console.warn('[API Client] Invalid API response structure:', rawData);
 				lastError = 'Invalid API response';
+				lastCategory = 'invalid_response';
 				continue;
 			}
 
@@ -116,13 +131,16 @@ export async function checkAddressThreat(
 			if (error instanceof Error) {
 				if (error.name === 'AbortError') {
 					lastError = 'Timeout';
+					lastCategory = 'timeout';
 					console.warn(`[API Client] Request timed out (attempt ${attempt + 1})`);
 				} else {
 					lastError = error.message;
+					lastCategory = 'network_error';
 					console.warn(`[API Client] Request failed (attempt ${attempt + 1}):`, error.message);
 				}
 			} else {
 				lastError = 'Unknown error';
+				lastCategory = 'unknown';
 			}
 		}
 	}
@@ -130,5 +148,6 @@ export async function checkAddressThreat(
 	return {
 		success: false,
 		error: lastError,
+		errorCategory: lastCategory,
 	};
 }
