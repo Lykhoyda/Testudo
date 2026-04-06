@@ -12,7 +12,9 @@ import { createPublicClient, hexToString, http } from 'viem';
 import { mainnet } from 'viem/chains';
 import type { AnalysisPipeline } from './analysis';
 import { createAnalysisPipeline } from './analysis';
-import { checkAddressThreat } from './api-client';
+import { checkAddressThreat, checkDomainThreat } from './api-client';
+import { normalizeDomain } from './phishing/normalize';
+import { PhishingSync } from './phishing/sync';
 import {
 	getSafeFilter,
 	handleSafeFilterAlarm,
@@ -162,11 +164,19 @@ async function initializeSafeFilter(): Promise<void> {
 	setupSafeFilterAlarm();
 }
 
+// Initialize Phishing Sync
+const phishingSync = new PhishingSync(
+	'https://pub-76c6347fe0fc49d7b1497bc741c11d24.r2.dev',
+);
+
 // Run on startup
 // Note: Message listener registers immediately. If ANALYZE_DELEGATION arrives before
 // load() completes, only fallbackSet is checked (fail-safe: triggers API/bytecode analysis)
 initializeSafeFilter().catch((error) => {
 	console.error('[Testudo Background] Safe filter initialization failed:', error);
+});
+phishingSync.loadFromStorage().catch((error) => {
+	console.error('[Testudo Background] Phishing sync load from storage failed:', error);
 });
 
 // Handle extension install
@@ -175,11 +185,35 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 		console.log('[Testudo Background] Extension installed, initializing Safe Filter');
 		await initializeSafeFilterOnInstall(safeFilter);
 	}
+	PhishingSync.setupAlarm();
+	phishingSync.initializeWithBackoff();
 });
 
 // Handle alarms
 chrome.alarms.onAlarm.addListener(async (alarm) => {
 	await handleSafeFilterAlarm(alarm, safeFilter);
+	if (PhishingSync.isPhishingAlarm(alarm)) {
+		await phishingSync.syncFromCDN();
+	}
+});
+
+// Handle DNR-blocked navigations — redirect to blocked page
+chrome.webNavigation.onErrorOccurred.addListener(async (details) => {
+	if (details.frameId !== 0) return;
+	if (details.error !== 'net::ERR_BLOCKED_BY_CLIENT') return;
+
+	const normalized = normalizeDomain(details.url);
+	if (!normalized) return;
+
+	const matchedRules = await chrome.declarativeNetRequest.getMatchedRules({
+		tabId: details.tabId,
+	});
+	if (matchedRules.rulesMatchedInfo.length === 0) return;
+
+	const blockUrl = chrome.runtime.getURL(
+		`blocked.html?domain=${encodeURIComponent(normalized.hostname)}&url=${encodeURIComponent(details.url)}&action=hard-block`,
+	);
+	chrome.tabs.update(details.tabId, { url: blockUrl });
 });
 
 // Wire analysis pipeline with all concrete dependencies
@@ -297,6 +331,83 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 			sendResponse({ success: true });
 		});
 		return true;
+	}
+
+	if (message.type === 'TESTUDO_CHECK_DOMAIN_METADATA') {
+		checkDomainThreat(message.domain).then((result) => sendResponse(result));
+		return true;
+	}
+
+	if (message.type === 'TESTUDO_PHISHING_OVERRIDE') {
+		const { domain, url } = message;
+		const ruleId = 900000 + sender.tab!.id!;
+		(async () => {
+			await chrome.declarativeNetRequest.updateDynamicRules({
+				addRules: [{
+					id: ruleId,
+					priority: 2,
+					action: { type: 'allow' as const },
+					condition: {
+						urlFilter: `||${domain}`,
+						resourceTypes: ['main_frame' as const],
+						tabIds: [sender.tab!.id!],
+					},
+				}],
+			});
+			await chrome.storage.session.set({
+				[`phishing-override-${sender.tab!.id}-${domain}`]: true,
+			});
+			chrome.tabs.update(sender.tab!.id!, { url });
+			sendResponse({ success: true });
+		})();
+		return true;
+	}
+
+	if (message.type === 'TESTUDO_CHECK_DOMAIN_BLOOM') {
+		const bloom = phishingSync.getBloom();
+		if (!bloom) {
+			sendResponse({ inBloom: false });
+			return true;
+		}
+		const normalized = normalizeDomain(`https://${message.hostname}`);
+		const inBloom = normalized
+			? bloom.has(normalized.hostname) || bloom.has(normalized.registrable)
+			: false;
+		sendResponse({ inBloom });
+		return true;
+	}
+
+	if (message.type === 'TESTUDO_CHECK_DOMAIN_API') {
+		const normalized = normalizeDomain(message.url);
+		if (!normalized) return false;
+		checkDomainThreat(normalized.hostname).then((result) => {
+			if (result.success && result.data?.isMalicious && sender.tab?.id) {
+				const blockUrl = chrome.runtime.getURL(
+					`blocked.html?domain=${encodeURIComponent(normalized.hostname)}&url=${encodeURIComponent(message.url)}&action=hard-block`,
+				);
+				chrome.tabs.update(sender.tab.id, { url: blockUrl });
+			}
+		});
+		return false;
+	}
+});
+
+// Clean up per-tab DNR override rules and session data when tab closes
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+	const ruleId = 900000 + tabId;
+	try {
+		await chrome.declarativeNetRequest.updateDynamicRules({
+			removeRuleIds: [ruleId],
+		});
+	} catch {
+		// Rule may not exist
+	}
+	const sessionData = await chrome.storage.session.get(null);
+	const keysToRemove = Object.keys(sessionData).filter(
+		(k) => k.startsWith(`phishing-override-${tabId}-`),
+	);
+	if (keysToRemove.length > 0) {
+		await chrome.storage.session.remove(keysToRemove);
 	}
 });
 
