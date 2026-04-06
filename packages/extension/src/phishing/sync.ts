@@ -108,10 +108,7 @@ export class PhishingSync {
 				return false;
 			}
 
-			const stored = await chrome.storage.local.get([
-				STORAGE_KEYS.VERSION,
-				STORAGE_KEYS.SEQUENCE,
-			]);
+			const stored = await chrome.storage.local.get([STORAGE_KEYS.VERSION, STORAGE_KEYS.SEQUENCE]);
 			const storedSequence = (stored[STORAGE_KEYS.SEQUENCE] as number) ?? 0;
 
 			if (manifest.sequence < storedSequence) {
@@ -147,7 +144,12 @@ export class PhishingSync {
 
 			const bloomHash = await this.calculateHash(bloomData);
 			if (bloomHash !== manifest.hash) {
-				console.error('[PhishingSync] Bloom hash mismatch! Expected:', manifest.hash, 'Got:', bloomHash);
+				console.error(
+					'[PhishingSync] Bloom hash mismatch! Expected:',
+					manifest.hash,
+					'Got:',
+					bloomHash,
+				);
 				return false;
 			}
 
@@ -164,7 +166,12 @@ export class PhishingSync {
 
 			const dnrHash = await this.calculateHash(dnrData);
 			if (dnrHash !== manifest.dnrHash) {
-				console.error('[PhishingSync] DNR hash mismatch! Expected:', manifest.dnrHash, 'Got:', dnrHash);
+				console.error(
+					'[PhishingSync] DNR hash mismatch! Expected:',
+					manifest.dnrHash,
+					'Got:',
+					dnrHash,
+				);
 				return false;
 			}
 

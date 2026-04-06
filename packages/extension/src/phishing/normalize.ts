@@ -8,8 +8,7 @@ export interface NormalizedDomain {
 
 const ALLOWED_SCHEMES = new Set(['http:', 'https:']);
 
-const IPV4_RE =
-	/^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/;
+const IPV4_RE = /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/;
 
 function isIPLiteral(hostname: string): boolean {
 	if (hostname.startsWith('[') && hostname.endsWith(']')) {
@@ -45,8 +44,7 @@ export function normalizeDomain(urlString: string): NormalizedDomain | null {
 	}
 
 	const registrable =
-		getDomain(hostname, { validHosts: [], allowPrivateDomains: true }) ??
-		hostname;
+		getDomain(hostname, { validHosts: [], allowPrivateDomains: true }) ?? hostname;
 
 	return { hostname, registrable, isIP: false };
 }

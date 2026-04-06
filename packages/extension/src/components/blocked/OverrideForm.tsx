@@ -51,9 +51,7 @@ export function OverrideForm() {
 	const domain = vm.domain.value;
 	const isValid = vm.isOverrideValid.value;
 
-	const btnStyle = isValid
-		? styles.btn
-		: { ...styles.btn, ...styles.btnDisabled };
+	const btnStyle = isValid ? styles.btn : { ...styles.btn, ...styles.btnDisabled };
 
 	return (
 		<div style={styles.wrapper}>

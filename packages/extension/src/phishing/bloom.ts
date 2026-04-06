@@ -23,7 +23,7 @@ function murmurhash3_32(key: string, seed: number): number {
 	let i = 0;
 	while (i + 4 <= len) {
 		let k =
-			((key.charCodeAt(i) & 0xff)) |
+			(key.charCodeAt(i) & 0xff) |
 			((key.charCodeAt(i + 1) & 0xff) << 8) |
 			((key.charCodeAt(i + 2) & 0xff) << 16) |
 			((key.charCodeAt(i + 3) & 0xff) << 24);
@@ -41,19 +41,15 @@ function murmurhash3_32(key: string, seed: number): number {
 
 	// Remaining bytes
 	let remaining = 0;
-	switch (len - i) {
-		case 3:
-			remaining ^= (key.charCodeAt(i + 2) & 0xff) << 16;
-		// fallthrough
-		case 2:
-			remaining ^= (key.charCodeAt(i + 1) & 0xff) << 8;
-		// fallthrough
-		case 1:
-			remaining ^= key.charCodeAt(i) & 0xff;
-			remaining = Math.imul(remaining, 0xcc9e2d51);
-			remaining = ((remaining << 15) | (remaining >>> 17)) >>> 0;
-			remaining = Math.imul(remaining, 0x1b873593);
-			h ^= remaining;
+	const tail = len - i;
+	if (tail >= 3) remaining ^= (key.charCodeAt(i + 2) & 0xff) << 16;
+	if (tail >= 2) remaining ^= (key.charCodeAt(i + 1) & 0xff) << 8;
+	if (tail >= 1) {
+		remaining ^= key.charCodeAt(i) & 0xff;
+		remaining = Math.imul(remaining, 0xcc9e2d51);
+		remaining = ((remaining << 15) | (remaining >>> 17)) >>> 0;
+		remaining = Math.imul(remaining, 0x1b873593);
+		h ^= remaining;
 	}
 
 	// Finalize
@@ -77,7 +73,7 @@ function murmurhash3_32(key: string, seed: number): number {
  */
 function optimalBitCount(expectedCount: number, fpRate: number): number {
 	const n = Math.max(1, expectedCount);
-	const m = Math.ceil(-n * Math.log(fpRate) / (Math.LN2 * Math.LN2));
+	const m = Math.ceil((-n * Math.log(fpRate)) / (Math.LN2 * Math.LN2));
 	return Math.max(8, m);
 }
 

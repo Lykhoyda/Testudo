@@ -184,8 +184,8 @@ export function BlockScreen() {
 
 			{state === 'soft-block' && (
 				<div style={styles.infoBox}>
-					API unavailable — domain matched local threat database but could not be confirmed
-					in real-time.
+					API unavailable — domain matched local threat database but could not be confirmed in
+					real-time.
 				</div>
 			)}
 
