@@ -363,6 +363,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 		return true;
 	}
 
+	if (message.type === 'TESTUDO_RELOAD_PHISHING_BLOOM') {
+		phishingSync.loadFromStorage().then(() => {
+			sendResponse({ success: true });
+		});
+		return true;
+	}
+
 	if (message.type === 'TESTUDO_CHECK_DOMAIN_BLOOM') {
 		const bloom = phishingSync.getBloom();
 		if (!bloom) {
