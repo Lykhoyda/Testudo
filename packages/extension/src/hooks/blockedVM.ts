@@ -15,14 +15,32 @@ export const isOverrideValid = computed(
 	() => overrideInput.value.toLowerCase() === domain.value.toLowerCase(),
 );
 
+const SAFE_PROTOCOLS = new Set(['http:', 'https:']);
+
+function sanitizeRedirectUrl(url: string): string {
+	try {
+		const parsed = new URL(url);
+		if (SAFE_PROTOCOLS.has(parsed.protocol)) {
+			return parsed.href;
+		}
+	} catch {
+		// Invalid URL — fall through to safe default
+	}
+	return 'about:newtab';
+}
+
+export function safeNavigate(url: string): void {
+	window.location.href = sanitizeRedirectUrl(url);
+}
+
 export function initFromUrlParams(): void {
 	const params = new URLSearchParams(window.location.search);
 	const d = params.get('domain') ?? '';
-	const url = params.get('url') ?? '';
+	const rawUrl = params.get('url') ?? '';
 	const action = (params.get('action') ?? 'hard-block') as BlockAction;
 
 	domain.value = d;
-	originalUrl.value = url;
+	originalUrl.value = sanitizeRedirectUrl(rawUrl);
 	blockAction.value = action;
 }
 
@@ -61,8 +79,7 @@ export async function override(): Promise<void> {
 		// Best-effort — navigate anyway
 	}
 
-	const target = originalUrl.value || 'about:newtab';
-	window.location.href = target;
+	safeNavigate(originalUrl.value);
 }
 
 export function goBack(): void {
