@@ -17,12 +17,13 @@ if (!existsSync(fontsDir)) {
 copyFileSync(join(__dirname, 'manifest.json'), join(distDir, 'manifest.json'));
 copyFileSync(join(__dirname, 'popup.html'), join(distDir, 'popup.html'));
 copyFileSync(join(__dirname, 'options.html'), join(distDir, 'options.html'));
+copyFileSync(join(__dirname, 'blocked.html'), join(distDir, 'blocked.html'));
 
 const fontsSrc = join(__dirname, 'fonts');
 for (const file of readdirSync(fontsSrc)) {
 	copyFileSync(join(fontsSrc, file), join(fontsDir, file));
 }
-console.log('Copied manifest.json, popup.html, options.html, and fonts/ to dist/');
+console.log('Copied manifest.json, popup.html, options.html, blocked.html, and fonts/ to dist/');
 
 const apiUrl = process.env.TESTUDO_API_URL || 'https://testudo-api-production.up.railway.app';
 console.log(`[Testudo Build] API URL: ${apiUrl}`);
@@ -61,6 +62,10 @@ export default defineConfig([
 	},
 	{
 		input: 'src/options.tsx',
+		...shared,
+	},
+	{
+		input: 'src/blocked.tsx',
 		...shared,
 	},
 ]);

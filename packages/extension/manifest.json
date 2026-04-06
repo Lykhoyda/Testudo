@@ -16,7 +16,9 @@
 
   "permissions": [
     "storage",
-    "alarms"
+    "alarms",
+    "declarativeNetRequest",
+    "webNavigation"
   ],
 
   "options_page": "options.html",
@@ -44,7 +46,7 @@
 
   "web_accessible_resources": [
     {
-      "resources": ["injected.js", "fonts/*"],
+      "resources": ["injected.js", "fonts/*", "blocked.html", "blocked.js"],
       "matches": ["<all_urls>"]
     }
   ],

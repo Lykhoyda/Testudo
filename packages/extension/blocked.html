@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Testudo — Threat Intercepted</title>
+  <link href="fonts/fonts.css" rel="stylesheet">
+  <style>
+    :root {
+      /* Cipher Terminal — deep carbon foundation */
+      --bg-void: #07070c;
+      --bg-app: #0c0c14;
+      --bg-surface: #12121e;
+      --bg-surface-hover: #181828;
+      --bg-elevated: #1a1a2a;
+
+      /* Phosphor green — the signal */
+      --phosphor: #00e599;
+      --phosphor-dim: #00b377;
+      --phosphor-glow: rgba(0, 229, 153, 0.12);
+      --phosphor-faint: rgba(0, 229, 153, 0.06);
+
+      /* Severity spectrum */
+      --danger: #ff3b5c;
+      --danger-glow: rgba(255, 59, 92, 0.12);
+      --warning: #ffaa2c;
+      --warning-glow: rgba(255, 170, 44, 0.12);
+      --neutral: #4a4a6a;
+      --neutral-glow: rgba(74, 74, 106, 0.12);
+
+      /* Typography */
+      --text-bright: #f0f0f5;
+      --text-primary: #c8c8d8;
+      --text-muted: #6e6e8a;
+      --text-dim: #3e3e55;
+
+      /* Borders */
+      --border-hard: rgba(255, 255, 255, 0.06);
+      --border-glow: rgba(0, 229, 153, 0.15);
+
+      /* Fonts */
+      --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'Roboto Mono', monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      font-family: var(--font-ui);
+      background: var(--bg-void);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+    }
+
+    /* Noise texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    #app {
+      width: 100%;
+      max-width: 640px;
+      padding: 24px;
+    }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--text-dim); border-radius: 2px; }
+
+    :focus-visible {
+      outline: 1px solid var(--phosphor);
+      outline-offset: 2px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="blocked.js" type="module"></script>
+</body>
+</html>
