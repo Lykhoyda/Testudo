@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { checkAddressThreat, checkDomainThreat } from '../src/api-client';
 
+// Ensure navigator exists in Node.js (CI has no browser globals)
+if (typeof globalThis.navigator === 'undefined') {
+	vi.stubGlobal('navigator', { onLine: true });
+}
+
 const BASE_URL = 'https://api.testudo.test';
 const ADDRESS = '0xAbCdEf1234567890AbCdEf1234567890AbCdEf12';
 const ADDRESS_LOWER = ADDRESS.toLowerCase();

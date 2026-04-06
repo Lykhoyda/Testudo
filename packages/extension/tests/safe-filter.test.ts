@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleSafeFilterAlarm, SafeFilter, setupSafeFilterAlarm } from '../src/safe-filter';
 
+// Ensure navigator exists in Node.js (CI has no browser globals)
+if (typeof globalThis.navigator === 'undefined') {
+	vi.stubGlobal('navigator', { onLine: true });
+}
+
 const FALLBACK_ADDRESSES = [
 	'0x63c0c19a282a1b52b07dd5a65b58948a07dae32b',
 	'0x41675c099f32341bf84bfc5382af534df5c7461a',
