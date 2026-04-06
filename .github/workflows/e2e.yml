@@ -146,26 +146,10 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: Start Docker services
-        id: start-docker
         run: |
           docker compose -f docker-compose.ci.yml up -d --wait
           timeout 30 bash -c 'until cast bn --rpc-url http://localhost:8545; do sleep 1; done'
         timeout-minutes: 4
-        continue-on-error: true
-
-      - name: Verify services
-        run: |
-          curl -sf http://localhost:3001/health && echo "API healthy" || echo "API unhealthy"
-          cast bn --rpc-url http://localhost:8545 && echo "Anvil healthy" || echo "Anvil unhealthy"
-          docker compose -f docker-compose.ci.yml ps -a
-
-      - name: Dump logs if services failed
-        if: steps.start-docker.outcome == 'failure'
-        run: |
-          echo "=== API container logs ==="
-          docker compose -f docker-compose.ci.yml logs testudo-api --no-color --tail 80
-          echo "=== Postgres logs ==="
-          docker compose -f docker-compose.ci.yml logs postgres --no-color --tail 20
 
       - name: Deploy test contracts
         run: yarn workspace @testudo/e2e-docker run deploy:contracts
