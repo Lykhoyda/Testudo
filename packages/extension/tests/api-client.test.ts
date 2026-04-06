@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { checkAddressThreat } from '../src/api-client';
+import { checkAddressThreat, checkDomainThreat } from '../src/api-client';
 
 const BASE_URL = 'https://api.testudo.test';
 const ADDRESS = '0xAbCdEf1234567890AbCdEf1234567890AbCdEf12';
@@ -182,5 +182,84 @@ describe('checkAddressThreat', () => {
 
 		expect(result).toEqual({ success: false, error: 'Unknown error', errorCategory: 'unknown' });
 		expect(fetch).toHaveBeenCalledTimes(2);
+	});
+});
+
+const DOMAIN = 'evil-phishing-site.xyz';
+
+const maliciousDomainThreat = {
+	isMalicious: true,
+	domain: DOMAIN,
+	threatType: 'PHISHING',
+	sources: ['scam-sniffer', 'eth-phishing-detect'],
+	matchedLegitimate: 'uniswap.org',
+	firstSeen: '2026-03-01T00:00:00Z',
+};
+
+const cleanDomainThreat = {
+	isMalicious: false,
+	domain: DOMAIN,
+};
+
+describe('checkDomainThreat', () => {
+	beforeEach(() => {
+		originalOnLine = navigator.onLine;
+		Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true });
+		vi.stubGlobal('fetch', vi.fn());
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+	});
+
+	afterEach(() => {
+		Object.defineProperty(navigator, 'onLine', {
+			value: originalOnLine,
+			writable: true,
+			configurable: true,
+		});
+		vi.restoreAllMocks();
+	});
+
+	it('returns threat data for malicious domain', async () => {
+		vi.mocked(fetch).mockResolvedValue(mockResponse(maliciousDomainThreat));
+
+		const result = await checkDomainThreat(DOMAIN, { baseUrl: BASE_URL });
+
+		expect(result.success).toBe(true);
+		expect(result.data).toEqual(maliciousDomainThreat);
+		expect(result.data?.isMalicious).toBe(true);
+		expect(result.data?.threatType).toBe('PHISHING');
+	});
+
+	it('returns clean result for safe domain', async () => {
+		vi.mocked(fetch).mockResolvedValue(mockResponse(cleanDomainThreat));
+
+		const result = await checkDomainThreat(DOMAIN, { baseUrl: BASE_URL });
+
+		expect(result).toEqual({ success: true, data: cleanDomainThreat });
+	});
+
+	it('returns offline when navigator.onLine is false', async () => {
+		Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+
+		const result = await checkDomainThreat(DOMAIN, { baseUrl: BASE_URL });
+
+		expect(result).toEqual({
+			success: false,
+			offline: true,
+			error: 'Offline',
+			errorCategory: 'offline',
+		});
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	it('calls correct API endpoint for domain lookup', async () => {
+		vi.mocked(fetch).mockResolvedValue(mockResponse(cleanDomainThreat));
+
+		await checkDomainThreat(DOMAIN, { baseUrl: BASE_URL });
+
+		expect(fetch).toHaveBeenCalledWith(
+			`${BASE_URL}/api/v1/threats/domain/${encodeURIComponent(DOMAIN)}`,
+			expect.objectContaining({ headers: { 'Content-Type': 'application/json' } }),
+		);
 	});
 });
