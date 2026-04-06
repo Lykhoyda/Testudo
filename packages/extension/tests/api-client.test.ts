@@ -1,10 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { checkAddressThreat, checkDomainThreat } from '../src/api-client';
 
-// Ensure navigator exists in Node.js (CI has no browser globals)
-if (typeof globalThis.navigator === 'undefined') {
-	vi.stubGlobal('navigator', { onLine: true });
-}
+// Stub navigator for Node.js CI (no browser globals)
+vi.stubGlobal('navigator', { onLine: true });
 
 const BASE_URL = 'https://api.testudo.test';
 const ADDRESS = '0xAbCdEf1234567890AbCdEf1234567890AbCdEf12';
@@ -33,32 +31,20 @@ const maliciousThreat = {
 	firstSeen: '2026-01-15T00:00:00Z',
 };
 
-let originalOnLine: boolean;
-
 describe('checkAddressThreat', () => {
 	beforeEach(() => {
-		originalOnLine = globalThis.navigator.onLine;
-		Object.defineProperty(globalThis.navigator, 'onLine', {
-			value: true,
-			writable: true,
-			configurable: true,
-		});
+		vi.stubGlobal('navigator', { onLine: true });
 		vi.stubGlobal('fetch', vi.fn());
 		vi.spyOn(console, 'log').mockImplementation(() => {});
 		vi.spyOn(console, 'warn').mockImplementation(() => {});
 	});
 
 	afterEach(() => {
-		Object.defineProperty(globalThis.navigator, 'onLine', {
-			value: originalOnLine,
-			writable: true,
-			configurable: true,
-		});
 		vi.restoreAllMocks();
 	});
 
 	it('returns offline when navigator.onLine is false', async () => {
-		Object.defineProperty(globalThis.navigator, 'onLine', { value: false, configurable: true });
+		vi.stubGlobal('navigator', { onLine: false });
 
 		const result = await checkAddressThreat(ADDRESS, { baseUrl: BASE_URL });
 
@@ -212,23 +198,13 @@ const cleanDomainThreat = {
 
 describe('checkDomainThreat', () => {
 	beforeEach(() => {
-		originalOnLine = globalThis.navigator.onLine;
-		Object.defineProperty(globalThis.navigator, 'onLine', {
-			value: true,
-			writable: true,
-			configurable: true,
-		});
+		vi.stubGlobal('navigator', { onLine: true });
 		vi.stubGlobal('fetch', vi.fn());
 		vi.spyOn(console, 'log').mockImplementation(() => {});
 		vi.spyOn(console, 'warn').mockImplementation(() => {});
 	});
 
 	afterEach(() => {
-		Object.defineProperty(globalThis.navigator, 'onLine', {
-			value: originalOnLine,
-			writable: true,
-			configurable: true,
-		});
 		vi.restoreAllMocks();
 	});
 
@@ -252,7 +228,7 @@ describe('checkDomainThreat', () => {
 	});
 
 	it('returns offline when navigator.onLine is false', async () => {
-		Object.defineProperty(globalThis.navigator, 'onLine', { value: false, configurable: true });
+		vi.stubGlobal('navigator', { onLine: false });
 
 		const result = await checkDomainThreat(DOMAIN, { baseUrl: BASE_URL });
 

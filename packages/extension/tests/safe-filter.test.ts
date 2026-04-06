@@ -1,10 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleSafeFilterAlarm, SafeFilter, setupSafeFilterAlarm } from '../src/safe-filter';
 
-// Ensure navigator exists in Node.js (CI has no browser globals)
-if (typeof globalThis.navigator === 'undefined') {
-	vi.stubGlobal('navigator', { onLine: true });
-}
+// Stub navigator for Node.js CI (no browser globals)
+vi.stubGlobal('navigator', { onLine: true });
 
 const FALLBACK_ADDRESSES = [
 	'0x63c0c19a282a1b52b07dd5a65b58948a07dae32b',
@@ -182,13 +180,13 @@ describe('SafeFilter', () => {
 
 	describe('syncFromCDN', () => {
 		it('returns false when offline', async () => {
-			Object.defineProperty(globalThis.navigator, 'onLine', { value: false, configurable: true });
+			vi.stubGlobal('navigator', { onLine: false });
 			const filter = new SafeFilter();
 			expect(await filter.syncFromCDN()).toBe(false);
 		});
 
 		it('returns false when already syncing (concurrent prevention)', async () => {
-			Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true });
+			vi.stubGlobal('navigator', { onLine: true });
 			mockCryptoSubtle({ verify: true });
 
 			let resolveFetch!: (value: unknown) => void;
@@ -208,7 +206,7 @@ describe('SafeFilter', () => {
 		});
 
 		it('returns false when manifest fetch fails', async () => {
-			Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true });
+			vi.stubGlobal('navigator', { onLine: true });
 			mockFetchSequence([{ ok: false }]);
 
 			const filter = new SafeFilter();
@@ -216,7 +214,7 @@ describe('SafeFilter', () => {
 		});
 
 		it('returns false when manifest missing signing fields', async () => {
-			Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true });
+			vi.stubGlobal('navigator', { onLine: true });
 			mockFetchSequence([
 				{
 					ok: true,
@@ -229,7 +227,7 @@ describe('SafeFilter', () => {
 		});
 
 		it('returns false when signature verification fails', async () => {
-			Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true });
+			vi.stubGlobal('navigator', { onLine: true });
 			mockCryptoSubtle({ verify: false });
 			mockFetchSequence([
 				{
@@ -243,7 +241,7 @@ describe('SafeFilter', () => {
 		});
 
 		it('returns false when sequence < stored sequence (rollback protection)', async () => {
-			Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true });
+			vi.stubGlobal('navigator', { onLine: true });
 			mockCryptoSubtle({ verify: true });
 			storageData.safeFilterSequence = 10;
 			mockFetchSequence([
@@ -258,7 +256,7 @@ describe('SafeFilter', () => {
 		});
 
 		it('returns true when sequence == stored sequence AND same version (already up to date)', async () => {
-			Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true });
+			vi.stubGlobal('navigator', { onLine: true });
 			mockCryptoSubtle({ verify: true });
 			storageData.safeFilterSequence = 2;
 			storageData.safeFilterVersion = '2026-04-01';
@@ -274,7 +272,7 @@ describe('SafeFilter', () => {
 		});
 
 		it('returns false when sequence == stored sequence AND different version (collision)', async () => {
-			Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true });
+			vi.stubGlobal('navigator', { onLine: true });
 			mockCryptoSubtle({ verify: true });
 			storageData.safeFilterSequence = 2;
 			storageData.safeFilterVersion = '2026-03-01';
@@ -290,7 +288,7 @@ describe('SafeFilter', () => {
 		});
 
 		it('returns false when address list fetch fails', async () => {
-			Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true });
+			vi.stubGlobal('navigator', { onLine: true });
 			mockCryptoSubtle({ verify: true });
 			mockFetchSequence([{ ok: true, json: async () => makeManifest() }, { ok: false }]);
 
@@ -299,7 +297,7 @@ describe('SafeFilter', () => {
 		});
 
 		it('returns false when hash mismatch', async () => {
-			Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true });
+			vi.stubGlobal('navigator', { onLine: true });
 			mockCryptoSubtle({ verify: true, digestHash: 'ff00ff' });
 			mockFetchSequence([
 				{ ok: true, json: async () => makeManifest({ hash: 'sha256:aabbcc' }) },
@@ -311,7 +309,7 @@ describe('SafeFilter', () => {
 		});
 
 		it('returns false when count mismatch', async () => {
-			Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true });
+			vi.stubGlobal('navigator', { onLine: true });
 			mockCryptoSubtle({ verify: true, digestHash: 'aabb' });
 			const addresses = encodedAddresses();
 			mockFetchSequence([
@@ -324,7 +322,7 @@ describe('SafeFilter', () => {
 		});
 
 		it('returns true on successful sync and updates safeSet', async () => {
-			Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true });
+			vi.stubGlobal('navigator', { onLine: true });
 			mockCryptoSubtle({ verify: true, digestHash: 'aabb' });
 			const addresses = encodedAddresses();
 			mockFetchSequence([
@@ -345,7 +343,7 @@ describe('SafeFilter', () => {
 		});
 
 		it('resets isSyncing flag even on failure (finally block)', async () => {
-			Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true });
+			vi.stubGlobal('navigator', { onLine: true });
 			vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')));
 
 			const filter = new SafeFilter();
