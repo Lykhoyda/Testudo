@@ -147,9 +147,14 @@ jobs:
 
       - name: Start Docker services
         run: |
-          docker compose -f docker-compose.ci.yml up -d
-          timeout 90 bash -c 'until curl -sf http://localhost:3001/health; do sleep 2; done'
+          docker compose -f docker-compose.ci.yml up -d --wait
           timeout 30 bash -c 'until cast bn --rpc-url http://localhost:8545; do sleep 1; done'
+        timeout-minutes: 4
+
+      - name: Verify services
+        run: |
+          curl -sf http://localhost:3001/health || echo "API health check failed"
+          docker compose -f docker-compose.ci.yml ps -a
 
       - name: Deploy test contracts
         run: yarn workspace @testudo/e2e-docker run deploy:contracts
