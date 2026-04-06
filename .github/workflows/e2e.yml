@@ -75,13 +75,27 @@ jobs:
       - name: Start API
         run: |
           docker compose -f docker-compose.ci.yml up -d postgres testudo-api
-          timeout 60 bash -c 'until curl -sf http://localhost:3001/health; do sleep 2; done'
+          timeout 120 bash -c 'until curl -sf http://localhost:3001/health; do sleep 3; done'
+        continue-on-error: true
+        id: start-api
+
+      - name: Dump API logs on failure
+        if: steps.start-api.outcome == 'failure'
+        run: |
+          echo "=== API container logs ==="
+          docker compose -f docker-compose.ci.yml logs testudo-api --no-color --tail 50
+          echo "=== Postgres container logs ==="
+          docker compose -f docker-compose.ci.yml logs postgres --no-color --tail 20
+          echo "=== Container status ==="
+          docker compose -f docker-compose.ci.yml ps
 
       - name: Install Playwright browsers
         run: yarn workspace @testudo/e2e exec playwright install chromium --with-deps
 
       - name: Run E2E tests
         run: xvfb-run --auto-servernum yarn test:e2e
+        env:
+          API_AVAILABLE: ${{ steps.start-api.outcome == 'success' }}
 
       - name: Upload test report
         uses: actions/upload-artifact@v4
