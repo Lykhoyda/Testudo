@@ -37,7 +37,11 @@ export function initFromUrlParams(): void {
 	const params = new URLSearchParams(window.location.search);
 	const d = params.get('domain') ?? '';
 	const rawUrl = params.get('url') ?? '';
-	const action = (params.get('action') ?? 'hard-block') as BlockAction;
+	const VALID_ACTIONS = new Set<BlockAction>(['hard-block', 'soft-block', 'soft-allow', 'allow']);
+	const rawAction = params.get('action') ?? 'hard-block';
+	const action: BlockAction = VALID_ACTIONS.has(rawAction as BlockAction)
+		? (rawAction as BlockAction)
+		: 'hard-block';
 
 	domain.value = d;
 	originalUrl.value = sanitizeRedirectUrl(rawUrl);

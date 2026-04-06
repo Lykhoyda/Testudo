@@ -181,9 +181,11 @@ export class PhishingSync {
 				return false;
 			}
 
-			// Update DNR rules — remove old dynamic rules, add new
+			// Update DNR rules — remove old phishing rules but preserve per-tab override rules (id >= 900000)
 			const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
-			const removeRuleIds = existingRules.map((r: chrome.declarativeNetRequest.Rule) => r.id);
+			const removeRuleIds = existingRules
+				.filter((r: chrome.declarativeNetRequest.Rule) => r.id < 900000)
+				.map((r: chrome.declarativeNetRequest.Rule) => r.id);
 
 			await chrome.declarativeNetRequest.updateDynamicRules({
 				removeRuleIds,

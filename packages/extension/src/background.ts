@@ -337,9 +337,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 	}
 
 	if (message.type === 'TESTUDO_PHISHING_OVERRIDE') {
-		const { domain, url } = message;
+		// Only accept from extension pages (blocked.html)
+		if (!sender.url?.startsWith(chrome.runtime.getURL(''))) return false;
+
+		const domain = message.domain;
 		const tabId = sender.tab?.id;
 		if (tabId == null) return false;
+
+		// Validate domain format — prevent wildcard/empty DNR rules
+		if (
+			!domain ||
+			typeof domain !== 'string' ||
+			domain.length > 253 ||
+			!/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i.test(domain)
+		) {
+			sendResponse({ success: false, error: 'Invalid domain' });
+			return true;
+		}
+
 		const ruleId = 900000 + tabId;
 		(async () => {
 			await chrome.declarativeNetRequest.updateDynamicRules({
@@ -359,7 +374,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 			await chrome.storage.session.set({
 				[`phishing-override-${tabId}-${domain}`]: true,
 			});
-			chrome.tabs.update(tabId, { url });
+			// Navigation handled client-side via safeNavigate in blockedVM
 			sendResponse({ success: true });
 		})();
 		return true;

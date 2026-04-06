@@ -21,6 +21,10 @@
     "webNavigation"
   ],
 
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; frame-src 'none'"
+  },
+
   "options_page": "options.html",
   
   "host_permissions": [
@@ -46,7 +50,7 @@
 
   "web_accessible_resources": [
     {
-      "resources": ["injected.js", "fonts/*", "blocked.html", "blocked.js"],
+      "resources": ["injected.js", "fonts/*"],
       "matches": ["<all_urls>"]
     }
   ],
