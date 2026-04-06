@@ -64,6 +64,8 @@ jobs:
         run: yarn workspace @testudo/core run build
 
       - name: Build extension
+        env:
+          TESTUDO_API_KEY: e2e-test-key
         run: yarn workspace @testudo/extension run build
 
       - name: Build mock-dapp
@@ -140,6 +142,8 @@ jobs:
         run: yarn workspace @testudo/core run build
 
       - name: Build extension
+        env:
+          TESTUDO_API_KEY: e2e-test-key
         run: yarn workspace @testudo/extension run build
 
       - name: Install Foundry
