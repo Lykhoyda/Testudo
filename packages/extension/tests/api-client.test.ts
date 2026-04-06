@@ -37,15 +37,19 @@ let originalOnLine: boolean;
 
 describe('checkAddressThreat', () => {
 	beforeEach(() => {
-		originalOnLine = navigator.onLine;
-		Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true });
+		originalOnLine = globalThis.navigator.onLine;
+		Object.defineProperty(globalThis.navigator, 'onLine', {
+			value: true,
+			writable: true,
+			configurable: true,
+		});
 		vi.stubGlobal('fetch', vi.fn());
 		vi.spyOn(console, 'log').mockImplementation(() => {});
 		vi.spyOn(console, 'warn').mockImplementation(() => {});
 	});
 
 	afterEach(() => {
-		Object.defineProperty(navigator, 'onLine', {
+		Object.defineProperty(globalThis.navigator, 'onLine', {
 			value: originalOnLine,
 			writable: true,
 			configurable: true,
@@ -54,7 +58,7 @@ describe('checkAddressThreat', () => {
 	});
 
 	it('returns offline when navigator.onLine is false', async () => {
-		Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+		Object.defineProperty(globalThis.navigator, 'onLine', { value: false, configurable: true });
 
 		const result = await checkAddressThreat(ADDRESS, { baseUrl: BASE_URL });
 
@@ -208,15 +212,19 @@ const cleanDomainThreat = {
 
 describe('checkDomainThreat', () => {
 	beforeEach(() => {
-		originalOnLine = navigator.onLine;
-		Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true });
+		originalOnLine = globalThis.navigator.onLine;
+		Object.defineProperty(globalThis.navigator, 'onLine', {
+			value: true,
+			writable: true,
+			configurable: true,
+		});
 		vi.stubGlobal('fetch', vi.fn());
 		vi.spyOn(console, 'log').mockImplementation(() => {});
 		vi.spyOn(console, 'warn').mockImplementation(() => {});
 	});
 
 	afterEach(() => {
-		Object.defineProperty(navigator, 'onLine', {
+		Object.defineProperty(globalThis.navigator, 'onLine', {
 			value: originalOnLine,
 			writable: true,
 			configurable: true,
@@ -244,7 +252,7 @@ describe('checkDomainThreat', () => {
 	});
 
 	it('returns offline when navigator.onLine is false', async () => {
-		Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+		Object.defineProperty(globalThis.navigator, 'onLine', { value: false, configurable: true });
 
 		const result = await checkDomainThreat(DOMAIN, { baseUrl: BASE_URL });
 

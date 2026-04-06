@@ -213,9 +213,7 @@ export function BlockScreen() {
 					<button
 						type="button"
 						style={styles.btnDanger}
-						onClick={() => {
-							window.location.href = vm.originalUrl.value || 'about:newtab';
-						}}
+						onClick={() => vm.safeNavigate(vm.originalUrl.value)}
 					>
 						PROCEED ANYWAY
 					</button>
