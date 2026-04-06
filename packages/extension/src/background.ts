@@ -165,9 +165,7 @@ async function initializeSafeFilter(): Promise<void> {
 }
 
 // Initialize Phishing Sync
-const phishingSync = new PhishingSync(
-	'https://pub-76c6347fe0fc49d7b1497bc741c11d24.r2.dev',
-);
+const phishingSync = new PhishingSync('https://pub-76c6347fe0fc49d7b1497bc741c11d24.r2.dev');
 
 // Run on startup
 // Note: Message listener registers immediately. If ANALYZE_DELEGATION arrives before
@@ -340,24 +338,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 	if (message.type === 'TESTUDO_PHISHING_OVERRIDE') {
 		const { domain, url } = message;
-		const ruleId = 900000 + sender.tab!.id!;
+		const tabId = sender.tab?.id;
+		if (tabId == null) return false;
+		const ruleId = 900000 + tabId;
 		(async () => {
 			await chrome.declarativeNetRequest.updateDynamicRules({
-				addRules: [{
-					id: ruleId,
-					priority: 2,
-					action: { type: 'allow' as const },
-					condition: {
-						urlFilter: `||${domain}`,
-						resourceTypes: ['main_frame' as const],
-						tabIds: [sender.tab!.id!],
+				addRules: [
+					{
+						id: ruleId,
+						priority: 2,
+						action: { type: 'allow' as const },
+						condition: {
+							urlFilter: `||${domain}`,
+							resourceTypes: ['main_frame' as const],
+							tabIds: [tabId],
+						},
 					},
-				}],
+				],
 			});
 			await chrome.storage.session.set({
-				[`phishing-override-${sender.tab!.id}-${domain}`]: true,
+				[`phishing-override-${tabId}-${domain}`]: true,
 			});
-			chrome.tabs.update(sender.tab!.id!, { url });
+			chrome.tabs.update(tabId, { url });
 			sendResponse({ success: true });
 		})();
 		return true;
@@ -410,8 +412,8 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 		// Rule may not exist
 	}
 	const sessionData = await chrome.storage.session.get(null);
-	const keysToRemove = Object.keys(sessionData).filter(
-		(k) => k.startsWith(`phishing-override-${tabId}-`),
+	const keysToRemove = Object.keys(sessionData).filter((k) =>
+		k.startsWith(`phishing-override-${tabId}-`),
 	);
 	if (keysToRemove.length > 0) {
 		await chrome.storage.session.remove(keysToRemove);

@@ -169,7 +169,10 @@ test.describe('Phishing Domain Blocking', () => {
 		await page.waitForTimeout(2000);
 
 		// Should NOT have the phishing overlay
-		const overlay = await page.locator('#testudo-phishing-block').isVisible().catch(() => false);
+		const overlay = await page
+			.locator('#testudo-phishing-block')
+			.isVisible()
+			.catch(() => false);
 		const url = page.url();
 		const isOnBlockedPage = url.includes('blocked.html');
 

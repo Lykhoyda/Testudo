@@ -21,13 +21,7 @@ describe('PhishingBloomFilter', () => {
 	it('rejects domains not inserted', () => {
 		const filter = PhishingBloomFilter.fromDomains(SAMPLE_DOMAINS, SAMPLE_DOMAINS.length);
 
-		const absent = [
-			'google.com',
-			'uniswap.org',
-			'metamask.io',
-			'ethereum.org',
-			'aave.com',
-		];
+		const absent = ['google.com', 'uniswap.org', 'metamask.io', 'ethereum.org', 'aave.com'];
 
 		for (const domain of absent) {
 			expect(filter.has(domain)).toBe(false);
@@ -67,7 +61,7 @@ describe('PhishingBloomFilter', () => {
 		// For 250K items at 0.1% FPR: ~3.6M bits = ~450KB
 		// bits is a Uint8Array, so bits.byteLength === bits.length (bytes, not bits)
 		// byteLength getter must equal the underlying Uint8Array's byte length
-		expect(filter.byteLength).toBe(filter['bits'].byteLength);
+		expect(filter.byteLength).toBe(filter.bits.byteLength);
 		// Sanity check: 250K items at 0.1% FPR ≈ 449,300 bytes
 		expect(filter.byteLength).toBeGreaterThan(400_000);
 		expect(filter.byteLength).toBeLessThan(500_000);
@@ -83,7 +77,7 @@ describe('PhishingBloomFilter', () => {
 
 		// Critically: the internal bit array must NOT be a Buffer instance
 		// (Buffer is a Node.js-only type that crashes Chrome service workers)
-		const internalBits = filter['bits'];
+		const internalBits = filter.bits;
 		expect(internalBits).toBeInstanceOf(Uint8Array);
 		// Buffer extends Uint8Array, so check it's NOT a Buffer
 		expect(internalBits.constructor.name).toBe('Uint8Array');

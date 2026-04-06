@@ -101,9 +101,7 @@ describe('normalizeDomain', () => {
 	});
 
 	it('handles chrome-extension: scheme (returns null)', () => {
-		expect(
-			normalizeDomain('chrome-extension://abcdefghijklmnop/popup.html'),
-		).toBeNull();
+		expect(normalizeDomain('chrome-extension://abcdefghijklmnop/popup.html')).toBeNull();
 	});
 
 	it('handles port numbers (ignores them)', () => {

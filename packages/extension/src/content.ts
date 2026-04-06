@@ -14,48 +14,48 @@ import { MessageTypes } from './utils/message-types';
 
 // Layer A+ & B: Phishing domain check (top-level frame only)
 if (window === window.top) {
-  checkPhishingDomain();
+	checkPhishingDomain();
 }
 
 async function checkPhishingDomain(): Promise<void> {
-  const url = window.location.href;
-  if (url.startsWith('chrome-extension://') || url.startsWith('about:')) return;
+	const url = window.location.href;
+	if (url.startsWith('chrome-extension://') || url.startsWith('about:')) return;
 
-  try {
-    const hostname = window.location.hostname.toLowerCase().replace(/^www\./, '');
+	try {
+		const hostname = window.location.hostname.toLowerCase().replace(/^www\./, '');
 
-    // Layer A+: Ask background to check bloom filter
-    const response = await chrome.runtime.sendMessage({
-      type: 'TESTUDO_CHECK_DOMAIN_BLOOM',
-      hostname,
-    });
+		// Layer A+: Ask background to check bloom filter
+		const response = await chrome.runtime.sendMessage({
+			type: 'TESTUDO_CHECK_DOMAIN_BLOOM',
+			hostname,
+		});
 
-    if (response?.inBloom) {
-      injectPhishingOverlay(hostname);
-    }
+		if (response?.inBloom) {
+			injectPhishingOverlay(hostname);
+		}
 
-    // Layer B: Async API check for zero-day domains
-    chrome.runtime.sendMessage({
-      type: 'TESTUDO_CHECK_DOMAIN_API',
-      hostname,
-      url,
-    });
-  } catch {
-    // Extension context invalidated — fail silently
-  }
+		// Layer B: Async API check for zero-day domains
+		chrome.runtime.sendMessage({
+			type: 'TESTUDO_CHECK_DOMAIN_API',
+			hostname,
+			url,
+		});
+	} catch {
+		// Extension context invalidated — fail silently
+	}
 }
 
 function injectPhishingOverlay(domain: string): void {
-  const overlay = document.createElement('div');
-  overlay.id = 'testudo-phishing-block';
-  overlay.style.cssText = `
+	const overlay = document.createElement('div');
+	overlay.id = 'testudo-phishing-block';
+	overlay.style.cssText = `
     position: fixed; inset: 0; z-index: 2147483647;
     background: #07070c; color: #f0f0f5;
     display: flex; align-items: center; justify-content: center;
     font-family: monospace; font-size: 16px;
   `;
-  overlay.textContent = `[TESTUDO] Phishing domain blocked: ${domain}. Verifying...`;
-  document.documentElement.appendChild(overlay);
+	overlay.textContent = `[TESTUDO] Phishing domain blocked: ${domain}. Verifying...`;
+	document.documentElement.appendChild(overlay);
 }
 
 // Inject bundled fonts into the page so the warning modal can use them
