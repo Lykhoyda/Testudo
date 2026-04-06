@@ -14,6 +14,7 @@
 
 .claude
 .idea
+.superpowers
 node_modules
 dist
 CLAUDE.md
@@ -26,6 +27,7 @@ CLAUDE.md
 
 # Safe Filter signing keys
 safe-filter-private.pem
+safe-filter-public.pem
 
 # Playwright E2E
 test-results/

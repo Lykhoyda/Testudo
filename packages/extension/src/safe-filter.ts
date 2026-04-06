@@ -310,10 +310,22 @@ export async function handleSafeFilterAlarm(
 	}
 }
 
-// Initialize on extension install
+const MAX_SYNC_RETRIES = 3;
+const BASE_BACKOFF_MS = 2_000;
+
+// Initialize on extension install with exponential backoff
 export async function initializeSafeFilterOnInstall(safeFilter: SafeFilter): Promise<void> {
 	console.log('[SafeFilter] Initializing on install');
-	await safeFilter.syncFromCDN();
+	for (let attempt = 0; attempt <= MAX_SYNC_RETRIES; attempt++) {
+		const success = await safeFilter.syncFromCDN();
+		if (success) return;
+		if (attempt < MAX_SYNC_RETRIES) {
+			const delay = BASE_BACKOFF_MS * 2 ** attempt;
+			console.warn(`[SafeFilter] Sync failed, retrying in ${delay}ms (attempt ${attempt + 1})`);
+			await new Promise((r) => setTimeout(r, delay));
+		}
+	}
+	console.error('[SafeFilter] All sync retries exhausted');
 }
 
 // Singleton instance

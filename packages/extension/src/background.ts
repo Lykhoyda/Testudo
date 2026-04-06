@@ -1,4 +1,3 @@
-import type { AnalysisResult } from '@testudo/core';
 import {
 	analyzeContract,
 	assessDeployerRisk,
@@ -11,17 +10,17 @@ import {
 import type { Address, Hex } from 'viem';
 import { createPublicClient, hexToString, http } from 'viem';
 import { mainnet } from 'viem/chains';
-import type { ApiClientResult } from './api-client';
-import { checkAddressThreat } from './api-client';
-import type { ExtendedAnalysisResult } from './decision-matrix';
-import { applyDecisionMatrix } from './decision-matrix';
+import type { AnalysisPipeline } from './analysis';
+import { createAnalysisPipeline } from './analysis';
+import { checkAddressThreat, checkDomainThreat } from './api-client';
+import { normalizeDomain } from './phishing/normalize';
+import { PhishingSync } from './phishing/sync';
 import {
 	getSafeFilter,
 	handleSafeFilterAlarm,
 	initializeSafeFilterOnInstall,
 	setupSafeFilterAlarm,
 } from './safe-filter';
-import type { DeployerStaticInfo } from './services/deployer-lookup';
 import { fetchDeployerStaticInfo } from './services/deployer-lookup';
 import {
 	getSettings,
@@ -32,22 +31,6 @@ import {
 	isWhitelisted,
 	recordScan,
 } from './storage';
-
-const analysisCache = new Map<string, { result: ExtendedAnalysisResult; timestamp: number }>();
-const CACHE_TTL = 60 * 60 * 1000; // 60 minutes
-
-const deployerCache = new Map<string, DeployerStaticInfo>();
-
-// Pending analysis requests to prevent duplicate concurrent requests for the same address
-const pendingAnalysis = new Map<string, Promise<ExtendedAnalysisResult>>();
-
-// Get API URL from settings or use build-time default
-async function getApiUrl(): Promise<string> {
-	const settings = await getSettings();
-	return settings.apiUrl || process.env.TESTUDO_API_URL;
-}
-
-const DEFAULT_RPC = 'https://eth.llamarpc.com';
 
 const erc20StringAbi = [
 	{
@@ -90,6 +73,9 @@ const erc20Bytes32Abi = [
 	},
 ] as const;
 
+const DEFAULT_RPC = 'https://eth.llamarpc.com';
+const TOKEN_RESOLVE_TIMEOUT = 3_000;
+
 interface TokenResult {
 	name: string | null;
 	symbol: string | null;
@@ -117,7 +103,7 @@ async function resolveTokenViaRpc(address: string): Promise<TokenResult> {
 		const rpcUrl = settings.rpcUrl || DEFAULT_RPC;
 		const client = getOrCreateClient(rpcUrl);
 
-		const results = await client.multicall({
+		const multicallPromise = client.multicall({
 			contracts: [
 				{ address: tokenAddress, abi: erc20StringAbi, functionName: 'name' },
 				{ address: tokenAddress, abi: erc20Bytes32Abi, functionName: 'name' },
@@ -127,6 +113,20 @@ async function resolveTokenViaRpc(address: string): Promise<TokenResult> {
 			],
 			allowFailure: true,
 		});
+		let timeoutId: ReturnType<typeof setTimeout>;
+		const timeoutPromise = new Promise<never>((_, reject) => {
+			timeoutId = setTimeout(
+				() => reject(new Error('Token resolve timeout')),
+				TOKEN_RESOLVE_TIMEOUT,
+			);
+		});
+		const results = await Promise.race([
+			multicallPromise.then((r) => {
+				clearTimeout(timeoutId);
+				return r;
+			}),
+			timeoutPromise,
+		]);
 
 		const name =
 			results[0].status === 'success'
@@ -164,11 +164,17 @@ async function initializeSafeFilter(): Promise<void> {
 	setupSafeFilterAlarm();
 }
 
+// Initialize Phishing Sync
+const phishingSync = new PhishingSync('https://pub-76c6347fe0fc49d7b1497bc741c11d24.r2.dev');
+
 // Run on startup
 // Note: Message listener registers immediately. If ANALYZE_DELEGATION arrives before
 // load() completes, only fallbackSet is checked (fail-safe: triggers API/bytecode analysis)
 initializeSafeFilter().catch((error) => {
 	console.error('[Testudo Background] Safe filter initialization failed:', error);
+});
+phishingSync.loadFromStorage().catch((error) => {
+	console.error('[Testudo Background] Phishing sync load from storage failed:', error);
 });
 
 // Handle extension install
@@ -177,309 +183,55 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 		console.log('[Testudo Background] Extension installed, initializing Safe Filter');
 		await initializeSafeFilterOnInstall(safeFilter);
 	}
+	PhishingSync.setupAlarm();
+	phishingSync.initializeWithBackoff();
 });
 
 // Handle alarms
 chrome.alarms.onAlarm.addListener(async (alarm) => {
 	await handleSafeFilterAlarm(alarm, safeFilter);
+	if (PhishingSync.isPhishingAlarm(alarm)) {
+		await phishingSync.syncFromCDN();
+	}
 });
 
-async function addressCheckWithCache(
-	address: string,
-	url?: string,
-): Promise<ExtendedAnalysisResult> {
-	const normalizedAddress = address.toLowerCase();
+// Handle DNR-blocked navigations — redirect to blocked page
+chrome.webNavigation.onErrorOccurred.addListener(async (details) => {
+	if (details.frameId !== 0) return;
+	if (details.error !== 'net::ERR_BLOCKED_BY_CLIENT') return;
 
-	const whitelisted = await isWhitelisted(normalizedAddress);
-	if (whitelisted) {
-		return {
-			risk: 'LOW',
-			threats: [],
-			address: normalizedAddress as `0x${string}`,
-			blocked: false,
-			whitelisted: true,
-			source: 'whitelist',
-		};
-	}
+	const normalized = normalizeDomain(details.url);
+	if (!normalized) return;
 
-	const cached = analysisCache.get(normalizedAddress);
-	if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-		return { ...cached.result, cached: true };
-	}
+	const matchedRules = await chrome.declarativeNetRequest.getMatchedRules({
+		tabId: details.tabId,
+	});
+	if (matchedRules.rulesMatchedInfo.length === 0) return;
 
-	const pending = pendingAnalysis.get(normalizedAddress);
-	if (pending) {
-		return pending;
-	}
-
-	const checkPromise = performAddressOnlyCheck(normalizedAddress, url);
-	pendingAnalysis.set(normalizedAddress, checkPromise);
-
-	try {
-		return await checkPromise;
-	} finally {
-		pendingAnalysis.delete(normalizedAddress);
-	}
-}
-
-async function performAddressOnlyCheck(
-	normalizedAddress: string,
-	url?: string,
-): Promise<ExtendedAnalysisResult> {
-	const baseResult = { address: normalizedAddress as `0x${string}` };
-
-	if (safeFilter.isKnownSafe(normalizedAddress)) {
-		const result: ExtendedAnalysisResult = {
-			...baseResult,
-			risk: 'LOW',
-			threats: [],
-			blocked: false,
-			source: 'safe-filter',
-		};
-		analysisCache.set(normalizedAddress, { result, timestamp: Date.now() });
-		return result;
-	}
-
-	const knownMalicious = checkKnownMalicious(normalizedAddress);
-	if (knownMalicious) {
-		const result: ExtendedAnalysisResult = {
-			...baseResult,
-			risk: 'CRITICAL',
-			threats: [knownMalicious.type],
-			blocked: true,
-			source: 'local-malicious-db',
-		};
-		analysisCache.set(normalizedAddress, { result, timestamp: Date.now() });
-		return result;
-	}
-
-	const apiUrl = await getApiUrl();
-	const api = await checkAddressThreat(normalizedAddress, { baseUrl: apiUrl }).catch(
-		() => ({ success: false, error: 'API call failed' }) as ApiClientResult,
+	const blockUrl = chrome.runtime.getURL(
+		`blocked.html?domain=${encodeURIComponent(normalized.hostname)}&url=${encodeURIComponent(details.url)}&action=hard-block`,
 	);
+	chrome.tabs.update(details.tabId, { url: blockUrl });
+});
 
-	let result: ExtendedAnalysisResult;
+// Wire analysis pipeline with all concrete dependencies
+const pipeline: AnalysisPipeline = createAnalysisPipeline({
+	safeFilter,
+	checkAddressThreat,
+	analyzeContract,
+	checkKnownMalicious,
+	assessDeployerRisk,
+	generateDeployerWarnings,
+	deriveRiskFromWarnings,
+	fetchDeployerStaticInfo,
+	isWhitelisted,
+	getSettings,
+	recordScan,
+	incrementScanned,
+	getOrCreateClient,
+});
 
-	if (api.success && api.data?.isMalicious === true) {
-		result = {
-			...baseResult,
-			risk: 'CRITICAL',
-			threats: [api.data.threatType || 'KNOWN_MALICIOUS'],
-			blocked: true,
-			source: 'api',
-		};
-	} else if (api.success && api.data != null && api.data.isMalicious === false) {
-		result = {
-			...baseResult,
-			risk: 'LOW',
-			threats: [],
-			blocked: false,
-			source: 'api',
-		};
-	} else {
-		result = {
-			...baseResult,
-			risk: 'UNKNOWN',
-			threats: [],
-			blocked: false,
-			source: 'fallback',
-			apiUnavailable: true,
-		};
-	}
-
-	analysisCache.set(normalizedAddress, { result, timestamp: Date.now() });
-
-	await recordScan({
-		address: normalizedAddress,
-		risk: result.risk,
-		threats: result.threats,
-		url,
-		blocked: result.blocked,
-	});
-	await incrementScanned();
-
-	return result;
-}
-
-async function analyzeWithCache(address: string, url?: string): Promise<ExtendedAnalysisResult> {
-	const normalizedAddress = address.toLowerCase();
-
-	// Check whitelist first (fail-secure: returns false on error)
-	const whitelisted = await isWhitelisted(normalizedAddress);
-	if (whitelisted) {
-		console.log('[Testudo Background] Whitelisted address:', normalizedAddress);
-		return {
-			risk: 'LOW',
-			threats: [],
-			address: normalizedAddress as `0x${string}`,
-			blocked: false,
-			whitelisted: true,
-			source: 'whitelist',
-		};
-	}
-
-	// Check cache - only trust full analysis results or global allows
-	// Address-only checks (source: 'api') should NOT skip bytecode analysis for delegations
-	const cached = analysisCache.get(normalizedAddress);
-	if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-		const source = cached.result.source || '';
-		const isFullAnalysis = source.includes('local') || source === 'api+local';
-		const isGlobalAllow = source === 'whitelist' || source === 'safe-filter';
-
-		if (isFullAnalysis || isGlobalAllow) {
-			console.log('[Testudo Background] Cache hit (full analysis):', normalizedAddress);
-			return { ...cached.result, cached: true };
-		}
-		// Address-only cached result - need to run full analysis for delegation
-		console.log(
-			'[Testudo Background] Cache miss (address-only, need bytecode):',
-			normalizedAddress,
-		);
-	}
-
-	// Check if analysis is already in progress for this address (deduplication)
-	const pending = pendingAnalysis.get(normalizedAddress);
-	if (pending) {
-		console.log('[Testudo Background] Deduplicating request:', normalizedAddress);
-		return pending;
-	}
-
-	// Create and track the analysis promise
-	const analysisPromise = performThreeLayerAnalysis(normalizedAddress, url);
-	pendingAnalysis.set(normalizedAddress, analysisPromise);
-
-	try {
-		return await analysisPromise;
-	} finally {
-		pendingAnalysis.delete(normalizedAddress);
-	}
-}
-
-async function performThreeLayerAnalysis(
-	normalizedAddress: string,
-	url?: string,
-): Promise<ExtendedAnalysisResult> {
-	// ========================================================================
-	// LAYER 0: Safe Filter (local Set - instant, ADR-007)
-	// ========================================================================
-	if (safeFilter.isKnownSafe(normalizedAddress)) {
-		console.log('[Testudo Background] Safe Filter hit:', normalizedAddress);
-		const result: ExtendedAnalysisResult = {
-			risk: 'LOW',
-			threats: [],
-			address: normalizedAddress as `0x${string}`,
-			blocked: false,
-			source: 'safe-filter',
-		};
-		analysisCache.set(normalizedAddress, { result, timestamp: Date.now() });
-		return result;
-	}
-
-	// ========================================================================
-	// LAYER 0.5: Known Malicious DB (local, instant — matches performAddressOnlyCheck)
-	// ========================================================================
-	const knownMalicious = checkKnownMalicious(normalizedAddress);
-	if (knownMalicious) {
-		console.log('[Testudo Background] Known malicious address (local DB):', normalizedAddress);
-		const result: ExtendedAnalysisResult = {
-			risk: 'CRITICAL',
-			threats: [knownMalicious.type],
-			address: normalizedAddress as `0x${string}`,
-			blocked: true,
-			source: 'local-malicious-db',
-		};
-		analysisCache.set(normalizedAddress, { result, timestamp: Date.now() });
-		return result;
-	}
-
-	// ========================================================================
-	// LAYER 1 + LAYER 2: Run API and Local Analysis in parallel
-	// ========================================================================
-	const apiUrl = await getApiUrl();
-
-	const settings = await getSettings();
-	const rpcUrl = settings.rpcUrl || DEFAULT_RPC;
-	const client = getOrCreateClient(rpcUrl);
-
-	async function fetchDeployerStaticCached(addr: string): Promise<DeployerStaticInfo | null> {
-		const cached = deployerCache.get(addr);
-		if (cached) return cached;
-		const info = await fetchDeployerStaticInfo(addr as Address, client);
-		if (info) deployerCache.set(addr, info);
-		return info;
-	}
-
-	const [apiResult, localResult, deployerResult] = await Promise.allSettled([
-		// Layer 1: API Lookup (includes GoPlus fallback server-side)
-		checkAddressThreat(normalizedAddress, { baseUrl: apiUrl }),
-		// Layer 2: Local Bytecode Analysis
-		analyzeContract(normalizedAddress as `0x${string}`, { rpcUrl }),
-		// Layer 3: Deployer Reputation (Blockscout + RPC, fail-open)
-		fetchDeployerStaticCached(normalizedAddress),
-	]);
-
-	// Extract results
-	const api =
-		apiResult.status === 'fulfilled'
-			? apiResult.value
-			: ({ success: false, error: 'Promise rejected' } as ApiClientResult);
-
-	let local =
-		localResult.status === 'fulfilled'
-			? localResult.value
-			: ({
-					risk: 'UNKNOWN',
-					threats: ['Local analysis failed'],
-					address: normalizedAddress,
-					blocked: false,
-				} as AnalysisResult);
-
-	const deployerStatic = deployerResult.status === 'fulfilled' ? deployerResult.value : null;
-
-	// Merge deployer warnings into local result (post-processing)
-	if (deployerStatic) {
-		const assessment = assessDeployerRisk({
-			...deployerStatic,
-			currentTimestamp: Math.floor(Date.now() / 1000),
-		});
-		const deployerWarnings = generateDeployerWarnings(assessment);
-		if (deployerWarnings.length > 0) {
-			const allWarnings = [...(local.warnings || []), ...deployerWarnings];
-			const derived = deriveRiskFromWarnings(allWarnings);
-			local = {
-				...local,
-				warnings: allWarnings,
-				risk: derived.risk,
-				blocked: derived.blocked,
-				deployerRisk: assessment,
-				threats: allWarnings.filter((w) => w.severity !== 'INFO').map((w) => w.type.toLowerCase()),
-			};
-		} else if (assessment.risk === 'LOW') {
-			local = { ...local, deployerRisk: assessment };
-		}
-	}
-
-	// ========================================================================
-	// DECISION MATRIX (from ADR-006)
-	// ========================================================================
-	const finalResult = applyDecisionMatrix(api, local, normalizedAddress);
-
-	// Cache the result
-	analysisCache.set(normalizedAddress, { result: finalResult, timestamp: Date.now() });
-
-	// Record scan
-	await recordScan({
-		address: normalizedAddress,
-		risk: finalResult.risk,
-		threats: finalResult.threats,
-		url,
-		blocked: finalResult.blocked,
-	});
-
-	await incrementScanned();
-
-	return finalResult;
-}
+const { analyzeWithCache, addressCheckWithCache, analysisCache } = pipeline;
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 	if (message.type === 'HEARTBEAT') {
@@ -577,6 +329,109 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 			sendResponse({ success: true });
 		});
 		return true;
+	}
+
+	if (message.type === 'TESTUDO_CHECK_DOMAIN_METADATA') {
+		checkDomainThreat(message.domain).then((result) => sendResponse(result));
+		return true;
+	}
+
+	if (message.type === 'TESTUDO_PHISHING_OVERRIDE') {
+		// Only accept from extension pages (blocked.html)
+		if (!sender.url?.startsWith(chrome.runtime.getURL(''))) return false;
+
+		const domain = message.domain;
+		const tabId = sender.tab?.id;
+		if (tabId == null) return false;
+
+		// Validate domain format — prevent wildcard/empty DNR rules
+		if (
+			!domain ||
+			typeof domain !== 'string' ||
+			domain.length > 253 ||
+			!/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i.test(domain)
+		) {
+			sendResponse({ success: false, error: 'Invalid domain' });
+			return true;
+		}
+
+		const ruleId = 900000 + tabId;
+		(async () => {
+			await chrome.declarativeNetRequest.updateDynamicRules({
+				addRules: [
+					{
+						id: ruleId,
+						priority: 2,
+						action: { type: 'allow' as const },
+						condition: {
+							urlFilter: `||${domain}`,
+							resourceTypes: ['main_frame' as const],
+							tabIds: [tabId],
+						},
+					},
+				],
+			});
+			await chrome.storage.session.set({
+				[`phishing-override-${tabId}-${domain}`]: true,
+			});
+			// Navigation handled client-side via safeNavigate in blockedVM
+			sendResponse({ success: true });
+		})();
+		return true;
+	}
+
+	if (message.type === 'TESTUDO_RELOAD_PHISHING_BLOOM') {
+		phishingSync.loadFromStorage().then(() => {
+			sendResponse({ success: true });
+		});
+		return true;
+	}
+
+	if (message.type === 'TESTUDO_CHECK_DOMAIN_BLOOM') {
+		const bloom = phishingSync.getBloom();
+		if (!bloom) {
+			sendResponse({ inBloom: false });
+			return true;
+		}
+		const normalized = normalizeDomain(`https://${message.hostname}`);
+		const inBloom = normalized
+			? bloom.has(normalized.hostname) || bloom.has(normalized.registrable)
+			: false;
+		sendResponse({ inBloom });
+		return true;
+	}
+
+	if (message.type === 'TESTUDO_CHECK_DOMAIN_API') {
+		const normalized = normalizeDomain(message.url);
+		if (!normalized) return false;
+		checkDomainThreat(normalized.hostname).then((result) => {
+			if (result.success && result.data?.isMalicious && sender.tab?.id) {
+				const blockUrl = chrome.runtime.getURL(
+					`blocked.html?domain=${encodeURIComponent(normalized.hostname)}&url=${encodeURIComponent(message.url)}&action=hard-block`,
+				);
+				chrome.tabs.update(sender.tab.id, { url: blockUrl });
+			}
+		});
+		return false;
+	}
+});
+
+// Clean up per-tab DNR override rules and session data when tab closes
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+	const ruleId = 900000 + tabId;
+	try {
+		await chrome.declarativeNetRequest.updateDynamicRules({
+			removeRuleIds: [ruleId],
+		});
+	} catch {
+		// Rule may not exist
+	}
+	const sessionData = await chrome.storage.session.get(null);
+	const keysToRemove = Object.keys(sessionData).filter((k) =>
+		k.startsWith(`phishing-override-${tabId}-`),
+	);
+	if (keysToRemove.length > 0) {
+		await chrome.storage.session.remove(keysToRemove);
 	}
 });
 

@@ -16,8 +16,14 @@
 
   "permissions": [
     "storage",
-    "alarms"
+    "alarms",
+    "declarativeNetRequest",
+    "webNavigation"
   ],
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; frame-src 'none'"
+  },
 
   "options_page": "options.html",
   
