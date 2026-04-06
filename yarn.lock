@@ -2902,6 +2902,7 @@ __metadata:
     preact: "npm:^10.28.3"
     rolldown: "npm:^1.0.0-beta.9"
     sharp: "npm:^0.34.5"
+    tldts: "npm:^7.0.28"
     typescript: "npm:^5.9.3"
     vitest: "npm:^4.0.18"
   languageName: unknown
@@ -7056,6 +7057,24 @@ __metadata:
   version: 7.0.26
   resolution: "tldts-core@npm:7.0.26"
   checksum: 10c0/3130c4a338bc5fa2463cec199b1b7b610e7dc570e33505c66fcf223ebea76f8e316b4531d2de1eb868488b9f02a92cd8aa610334d0fa3bf97f46bf89e438f856
+  languageName: node
+  linkType: hard
+
+"tldts-core@npm:^7.0.28":
+  version: 7.0.28
+  resolution: "tldts-core@npm:7.0.28"
+  checksum: 10c0/1fde2a2806c758d13c7eb2bd285a9482bf905829b38c060d66127e9e0682a103c42e181509f0d3c6da046e9aa2f71fe9d61afadb1b85a6b6c557cb98d6b7dede
+  languageName: node
+  linkType: hard
+
+"tldts@npm:^7.0.28":
+  version: 7.0.28
+  resolution: "tldts@npm:7.0.28"
+  dependencies:
+    tldts-core: "npm:^7.0.28"
+  bin:
+    tldts: bin/cli.js
+  checksum: 10c0/37f92481bc7276f60f06d93d2671a67fd94dc8e245c232a50c69b8704d34c908658968f7298810e1b4df68a84be9ff6248867981d1cc7ddb08755565edd3f496
   languageName: node
   linkType: hard
 

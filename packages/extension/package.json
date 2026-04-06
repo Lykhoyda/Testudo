@@ -12,7 +12,8 @@
   "dependencies": {
     "@preact/signals": "^2.7.0",
     "@testudo/core": "workspace:*",
-    "preact": "^10.28.3"
+    "preact": "^10.28.3",
+    "tldts": "^7.0.28"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.287",
