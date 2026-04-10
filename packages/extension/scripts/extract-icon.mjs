@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 /**
- * Generate extension icons - extract PNG from SVG to preserve transparency
+ * Generate extension icons from SVG source.
+ *
+ * Priority:
+ *   1. Pure-vector SVG at assets/icon-testudo.svg (preferred — rasterize via sharp)
+ *   2. Legacy: embedded base64 PNG inside an SVG (old scan-based icon)
+ *   3. Fallback: assets/extracted-raw.png
  */
 
 import sharp from 'sharp';
@@ -15,38 +20,41 @@ const distDir = join(__dirname, '..', 'dist');
 const sizes = [16, 32, 48, 128];
 
 async function generateIcons() {
-	// Ensure dist directory exists
 	if (!existsSync(distDir)) {
 		mkdirSync(distDir, { recursive: true });
 	}
 
-	let sourceBuffer;
-	const extractedPng = join(assetsDir, 'extracted-raw.png');
 	const svgFile = join(assetsDir, 'icon-testudo.svg');
+	const extractedPng = join(assetsDir, 'extracted-raw.png');
 
-	if (existsSync(extractedPng)) {
-		// Use pre-extracted PNG with transparency
-		sourceBuffer = readFileSync(extractedPng);
-		console.log('Using: extracted-raw.png');
-	} else if (existsSync(svgFile)) {
-		// Extract embedded PNG from SVG to preserve transparency
+	let sourceBuffer;
+	let isSvg = false;
+
+	if (existsSync(svgFile)) {
 		const svgContent = readFileSync(svgFile, 'utf-8');
-		const match = svgContent.match(/data:image\/png;base64,([A-Za-z0-9+/=]+)/);
-		if (match) {
-			sourceBuffer = Buffer.from(match[1], 'base64');
-			console.log('Using: extracted from SVG');
+		const embeddedMatch = svgContent.match(/data:image\/png;base64,([A-Za-z0-9+/=]+)/);
+		if (embeddedMatch) {
+			sourceBuffer = Buffer.from(embeddedMatch[1], 'base64');
+			console.log('Using: embedded PNG from SVG');
 		} else {
-			console.error('✗ No embedded PNG in SVG');
-			process.exit(1);
+			sourceBuffer = Buffer.from(svgContent, 'utf-8');
+			isSvg = true;
+			console.log('Using: pure vector SVG');
 		}
+	} else if (existsSync(extractedPng)) {
+		sourceBuffer = readFileSync(extractedPng);
+		console.log('Using: extracted-raw.png (fallback)');
 	} else {
 		console.error('✗ No source file found');
 		process.exit(1);
 	}
 
-	// Generate all sizes
 	for (const size of sizes) {
-		await sharp(sourceBuffer)
+		const pipeline = isSvg
+			? sharp(sourceBuffer, { density: size * 4 })
+			: sharp(sourceBuffer);
+
+		await pipeline
 			.resize(size, size)
 			.png({ compressionLevel: 9 })
 			.toFile(join(distDir, `icon-${size}.png`));
@@ -54,4 +62,7 @@ async function generateIcons() {
 	}
 }
 
-generateIcons().catch(console.error);
+generateIcons().catch((err) => {
+	console.error(err);
+	process.exit(1);
+});
