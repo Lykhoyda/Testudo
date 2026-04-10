@@ -26,7 +26,9 @@ for (const file of readdirSync(fontsSrc)) {
 console.log('Copied manifest.json, popup.html, options.html, blocked.html, and fonts/ to dist/');
 
 const apiUrl = process.env.TESTUDO_API_URL || 'https://testudo-api-production.up.railway.app';
+const apiKey = process.env.TESTUDO_API_KEY || '';
 console.log(`[Testudo Build] API URL: ${apiUrl}`);
+console.log(`[Testudo Build] API Key: ${apiKey ? '[SET]' : '[NOT SET]'}`);
 
 const shared = {
 	output: {
@@ -37,6 +39,7 @@ const shared = {
 	},
 	define: {
 		'process.env.TESTUDO_API_URL': JSON.stringify(apiUrl),
+		'process.env.TESTUDO_API_KEY': JSON.stringify(apiKey),
 	},
 	transform: {
 		jsx: { mode: 'automatic' as const, importSource: 'preact' },
