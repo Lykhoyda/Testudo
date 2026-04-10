@@ -6,6 +6,33 @@ export const WARNING_STYLES = `
   visibility: visible !important;
 }
 
+/* ── Design Tokens — Quiet Confidence ── */
+#testudo-warning-overlay {
+  --surface: #141416;
+  --surface-raised: #1c1c1f;
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+
+  --text: #fafafa;
+  --text-secondary: #e5e5e7;
+  --text-muted: #a0a0a8;
+  --text-dim: #5a5a60;
+
+  --brand: #1a9b8c;
+  --brand-hover: #26b5a4;
+  --brand-ink: #03150f;
+
+  --danger: #dc2626;
+  --danger-bg: rgba(220, 38, 38, 0.1);
+  --danger-border: rgba(220, 38, 38, 0.3);
+
+  --warn: #f59e0b;
+  --warn-bg: rgba(245, 158, 11, 0.1);
+
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+}
+
 @keyframes testudo-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -14,23 +41,6 @@ export const WARNING_STYLES = `
 @keyframes testudo-modal-in {
   from { opacity: 0; transform: translateY(8px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes testudo-scan-line {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(200%); }
-}
-
-@keyframes testudo-pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(255, 59, 92, 0.35); }
-  70% { box-shadow: 0 0 0 10px rgba(255, 59, 92, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 59, 92, 0); }
-}
-
-@keyframes testudo-pulse-ring-amber {
-  0% { box-shadow: 0 0 0 0 rgba(255, 170, 44, 0.25); }
-  70% { box-shadow: 0 0 0 10px rgba(255, 170, 44, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 170, 44, 0); }
 }
 
 @keyframes testudo-spin {
@@ -60,30 +70,31 @@ export const WARNING_STYLES = `
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(7, 7, 12, 0.88);
-  backdrop-filter: blur(12px) saturate(1.1);
+  background: rgba(10, 10, 11, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 999999;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-sans);
   animation: testudo-fade-in 0.25s ease;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color: var(--text-secondary);
 }
 
+/* ── Modal Shell ── */
+
 .testudo-modal {
-  background: #0c0c14;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 59, 92, 0.12);
-  max-width: 440px;
-  width: 92%;
+  background: var(--surface);
+  border-radius: 14px;
+  border: 1px solid var(--border-strong);
+  width: 440px;
+  max-width: 92%;
   max-height: 90vh;
-  color: #c8c8d8;
-  box-shadow:
-    0 0 0 1px rgba(255, 59, 92, 0.04),
-    0 24px 48px -8px rgba(0, 0, 0, 0.8),
-    0 0 80px -20px rgba(255, 59, 92, 0.06);
+  color: var(--text-secondary);
+  box-shadow: 0 24px 48px -8px rgba(0, 0, 0, 0.6);
   overflow: hidden;
   animation: testudo-modal-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
@@ -97,21 +108,8 @@ export const WARNING_STYLES = `
   top: 0;
   left: 0;
   right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent 0%, #ff3b5c 30%, #ff3b5c 70%, transparent 100%);
-  opacity: 0.7;
-}
-
-.testudo-modal::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 40%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(255, 59, 92, 0.8), transparent);
-  animation: testudo-scan-line 3s linear infinite;
-  opacity: 0.4;
+  height: 3px;
+  background: var(--danger);
 }
 
 .testudo-material-icon {
@@ -130,11 +128,12 @@ export const WARNING_STYLES = `
 
 /* ── Header ── */
 
-.testudo-header {
+.testudo-header,
+.testudo-modal-header {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 28px 24px 12px;
+  align-items: flex-start;
+  padding: 24px 24px 14px;
   gap: 14px;
   flex-shrink: 0;
   position: relative;
@@ -144,75 +143,90 @@ export const WARNING_STYLES = `
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 10px;
-  background: rgba(255, 59, 92, 0.06);
-  border: 1px solid rgba(255, 59, 92, 0.15);
-  color: #ff3b5c;
-  animation: testudo-pulse-ring 2s ease-in-out infinite;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
 }
 
 .testudo-header-icon .testudo-material-icon {
-  font-size: 26px;
+  font-size: 22px;
 }
 
 .testudo-header-text {
-  text-align: center;
+  text-align: left;
 }
 
 .testudo-title {
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 15px;
-  font-weight: 700;
-  color: #f0f0f5;
+  font-family: var(--font-sans);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
   margin: 0 0 6px 0;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  line-height: 1.3;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 .testudo-subtitle {
   font-size: 13px;
-  color: #6e6e8a;
+  font-weight: 400;
+  color: var(--text-muted);
   margin: 0;
-  line-height: 1.5;
-  max-width: 340px;
+  line-height: 1.55;
+  max-width: 360px;
 }
 
 .testudo-subtitle strong {
-  color: #c8c8d8;
+  color: var(--text-secondary);
   font-weight: 600;
+}
+
+.testudo-intent-headline {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Modal Body & Footer ── */
+
+.testudo-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 24px;
+  overflow-y: auto;
+  flex-shrink: 1;
+}
+
+.testudo-modal-footer {
+  padding: 14px 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 /* ── Alert Box ── */
 
-.testudo-alert {
-  margin: 4px 16px 0;
+.testudo-alert,
+.testudo-alert-box {
+  margin: 0 24px;
   position: relative;
-  overflow: hidden;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 59, 92, 0.2);
-  background: rgba(255, 59, 92, 0.04);
+  border-radius: 10px;
+  border: 1px solid var(--danger-border);
+  background: var(--danger-bg);
   padding: 14px 16px;
-}
-
-.testudo-alert::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 59, 92, 0.35), transparent);
 }
 
 .testudo-alert-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #ff3b5c;
-  position: relative;
+  color: var(--danger);
 }
 
 .testudo-alert-header .testudo-material-icon {
@@ -220,71 +234,148 @@ export const WARNING_STYLES = `
 }
 
 .testudo-alert-title {
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+  color: var(--danger);
 }
 
-.testudo-alert-medium {
-  border-color: rgba(255, 170, 44, 0.2);
-  background: rgba(255, 170, 44, 0.03);
-}
-
-.testudo-alert-medium::before {
-  background: linear-gradient(90deg, transparent, rgba(255, 170, 44, 0.35), transparent);
-}
-
-.testudo-alert-medium .testudo-alert-header {
-  color: #ffaa2c;
+.testudo-alert-subtitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
 }
 
 .testudo-alert-description {
-  color: #6e6e8a;
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 400;
-  line-height: 1.6;
+  line-height: 1.55;
   margin-top: 6px;
-  position: relative;
 }
 
-/* ── Context Details & Intent ── */
+/* Severity variants */
+.testudo-alert.critical,
+.testudo-alert-box.critical {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+}
+
+.testudo-alert.critical .testudo-alert-header,
+.testudo-alert.critical .testudo-alert-title,
+.testudo-alert-box.critical .testudo-alert-header,
+.testudo-alert-box.critical .testudo-alert-title {
+  color: var(--danger);
+}
+
+.testudo-alert.high,
+.testudo-alert-box.high {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+}
+
+.testudo-alert.high .testudo-alert-header,
+.testudo-alert.high .testudo-alert-title,
+.testudo-alert-box.high .testudo-alert-header,
+.testudo-alert-box.high .testudo-alert-title {
+  color: var(--danger);
+}
+
+.testudo-alert.medium,
+.testudo-alert-medium,
+.testudo-alert-box.medium {
+  border-color: rgba(245, 158, 11, 0.3);
+  background: var(--warn-bg);
+}
+
+.testudo-alert.medium .testudo-alert-header,
+.testudo-alert.medium .testudo-alert-title,
+.testudo-alert-medium .testudo-alert-header,
+.testudo-alert-medium .testudo-alert-title,
+.testudo-alert-box.medium .testudo-alert-header,
+.testudo-alert-box.medium .testudo-alert-title {
+  color: var(--warn);
+}
+
+.testudo-alert.low,
+.testudo-alert-box.low {
+  border-color: var(--border-strong);
+  background: var(--surface-raised);
+}
+
+.testudo-alert.low .testudo-alert-header,
+.testudo-alert.low .testudo-alert-title,
+.testudo-alert-box.low .testudo-alert-header,
+.testudo-alert-box.low .testudo-alert-title {
+  color: var(--text-muted);
+}
+
+/* ── Context & Address Section ── */
 
 .testudo-address-section {
-  margin: 8px 16px;
+  margin: 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .testudo-intent-action {
   font-size: 13px;
-  color: #6e6e8a;
-  line-height: 1.6;
-  margin-bottom: 8px;
-  padding: 0 4px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin-bottom: 4px;
+  padding: 0 2px;
+}
+
+.testudo-context {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 24px;
+}
+
+.testudo-context-label {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.testudo-context-value {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 .testudo-address-box {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #12121e;
-  border-radius: 6px;
-  padding: 10px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: var(--surface-raised);
+  border-radius: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
   transition: border-color 0.15s;
 }
 
 .testudo-address-box:hover {
-  border-color: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-strong);
 }
 
 .testudo-address-label {
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 9px;
-  font-weight: 600;
-  color: #3e3e55;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
 }
 
 .testudo-address-value {
@@ -294,27 +385,27 @@ export const WARNING_STYLES = `
 }
 
 .testudo-address-text {
-  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
-  color: #c8c8d8;
+  color: var(--text-secondary);
   letter-spacing: 0.01em;
 }
 
 .testudo-copy-btn {
   background: none;
   border: none;
-  color: #3e3e55;
+  color: var(--text-dim);
   cursor: pointer;
   padding: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s;
+  transition: color 0.15s, background 0.15s;
   border-radius: 4px;
 }
 
 .testudo-copy-btn:hover {
-  color: #6e6e8a;
+  color: var(--text-muted);
   background: rgba(255, 255, 255, 0.04);
 }
 
@@ -322,76 +413,96 @@ export const WARNING_STYLES = `
   font-size: 14px;
 }
 
-/* ── Threats ── */
+/* ── Threat List ── */
 
-.testudo-threats {
-  padding: 12px 16px;
-  margin-top: 4px;
+.testudo-threats,
+.testudo-threat-list {
+  padding: 0 24px;
+  margin: 0;
   overflow-y: auto;
-  max-height: 200px;
+  max-height: 220px;
   flex-shrink: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .testudo-threats-title {
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 9px;
-  font-weight: 700;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: #3e3e55;
-  margin-bottom: 8px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  margin-bottom: 4px;
   padding: 0 2px;
 }
 
 .testudo-threat-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  background: #12121e;
-  border-radius: 6px;
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.03);
-  margin-bottom: 6px;
-}
-
-.testudo-threat-item:last-child {
-  margin-bottom: 0;
+  background: var(--surface-raised);
+  border-radius: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
 }
 
 .testudo-threat-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  background: rgba(255, 170, 44, 0.06);
-  color: #ffaa2c;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--warn-bg);
+  color: var(--warn);
   flex-shrink: 0;
 }
 
+.testudo-threat-icon.critical,
+.testudo-threat-icon.high {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.testudo-threat-icon.medium {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.testudo-threat-icon.low {
+  background: var(--surface-raised);
+  color: var(--text-muted);
+}
+
 .testudo-threat-icon .testudo-material-icon {
-  font-size: 16px;
+  font-size: 18px;
 }
 
 .testudo-threat-content {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  flex: 1;
+  gap: 2px;
 }
 
-.testudo-threat-name {
+.testudo-threat-name,
+.testudo-threat-title {
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 600;
-  color: #c8c8d8;
-  line-height: 1.3;
+  color: var(--text);
+  line-height: 1.35;
+  letter-spacing: -0.005em;
 }
 
 .testudo-threat-desc {
-  font-size: 11px;
-  color: #3e3e55;
-  margin-top: 2px;
-  line-height: 1.4;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-dim);
+  line-height: 1.5;
 }
 
 /* ── Buttons ── */
@@ -399,9 +510,9 @@ export const WARNING_STYLES = `
 .testudo-buttons {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 12px 16px 20px;
-  background: #0c0c14;
+  gap: 10px;
+  padding: 14px 24px 20px;
+  background: var(--surface);
   flex-shrink: 0;
   position: relative;
 }
@@ -410,45 +521,55 @@ export const WARNING_STYLES = `
   content: '';
   position: absolute;
   top: 0;
-  left: 16px;
-  right: 16px;
+  left: 24px;
+  right: 24px;
   height: 1px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--border-subtle);
 }
 
-.testudo-btn-cancel {
+.testudo-btn {
   width: 100%;
-  background: linear-gradient(180deg, #00c77d 0%, #00a366 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 14px 20px;
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  border-radius: 10px;
+  padding: 12px 18px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  transition: all 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  border: 1px solid transparent;
+}
+
+.testudo-btn-cancel {
+  width: 100%;
+  background: var(--brand);
+  color: var(--brand-ink);
+  border: 1px solid var(--brand);
+  border-radius: 10px;
+  padding: 12px 18px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .testudo-btn-cancel:hover {
-  background: linear-gradient(180deg, #00e599 0%, #00c77d 100%);
-  box-shadow:
-    0 2px 12px rgba(0, 199, 125, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  background: var(--brand-hover);
+  border-color: var(--brand-hover);
 }
 
 .testudo-btn-cancel:active {
-  transform: scale(0.985);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  transform: scale(0.99);
 }
 
 .testudo-btn-cancel .testudo-material-icon {
@@ -464,38 +585,42 @@ export const WARNING_STYLES = `
 .testudo-btn-link {
   background: none;
   border: none;
-  color: #3e3e55;
+  color: var(--text-dim);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   cursor: pointer;
   padding: 6px 12px;
-  transition: color 0.15s;
+  transition: color 0.15s, background 0.15s;
   border-radius: 6px;
 }
 
 .testudo-btn-link:hover {
-  color: #6e6e8a;
-  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
+  background: var(--surface-raised);
 }
 
 .testudo-btn-danger {
+  width: 100%;
   display: flex;
   align-items: center;
-  gap: 4px;
-  background: none;
-  border: none;
-  color: #3e3e55;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  padding: 6px 12px;
-  transition: all 0.15s;
-  border-radius: 6px;
+  padding: 12px 18px;
+  border-radius: 10px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .testudo-btn-danger:hover {
-  color: #ff3b5c;
-  background: rgba(255, 59, 92, 0.04);
+  background: var(--surface-raised);
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .testudo-btn-danger .testudo-material-icon {
@@ -507,96 +632,123 @@ export const WARNING_STYLES = `
   transform: translateX(2px);
 }
 
+.testudo-btn-trust {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 10px 14px;
+  border-radius: 10px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.testudo-btn-trust:hover {
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  border-color: var(--text-muted);
+}
+
 /* ── eth_sign Confirmation ── */
 
-.testudo-confirm-section {
+.testudo-confirm-section,
+.testudo-eth-sign-confirm {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
 .testudo-confirm-label {
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 10px;
-  color: #3e3e55;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 500;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.testudo-confirm-input {
+.testudo-confirm-input,
+.testudo-eth-sign-input {
   width: 100%;
-  background: #12121e;
-  border: 1px solid rgba(255, 59, 92, 0.15);
-  border-radius: 6px;
-  padding: 10px 12px;
+  background: var(--surface-raised);
+  border: 1px solid var(--danger-border);
+  border-radius: 10px;
+  padding: 11px 14px;
   font-size: 13px;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  color: #c8c8d8;
+  font-family: var(--font-sans);
+  color: var(--text);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
   box-sizing: border-box;
 }
 
-.testudo-confirm-input:focus {
-  border-color: rgba(255, 59, 92, 0.4);
-  box-shadow: 0 0 0 2px rgba(255, 59, 92, 0.06);
+.testudo-confirm-input:focus,
+.testudo-eth-sign-input:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
 }
 
-.testudo-confirm-input::placeholder {
-  color: rgba(62, 62, 85, 0.6);
+.testudo-confirm-input::placeholder,
+.testudo-eth-sign-input::placeholder {
+  color: var(--text-dim);
 }
 
 .testudo-btn-danger-confirm {
   width: 100%;
-  background: rgba(255, 59, 92, 0.04);
-  color: rgba(255, 59, 92, 0.3);
-  border: 1px solid rgba(255, 59, 92, 0.08);
-  border-radius: 8px;
-  padding: 12px 20px;
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 12px 18px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
   cursor: not-allowed;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: all 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .testudo-btn-danger-confirm.enabled {
-  background: rgba(255, 59, 92, 0.08);
-  color: #ff3b5c;
-  border-color: rgba(255, 59, 92, 0.25);
+  background: transparent;
+  color: var(--danger);
+  border-color: var(--danger-border);
   cursor: pointer;
 }
 
 .testudo-btn-danger-confirm.enabled:hover {
-  background: rgba(255, 59, 92, 0.15);
-  border-color: rgba(255, 59, 92, 0.4);
+  background: var(--surface-raised);
+  border-color: var(--danger);
 }
 
 /* ── Loading ── */
+
+.testudo-loading-state {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 
 .testudo-spin {
   animation: testudo-spin 1.5s linear infinite;
 }
 
 .testudo-loading-icon {
-  background: rgba(0, 229, 153, 0.04);
-  border-color: rgba(0, 229, 153, 0.12);
-  color: #00e599;
-  animation: none;
+  background: var(--surface-raised);
+  border-color: var(--border-strong);
+  color: var(--text-muted);
 }
 
 .testudo-loading-bar-container {
-  margin: 12px 16px;
+  margin: 12px 24px;
   height: 2px;
   border-radius: 1px;
-  background: rgba(0, 229, 153, 0.06);
+  background: var(--border-subtle);
   overflow: hidden;
 }
 
@@ -604,30 +756,32 @@ export const WARNING_STYLES = `
   height: 100%;
   width: 50%;
   border-radius: 1px;
-  background: linear-gradient(90deg, transparent, #00e599, transparent);
+  background: linear-gradient(90deg, transparent, var(--brand), transparent);
   animation: testudo-loading-slide 1.4s ease-in-out infinite;
 }
 
 /* ── Toasts (shared) ── */
 
 .testudo-toast,
+.testudo-toast-info,
 .testudo-toast-unknown {
   position: fixed;
   bottom: 16px;
   right: 16px;
-  background: #0c0c14;
-  border-radius: 8px;
+  background: var(--surface);
+  border-radius: 12px;
   padding: 14px 16px;
-  color: #c8c8d8;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
   z-index: 999998;
   max-width: 360px;
-  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.6);
   animation: testudo-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   gap: 10px;
   align-items: flex-start;
   -webkit-font-smoothing: antialiased;
+  border: 1px solid var(--border-strong);
 }
 
 .testudo-toast-icon,
@@ -651,61 +805,52 @@ export const WARNING_STYLES = `
   display: flex;
   align-items: center;
   gap: 5px;
+  letter-spacing: -0.005em;
 }
 
 .testudo-toast-text,
 .testudo-toast-unknown-text {
   font-size: 12px;
-  color: #3e3e55;
+  color: var(--text-muted);
   margin-top: 4px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .testudo-toast-dismiss,
 .testudo-toast-unknown-dismiss {
   background: none;
   border: none;
-  color: #3e3e55;
+  color: var(--text-dim);
   cursor: pointer;
   font-size: 11px;
   margin-top: 6px;
-  padding: 3px 8px;
-  border-radius: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
   transition: background 0.15s, color 0.15s;
   font-weight: 500;
 }
 
 .testudo-toast-dismiss:hover,
 .testudo-toast-unknown-dismiss:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: #6e6e8a;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
 }
 
 /* ── Info Toast (specifics) ── */
 
-.testudo-toast {
-  border: 1px solid rgba(255, 170, 44, 0.15);
-  box-shadow:
-    0 0 0 1px rgba(255, 170, 44, 0.04),
-    0 12px 32px -4px rgba(0, 0, 0, 0.7);
+.testudo-toast,
+.testudo-toast-info {
+  border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
-.testudo-toast::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 170, 44, 0.25), transparent);
+.testudo-toast .testudo-toast-icon,
+.testudo-toast-info .testudo-toast-icon {
+  color: var(--warn);
 }
 
-.testudo-toast-icon {
-  color: #ffaa2c;
-}
-
-.testudo-toast-title {
-  color: #ffaa2c;
+.testudo-toast .testudo-toast-title,
+.testudo-toast-info .testudo-toast-title {
+  color: var(--warn);
 }
 
 .testudo-toast-title .testudo-toast-icon-inline {
@@ -717,52 +862,55 @@ export const WARNING_STYLES = `
 /* ── Unknown Toast (specifics) ── */
 
 .testudo-toast-unknown {
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-strong);
 }
 
 .testudo-toast-unknown-icon {
-  color: #4a4a6a;
+  color: var(--text-dim);
 }
 
 .testudo-toast-unknown-title {
-  color: #6e6e8a;
+  color: var(--text-muted);
 }
 
 .testudo-toast-unknown-address {
-  font-family: 'Roboto Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
-  color: #3e3e55;
+  color: var(--text-dim);
   margin-top: 5px;
 }
 
 /* ── Focus States (keyboard navigation) ── */
 
+.testudo-btn:focus-visible,
 .testudo-btn-cancel:focus-visible,
-.testudo-btn-danger-confirm:focus-visible {
-  outline: 2px solid #00e599;
+.testudo-btn-danger:focus-visible,
+.testudo-btn-danger-confirm:focus-visible,
+.testudo-btn-trust:focus-visible {
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
 
 .testudo-btn-link:focus-visible,
-.testudo-btn-danger:focus-visible,
 .testudo-copy-btn:focus-visible,
 .testudo-toast-dismiss:focus-visible,
 .testudo-toast-unknown-dismiss:focus-visible {
-  outline: 2px solid #00e599;
+  outline: 2px solid var(--brand);
   outline-offset: 1px;
   border-radius: 4px;
 }
 
-.testudo-confirm-input:focus-visible {
+.testudo-confirm-input:focus-visible,
+.testudo-eth-sign-input:focus-visible {
   outline: none;
-  border-color: rgba(0, 229, 153, 0.5);
-  box-shadow: 0 0 0 2px rgba(0, 229, 153, 0.1);
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
 }
 
 /* ── Utility Classes ── */
 
 .testudo-text-danger {
-  color: #ff3b5c;
+  color: var(--danger);
 }
 
 /* ── Reduced Motion ── */
@@ -773,6 +921,7 @@ export const WARNING_STYLES = `
   #testudo-warning-overlay *::before,
   #testudo-warning-overlay *::after,
   .testudo-toast,
+  .testudo-toast-info,
   .testudo-toast-unknown {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;

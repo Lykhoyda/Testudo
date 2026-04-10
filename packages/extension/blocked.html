@@ -7,69 +7,114 @@
   <link href="fonts/fonts.css" rel="stylesheet">
   <style>
     :root {
-      /* Cipher Terminal — deep carbon foundation */
-      --bg-void: #07070c;
-      --bg-app: #0c0c14;
-      --bg-surface: #12121e;
-      --bg-surface-hover: #181828;
-      --bg-elevated: #1a1a2a;
-
-      /* Phosphor green — the signal */
-      --phosphor: #00e599;
-      --phosphor-dim: #00b377;
-      --phosphor-glow: rgba(0, 229, 153, 0.12);
-      --phosphor-faint: rgba(0, 229, 153, 0.06);
-
-      /* Severity spectrum */
-      --danger: #ff3b5c;
-      --danger-glow: rgba(255, 59, 92, 0.12);
-      --warning: #ffaa2c;
-      --warning-glow: rgba(255, 170, 44, 0.12);
-      --neutral: #4a4a6a;
-      --neutral-glow: rgba(74, 74, 106, 0.12);
-
-      /* Typography */
-      --text-bright: #f0f0f5;
-      --text-primary: #c8c8d8;
-      --text-muted: #6e6e8a;
-      --text-dim: #3e3e55;
+      /* Surface stack — 4 elevation layers */
+      --bg: #0a0a0b;
+      --surface: #141416;
+      --surface-raised: #1c1c1f;
+      --surface-hover: #222226;
 
       /* Borders */
-      --border-hard: rgba(255, 255, 255, 0.06);
-      --border-glow: rgba(0, 229, 153, 0.15);
+      --border: rgba(255, 255, 255, 0.06);
+      --border-hover: rgba(255, 255, 255, 0.1);
+      --border-strong: rgba(255, 255, 255, 0.14);
+
+      /* Brand — desaturated teal */
+      --brand: #1a9b8c;
+      --brand-hover: #26b5a4;
+      --brand-dim: #0f7268;
+      --brand-bg: rgba(26, 155, 140, 0.1);
+      --brand-border: rgba(26, 155, 140, 0.28);
+
+      /* Semantic */
+      --safe: var(--brand);
+      --safe-bg: var(--brand-bg);
+      --safe-border: var(--brand-border);
+      --warn: #f59e0b;
+      --warn-bg: rgba(245, 158, 11, 0.1);
+      --warn-border: rgba(245, 158, 11, 0.25);
+      --danger: #dc2626;
+      --danger-bg: rgba(220, 38, 38, 0.1);
+      --danger-border: rgba(220, 38, 38, 0.3);
+
+      /* Text hierarchy */
+      --text-bright: #fafafa;
+      --text-primary: #e5e5e7;
+      --text-secondary: #a0a0a8;
+      --text-muted: #6b6b72;
+      --text-dim: #5a5a60;
 
       /* Fonts */
-      --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      --font-mono: 'Roboto Mono', monospace;
+      --font-ui: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      --font-mono: 'Geist Mono', ui-monospace, monospace;
+
+      /* Radii */
+      --r-sm: 6px;
+      --r-md: 8px;
+      --r-lg: 10px;
+      --r-xl: 14px;
+
+      /* ── Legacy token aliases ──
+         Preact components in src/components/blocked/ reference these CSS variable
+         names via inline styles. Map them onto the new token system so the existing
+         component code renders in the new "Quiet Confidence" style without edits. */
+      --bg-void: var(--bg);
+      --bg-app: var(--bg);
+      --bg-surface: var(--surface);
+      --bg-surface-hover: var(--surface-hover);
+      --bg-elevated: var(--surface-raised);
+
+      --danger-glow: var(--danger-bg);
+      --warning: var(--warn);
+      --warning-glow: var(--warn-bg);
+
+      --phosphor: var(--brand);
+      --phosphor-dim: var(--brand-dim);
+      --phosphor-glow: var(--brand-bg);
+      --phosphor-faint: var(--brand-bg);
+
+      --border-hard: var(--border);
+      --border-glow: var(--brand-border);
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    body {
+    html, body {
       min-height: 100vh;
+      background: var(--bg);
+    }
+
+    body {
       font-family: var(--font-ui);
-      background: var(--bg-void);
       color: var(--text-primary);
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
+      padding: 96px 24px 64px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
       overflow-x: hidden;
     }
 
-    /* Noise texture overlay */
+    /* 3px danger top strip — signals severity */
     body::before {
       content: '';
       position: fixed;
-      inset: 0;
-      background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
-      pointer-events: none;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--danger);
       z-index: 100;
+      pointer-events: none;
     }
 
     #app {
       width: 100%;
-      max-width: 640px;
-      padding: 24px;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
     }
 
     ::-webkit-scrollbar { width: 4px; }
@@ -77,7 +122,7 @@
     ::-webkit-scrollbar-thumb { background: var(--text-dim); border-radius: 2px; }
 
     :focus-visible {
-      outline: 1px solid var(--phosphor);
+      outline: 1px solid var(--brand);
       outline-offset: 2px;
     }
 
