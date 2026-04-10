@@ -1,4 +1,5 @@
 const DEFAULT_API_URL = process.env.TESTUDO_API_URL;
+const DEFAULT_API_KEY = process.env.TESTUDO_API_KEY;
 const DEFAULT_TIMEOUT = 800; // ms
 const MAX_RETRIES = 1;
 
@@ -32,6 +33,7 @@ export interface ThreatResponse {
 export interface ApiClientOptions {
 	baseUrl?: string;
 	timeout?: number;
+	apiKey?: string;
 }
 
 export type ApiErrorCategory =
@@ -55,22 +57,29 @@ export interface ApiClientResult {
 async function fetchWithTimeout(
 	url: string,
 	timeout: number,
+	apiKey?: string,
 	signal?: AbortSignal,
 ): Promise<Response> {
 	const controller = new AbortController();
 	const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-	// Combine with external signal if provided
 	if (signal) {
 		signal.addEventListener('abort', () => controller.abort(), { once: true });
+	}
+
+	const headers: Record<string, string> = {
+		'Content-Type': 'application/json',
+	};
+
+	const key = apiKey || DEFAULT_API_KEY;
+	if (key) {
+		headers['X-API-Key'] = key;
 	}
 
 	try {
 		const response = await fetch(url, {
 			signal: controller.signal,
-			headers: {
-				'Content-Type': 'application/json',
-			},
+			headers,
 		});
 		clearTimeout(timeoutId);
 		return response;
@@ -98,6 +107,7 @@ export async function checkAddressThreat(
 		};
 	}
 
+	const apiKey = options?.apiKey;
 	const url = `${baseUrl}/api/v1/threats/address/${address.toLowerCase()}`;
 	let lastError: string = '';
 	let lastCategory: ApiErrorCategory = 'unknown';
@@ -108,7 +118,7 @@ export async function checkAddressThreat(
 				console.log(`[API Client] Retry attempt ${attempt} for ${address}`);
 			}
 
-			const response = await fetchWithTimeout(url, timeout);
+			const response = await fetchWithTimeout(url, timeout, apiKey);
 
 			// Handle rate limiting
 			if (response.status === 429) {
@@ -186,6 +196,7 @@ export async function checkDomainThreat(
 		};
 	}
 
+	const apiKey = options?.apiKey;
 	const url = `${baseUrl}/api/v1/threats/domain/${encodeURIComponent(domain)}`;
 	let lastError: string = '';
 	let lastCategory: ApiErrorCategory = 'unknown';
@@ -196,7 +207,7 @@ export async function checkDomainThreat(
 				console.log(`[API Client] Retry attempt ${attempt} for ${domain}`);
 			}
 
-			const response = await fetchWithTimeout(url, timeout);
+			const response = await fetchWithTimeout(url, timeout, apiKey);
 
 			if (response.status === 429) {
 				console.warn('[API Client] Rate limited');
