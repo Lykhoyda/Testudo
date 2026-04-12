@@ -10,51 +10,70 @@ interface Props {
 
 export function GeneralTab({ settings: s, onToggleMediumToast, onToggleAutoRecord }: Props) {
 	return (
-		<div class="section">
-			<h2 class="section-title">
-				<MaterialIcon name="notifications" />
-				Notifications
-			</h2>
-			<div class="toggle-group">
-				<div>
-					<div class="toggle-label">Show Medium Risk Toast</div>
-					<div class="toggle-description">Display a notification for medium-risk contracts</div>
+		<>
+			<div class="info-card">
+				<div class="info-card-icon">
+					<MaterialIcon name="security" />
 				</div>
-				<div
-					class={`toggle${s.value.showMediumRiskToast ? ' active' : ''}`}
-					id="toggle-medium-toast"
-					role="switch"
-					aria-checked={s.value.showMediumRiskToast}
-					tabIndex={0}
-					onClick={onToggleMediumToast}
-					onKeyDown={(e) => {
-						if (e.key === 'Enter' || e.key === ' ') {
-							e.preventDefault();
-							onToggleMediumToast();
-						}
-					}}
-				/>
-			</div>
-			<div class="toggle-group">
 				<div>
-					<div class="toggle-label">Auto-record Scans</div>
-					<div class="toggle-description">Save scan history for later review</div>
+					<div class="info-card-title">3-layer defense is active</div>
+					<div class="info-card-desc">Safe filter → Threat API → Local bytecode analysis.</div>
 				</div>
-				<div
-					class={`toggle${s.value.autoRecordScans ? ' active' : ''}`}
-					id="toggle-auto-record"
-					role="switch"
-					aria-checked={s.value.autoRecordScans}
-					tabIndex={0}
-					onClick={onToggleAutoRecord}
-					onKeyDown={(e) => {
-						if (e.key === 'Enter' || e.key === ' ') {
-							e.preventDefault();
-							onToggleAutoRecord();
-						}
-					}}
-				/>
 			</div>
-		</div>
+
+			<section class="opt-group">
+				<h2 class="opt-group-title">Detection</h2>
+				<div class="opt-list">
+					<div class="opt-row">
+						<div class="opt-row-text">
+							<div class="opt-row-title" id="label-medium-toast">
+								Show medium-risk warnings
+							</div>
+							<div class="opt-row-desc">
+								Display non-blocking toasts for medium severity threats.
+							</div>
+						</div>
+						<div
+							class={`toggle${s.value.showMediumRiskToast ? ' active' : ''}`}
+							id="toggle-medium-toast"
+							role="switch"
+							aria-checked={s.value.showMediumRiskToast}
+							aria-labelledby="label-medium-toast"
+							tabIndex={0}
+							onClick={onToggleMediumToast}
+							onKeyDown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									onToggleMediumToast();
+								}
+							}}
+						/>
+					</div>
+					<div class="opt-row">
+						<div class="opt-row-text">
+							<div class="opt-row-title" id="label-auto-record">
+								Auto-record scans
+							</div>
+							<div class="opt-row-desc">Keep local history of analyzed contracts for review.</div>
+						</div>
+						<div
+							class={`toggle${s.value.autoRecordScans ? ' active' : ''}`}
+							id="toggle-auto-record"
+							role="switch"
+							aria-checked={s.value.autoRecordScans}
+							aria-labelledby="label-auto-record"
+							tabIndex={0}
+							onClick={onToggleAutoRecord}
+							onKeyDown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									onToggleAutoRecord();
+								}
+							}}
+						/>
+					</div>
+				</div>
+			</section>
+		</>
 	);
 }

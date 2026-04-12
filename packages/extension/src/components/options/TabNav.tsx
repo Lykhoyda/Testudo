@@ -15,19 +15,19 @@ const TABS = [
 
 export function TabNav({ activeTab, onSwitch }: Props) {
 	return (
-		<div class="tabs">
+		<nav class="opt-nav">
 			{TABS.map((tab) => (
 				<button
 					type="button"
 					key={tab.id}
-					class={`tab${activeTab.value === tab.id ? ' active' : ''}`}
+					class={`opt-tab${activeTab.value === tab.id ? ' active' : ''}`}
 					data-tab={tab.id}
 					onClick={() => onSwitch(tab.id)}
 				>
 					<MaterialIcon name={tab.icon} />
-					{tab.label}
+					<span>{tab.label}</span>
 				</button>
 			))}
-		</div>
+		</nav>
 	);
 }
