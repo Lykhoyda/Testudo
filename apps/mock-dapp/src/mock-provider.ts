@@ -79,13 +79,15 @@ export function initMockProvider(): void {
 		request: async (args: RequestArgs): Promise<unknown> => {
 			console.log('[Mock Provider] Request:', args.method, args.params);
 
-			if (args.method === 'eth_requestAccounts') {
+			if (args.method === 'eth_requestAccounts' || args.method === 'eth_accounts') {
 				return ['0x1234567890123456789012345678901234567890'];
 			}
 
+			if (args.method === 'eth_chainId') {
+				return '0x1';
+			}
+
 			if (args.method === 'eth_signTypedData_v4') {
-				// The extension's injected script will intercept this
-				// and potentially show a warning modal
 				const params = args.params as [string, string];
 				const typedDataString = params[1];
 				const typedData =
@@ -93,7 +95,6 @@ export function initMockProvider(): void {
 
 				console.log('[Mock Provider] Typed data:', typedData);
 
-				// Simulate successful signature if extension allows it
 				return `0x${'00'.repeat(65)}`;
 			}
 
@@ -119,8 +120,29 @@ export function initMockProvider(): void {
 		},
 	};
 
-	// Assign to window
-	(window as unknown as { ethereum: MockProvider }).ethereum = mockProvider;
+	function applyProvider(): void {
+		Object.defineProperty(window, 'ethereum', {
+			value: mockProvider,
+			writable: true,
+			configurable: true,
+		});
+	}
+
+	applyProvider();
+
+	queueMicrotask(() => {
+		if ((window as unknown as { ethereum: MockProvider }).ethereum !== mockProvider) {
+			console.log('[Mock Provider] Re-applying after proxy override');
+			applyProvider();
+		}
+	});
+
+	setTimeout(() => {
+		if ((window as unknown as { ethereum: MockProvider }).ethereum !== mockProvider) {
+			console.log('[Mock Provider] Re-applying after async proxy override');
+			applyProvider();
+		}
+	}, 50);
 
 	console.log('[Mock Provider] Initialized with EIP-7702 support');
 }
