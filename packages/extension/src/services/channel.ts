@@ -45,11 +45,40 @@ export function createChannel(nonce: string): Channel {
 	};
 }
 
+/**
+ * Obtain the channel nonce via a synchronous CustomEvent handshake with the
+ * content script. The injected script generates a random token, dispatches
+ * 'testudo-handshake' with that token, and the content script responds on a
+ * token-specific event with the actual channel nonce. All synchronous — the
+ * nonce never touches the DOM as an attribute, closing the MutationObserver
+ * race window (QA-005).
+ *
+ * Falls back to the legacy DOM attribute approach for backwards compatibility.
+ */
 export function readNonce(): string {
+	const token = crypto.randomUUID();
+	let nonce = '';
+
+	const handler = (e: Event) => {
+		nonce = (e as CustomEvent<string>).detail;
+	};
+	document.addEventListener(`testudo-hs-${token}`, handler, { once: true });
+	document.dispatchEvent(
+		new CustomEvent('testudo-handshake', {
+			detail: token,
+			bubbles: false,
+			cancelable: false,
+		}),
+	);
+	document.removeEventListener(`testudo-hs-${token}`, handler);
+
+	if (nonce) return nonce;
+
+	// Legacy fallback: read from DOM attribute (content script versions before handshake)
 	const el = document.querySelector('script[data-testudo-nonce]');
-	const nonce = (el as HTMLScriptElement | null)?.dataset.testudoNonce ?? '';
+	const fallback = (el as HTMLScriptElement | null)?.dataset.testudoNonce ?? '';
 	if (el) {
 		delete (el as HTMLScriptElement).dataset.testudoNonce;
 	}
-	return nonce;
+	return fallback;
 }

@@ -109,10 +109,32 @@ function injectFonts() {
 // Inject the injected.js script into the page with a nonce for secure channel
 function injectScript(): string {
 	const nonce = crypto.randomUUID();
+
+	// Set up handshake listener BEFORE injecting the module.
+	// The injected script will dispatch 'testudo-handshake' with a random token,
+	// and we respond on a token-specific event with the real channel nonce.
+	// All synchronous — the nonce never appears as a DOM attribute. (QA-005)
+	let handshakeComplete = false;
+	document.addEventListener(
+		'testudo-handshake',
+		(e: Event) => {
+			if (handshakeComplete) return;
+			handshakeComplete = true;
+			const token = (e as CustomEvent<string>).detail;
+			document.dispatchEvent(
+				new CustomEvent(`testudo-hs-${token}`, {
+					detail: nonce,
+					bubbles: false,
+					cancelable: false,
+				}),
+			);
+		},
+		{ once: true },
+	);
+
 	const script = document.createElement('script');
 	script.src = chrome.runtime.getURL('injected.js');
 	script.type = 'module';
-	script.dataset.testudoNonce = nonce;
 
 	// Insert at document_start to ensure we intercept before any dApp code runs
 	(document.head || document.documentElement).appendChild(script);

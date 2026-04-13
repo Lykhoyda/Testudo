@@ -132,29 +132,89 @@ describe('readNonce', () => {
 		}
 	});
 
-	it('reads nonce from script element and deletes the attribute', () => {
+	it('obtains nonce via synchronous CustomEvent handshake', () => {
+		// Simulate content script: listen for handshake, respond with nonce
+		document.addEventListener(
+			'testudo-handshake',
+			(e: Event) => {
+				const token = (e as CustomEvent<string>).detail;
+				document.dispatchEvent(
+					new CustomEvent(`testudo-hs-${token}`, {
+						detail: 'handshake-nonce-456',
+						bubbles: false,
+						cancelable: false,
+					}),
+				);
+			},
+			{ once: true },
+		);
+
+		const result = readNonce();
+		expect(result).toBe('handshake-nonce-456');
+	});
+
+	it('falls back to DOM attribute when handshake has no responder', () => {
 		const script = document.createElement('script');
-		script.dataset.testudoNonce = 'secret-123';
+		script.dataset.testudoNonce = 'legacy-123';
 		document.head.appendChild(script);
 
 		const result = readNonce();
 
-		expect(result).toBe('secret-123');
+		expect(result).toBe('legacy-123');
 		expect(script.dataset.testudoNonce).toBeUndefined();
 	});
 
-	it('returns empty string when no script element exists', () => {
+	it('returns empty string when neither handshake nor DOM attribute available', () => {
 		expect(readNonce()).toBe('');
 	});
 
-	it('returns empty string on second call (nonce consumed)', () => {
+	it('prefers handshake over DOM attribute', () => {
+		// Set up both: handshake listener AND DOM attribute
+		document.addEventListener(
+			'testudo-handshake',
+			(e: Event) => {
+				const token = (e as CustomEvent<string>).detail;
+				document.dispatchEvent(
+					new CustomEvent(`testudo-hs-${token}`, {
+						detail: 'from-handshake',
+						bubbles: false,
+						cancelable: false,
+					}),
+				);
+			},
+			{ once: true },
+		);
+
 		const script = document.createElement('script');
-		script.dataset.testudoNonce = 'one-time';
+		script.dataset.testudoNonce = 'from-dom';
 		document.head.appendChild(script);
+
+		const result = readNonce();
+		expect(result).toBe('from-handshake');
+	});
+
+	it('content script only responds to first handshake (replay prevention)', () => {
+		let handshakeCount = 0;
+		document.addEventListener(
+			'testudo-handshake',
+			(e: Event) => {
+				handshakeCount++;
+				const token = (e as CustomEvent<string>).detail;
+				document.dispatchEvent(
+					new CustomEvent(`testudo-hs-${token}`, {
+						detail: 'nonce-once',
+						bubbles: false,
+						cancelable: false,
+					}),
+				);
+			},
+			{ once: true },
+		);
 
 		readNonce();
 		const second = readNonce();
 
+		expect(handshakeCount).toBe(1);
 		expect(second).toBe('');
 	});
 });
