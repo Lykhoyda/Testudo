@@ -226,7 +226,10 @@ export function buildTransactionIntent(address: string): HumanReadableIntent {
 	};
 }
 
-export function buildBlindSignatureIntent(info: BlindSignatureInfo): HumanReadableIntent {
+export function buildBlindSignatureIntent(
+	info: BlindSignatureInfo,
+	risk?: string,
+): HumanReadableIntent {
 	const details: IntentDetail[] = [
 		{
 			label: 'Method',
@@ -240,9 +243,13 @@ export function buildBlindSignatureIntent(info: BlindSignatureInfo): HumanReadab
 		},
 	];
 
+	const isPhishing = risk === 'HIGH';
+
 	return {
-		headline: 'Blind Signature Request',
-		action: `Sign arbitrary data with ${info.type}`,
+		headline: isPhishing ? 'Suspicious Message Detected' : 'Blind Signature Request',
+		action: isPhishing
+			? `Phishing patterns found in ${info.type} message`
+			: `Sign arbitrary data with ${info.type}`,
 		details,
 	};
 }

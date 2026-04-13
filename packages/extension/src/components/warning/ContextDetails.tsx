@@ -43,9 +43,9 @@ function AddressRow({
 function getEmphasisStyle(emphasis?: IntentDetail['emphasis']): string | undefined {
 	switch (emphasis) {
 		case 'danger':
-			return 'color:#e74c3c;font-weight:700';
+			return 'color:var(--danger);font-weight:700';
 		case 'warning':
-			return 'color:#f59e0b;font-weight:600';
+			return 'color:var(--warn);font-weight:600';
 		default:
 			return undefined;
 	}
@@ -62,7 +62,7 @@ function IntentDisplay({ intent }: { intent: HumanReadableIntent }) {
 					value={detail.value}
 					style={
 						detail.mono
-							? `font-family:monospace;font-size:12px;${getEmphasisStyle(detail.emphasis) ?? ''}`
+							? `font-family:var(--font-mono);font-size:12px;${getEmphasisStyle(detail.emphasis) ?? ''}`
 							: getEmphasisStyle(detail.emphasis)
 					}
 					mb={i < intent.details.length - 1}
@@ -104,7 +104,9 @@ export function ContextDetails({
 									? 'Batch (multiple tokens)'
 									: permitInfo.value || 'Unknown'
 						}
-						style={isUnlimitedValue(permitInfo.value) ? 'color:#e74c3c;font-weight:700' : undefined}
+						style={
+							isUnlimitedValue(permitInfo.value) ? 'color:var(--danger);font-weight:700' : undefined
+						}
 					/>
 					{permitInfo.deadline && (
 						<AddressRow label="Deadline" value={String(permitInfo.deadline)} mb={false} />
@@ -145,7 +147,7 @@ export function ContextDetails({
 					<AddressRow
 						label="Access Level"
 						value="FULL COLLECTION"
-						style="color:#e74c3c;font-weight:700"
+						style="color:var(--danger);font-weight:700"
 						mb={false}
 					/>
 				</div>
@@ -157,7 +159,7 @@ export function ContextDetails({
 					<AddressRow
 						label={`Message${blindSignatureInfo.isHex ? ' (hex)' : ''}`}
 						value={blindSignatureInfo.messagePreview}
-						style="font-family:monospace;font-size:12px;word-break:break-all"
+						style="font-family:var(--font-mono);font-size:12px;word-break:break-all"
 						mb={false}
 					/>
 				</div>
@@ -174,7 +176,7 @@ export function ContextDetails({
 							key={a.address}
 							label={`Found in: ${a.fieldPath}`}
 							value={truncateAddress(a.address)}
-							style="color:#e74c3c"
+							style="color:var(--danger)"
 						/>
 					))}
 				</div>

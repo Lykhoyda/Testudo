@@ -310,7 +310,7 @@ describe('buildTransactionIntent', () => {
 });
 
 describe('buildBlindSignatureIntent', () => {
-	it('builds blind signature intent', () => {
+	it('builds blind signature intent with MEDIUM headline by default', () => {
 		const info: BlindSignatureInfo = {
 			type: 'personal_sign',
 			message: '0xdeadbeef',
@@ -323,6 +323,21 @@ describe('buildBlindSignatureIntent', () => {
 		const intent = buildBlindSignatureIntent(info);
 		expect(intent.headline).toBe('Blind Signature Request');
 		expect(intent.action).toContain('personal_sign');
+	});
+
+	it('uses phishing headline for HIGH risk', () => {
+		const info: BlindSignatureInfo = {
+			type: 'personal_sign',
+			message: 'Claim your airdrop',
+			decodedMessage: 'Claim your airdrop',
+			messagePreview: 'Claim your airdrop',
+			signer: SPENDER,
+			isHex: false,
+		};
+
+		const intent = buildBlindSignatureIntent(info, 'HIGH');
+		expect(intent.headline).toBe('Suspicious Message Detected');
+		expect(intent.action).toContain('Phishing patterns');
 	});
 
 	it('includes hex indicator for hex messages', () => {

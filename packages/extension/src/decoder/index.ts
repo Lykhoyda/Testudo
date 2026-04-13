@@ -33,7 +33,9 @@ export function buildIntent(
 			return buildTransactionIntent(opts.analysis.address);
 
 		case 'blind-signature':
-			return opts.blindSignatureInfo ? buildBlindSignatureIntent(opts.blindSignatureInfo) : null;
+			return opts.blindSignatureInfo
+				? buildBlindSignatureIntent(opts.blindSignatureInfo, opts.analysis.risk)
+				: null;
 
 		case 'typed-data-scan':
 			return opts.typedDataScanInfo ? buildTypedDataScanIntent(opts.typedDataScanInfo) : null;
