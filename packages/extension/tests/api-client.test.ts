@@ -178,6 +178,24 @@ describe('checkAddressThreat', () => {
 		expect(result).toEqual({ success: false, error: 'Unknown error', errorCategory: 'unknown' });
 		expect(fetch).toHaveBeenCalledTimes(2);
 	});
+
+	it('aborts when response body takes longer than timeout', async () => {
+		const neverResolveJson = new Promise<never>(() => {});
+		const mockResponse = {
+			ok: true,
+			status: 200,
+			json: () => neverResolveJson,
+		} as unknown as Response;
+
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(mockResponse));
+
+		const result = await checkAddressThreat('0x1234567890123456789012345678901234567890', {
+			timeout: 100,
+		});
+
+		expect(result.success).toBe(false);
+		expect(result.errorCategory).toBe('timeout');
+	});
 });
 
 const DOMAIN = 'evil-phishing-site.xyz';
