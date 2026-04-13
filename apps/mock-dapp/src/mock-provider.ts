@@ -429,11 +429,11 @@ export async function sendSetApprovalForAll(
 
 export async function signPersonalMessage(message: string): Promise<string> {
 	const ethereum = (window as unknown as { ethereum: MockProvider }).ethereum;
-	const accounts = (await ethereum.request({ method: 'eth_requestAccounts' })) as string[];
+	const account = '0x1234567890123456789012345678901234567890';
 
 	const result = await ethereum.request({
 		method: 'personal_sign',
-		params: [message, accounts[0] || '0x1234567890123456789012345678901234567890'],
+		params: [message, account],
 	});
 
 	return result as string;
@@ -441,11 +441,11 @@ export async function signPersonalMessage(message: string): Promise<string> {
 
 export async function signEthMessage(message: string): Promise<string> {
 	const ethereum = (window as unknown as { ethereum: MockProvider }).ethereum;
-	const accounts = (await ethereum.request({ method: 'eth_requestAccounts' })) as string[];
+	const account = '0x1234567890123456789012345678901234567890';
 
 	const result = await ethereum.request({
 		method: 'eth_sign',
-		params: [accounts[0] || '0x1234567890123456789012345678901234567890', message],
+		params: [account, message],
 	});
 
 	return result as string;
