@@ -43,6 +43,13 @@ let modalRoot: HTMLDivElement | null = null;
 let shadowRoot: ShadowRoot | null = null;
 
 function mountModalTree(root: ShadowRoot): void {
+	const pageFonts = document.getElementById('testudo-fonts');
+	if (pageFonts?.textContent) {
+		const fontStyle = document.createElement('style');
+		fontStyle.textContent = pageFonts.textContent;
+		root.appendChild(fontStyle);
+	}
+
 	const container = document.createElement('div');
 	root.appendChild(container);
 	render(
