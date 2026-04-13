@@ -12,7 +12,8 @@ import { createPublicClient, hexToString, http } from 'viem';
 import { mainnet } from 'viem/chains';
 import type { AnalysisPipeline } from './analysis';
 import { createAnalysisPipeline } from './analysis';
-import { checkAddressThreat, checkDomainThreat } from './api-client';
+import type { ApiHealthStatus } from './api-client';
+import { checkAddressThreat, checkDomainThreat, pingApi } from './api-client';
 import { normalizeDomain } from './phishing/normalize';
 import { PhishingSync } from './phishing/sync';
 import {
@@ -177,6 +178,21 @@ phishingSync.loadFromStorage().catch((error) => {
 	console.error('[Testudo Background] Phishing sync load from storage failed:', error);
 });
 
+let apiHealthStatus: ApiHealthStatus = 'unchecked';
+
+async function runApiHealthCheck(): Promise<void> {
+	apiHealthStatus = await pingApi();
+	if (apiHealthStatus === 'auth_error') {
+		console.error('[Testudo] API auth error — API key may be invalid or expired');
+		chrome.action.setBadgeText({ text: '!' });
+		chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
+	} else if (apiHealthStatus === 'healthy') {
+		chrome.action.setBadgeText({ text: '' });
+	}
+}
+
+runApiHealthCheck();
+
 // Handle extension install
 chrome.runtime.onInstalled.addListener(async (details) => {
 	if (details.reason === 'install') {
@@ -234,6 +250,11 @@ const pipeline: AnalysisPipeline = createAnalysisPipeline({
 const { analyzeWithCache, addressCheckWithCache, analysisCache } = pipeline;
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+	if (message.type === 'TESTUDO_API_HEALTH') {
+		sendResponse({ status: apiHealthStatus });
+		return true;
+	}
+
 	if (message.type === 'HEARTBEAT') {
 		sendResponse({ alive: true });
 		return false;

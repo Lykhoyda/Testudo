@@ -273,3 +273,26 @@ export async function checkDomainThreat(
 		errorCategory: lastCategory,
 	};
 }
+
+export type ApiHealthStatus = 'healthy' | 'auth_error' | 'unavailable' | 'unchecked';
+
+export async function pingApi(options?: ApiClientOptions): Promise<ApiHealthStatus> {
+	const baseUrl = options?.baseUrl || DEFAULT_API_URL;
+	const timeout = options?.timeout || 3000;
+
+	if (!navigator.onLine) return 'unavailable';
+
+	try {
+		const { response } = await fetchWithTimeout(
+			`${baseUrl}/api/v1/threats/address/0x0000000000000000000000000000000000000000`,
+			timeout,
+			options?.apiKey,
+		);
+
+		if (response.status === 401 || response.status === 403) return 'auth_error';
+		if (!response.ok) return 'unavailable';
+		return 'healthy';
+	} catch {
+		return 'unavailable';
+	}
+}
