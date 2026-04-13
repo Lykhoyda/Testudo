@@ -29,6 +29,9 @@ const apiUrl = process.env.TESTUDO_API_URL || 'https://testudo-api-production.up
 const apiKey = process.env.TESTUDO_API_KEY || '';
 console.log(`[Testudo Build] API URL: ${apiUrl}`);
 console.log(`[Testudo Build] API Key: ${apiKey ? '[SET]' : '[NOT SET]'}`);
+if (!apiKey) {
+	console.warn('[Testudo Build] WARNING: TESTUDO_API_KEY is not set. API calls will be unauthenticated and may return 401.');
+}
 
 const shared = {
 	output: {
