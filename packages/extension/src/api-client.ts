@@ -57,6 +57,7 @@ export interface ApiClientResult {
 interface FetchResult {
 	response: Response;
 	bodyJson: () => Promise<unknown>;
+	cleanup: () => void;
 }
 
 async function fetchWithTimeout(
@@ -80,11 +81,11 @@ async function fetchWithTimeout(
 		headers['X-API-Key'] = key;
 	}
 
+	let timeoutId: ReturnType<typeof setTimeout>;
 	const timeoutPromise = new Promise<never>((_, reject) => {
-		setTimeout(() => {
+		timeoutId = setTimeout(() => {
 			controller.abort();
-			const err = new DOMException('The operation was aborted', 'AbortError');
-			reject(err);
+			reject(new DOMException('The operation was aborted', 'AbortError'));
 		}, timeout);
 	});
 
@@ -96,6 +97,7 @@ async function fetchWithTimeout(
 	return {
 		response,
 		bodyJson: () => Promise.race([response.json(), timeoutPromise]),
+		cleanup: () => clearTimeout(timeoutId),
 	};
 }
 
@@ -128,10 +130,11 @@ export async function checkAddressThreat(
 				console.log(`[API Client] Retry attempt ${attempt} for ${address}`);
 			}
 
-			const { response, bodyJson } = await fetchWithTimeout(url, timeout, apiKey);
+			const { response, bodyJson, cleanup } = await fetchWithTimeout(url, timeout, apiKey);
 
 			// Handle rate limiting
 			if (response.status === 429) {
+				cleanup();
 				console.warn('[API Client] Rate limited');
 				return {
 					success: false,
@@ -143,12 +146,14 @@ export async function checkAddressThreat(
 
 			// Handle other errors
 			if (!response.ok) {
+				cleanup();
 				lastError = `HTTP ${response.status}`;
 				lastCategory = 'http_error';
 				continue;
 			}
 
 			const rawData = (await bodyJson()) as Record<string, unknown>;
+			cleanup();
 
 			// Validate response structure (security: prevent malformed API responses)
 			if (typeof rawData.isMalicious !== 'boolean' || typeof rawData.address !== 'string') {
@@ -217,9 +222,10 @@ export async function checkDomainThreat(
 				console.log(`[API Client] Retry attempt ${attempt} for ${domain}`);
 			}
 
-			const { response, bodyJson } = await fetchWithTimeout(url, timeout, apiKey);
+			const { response, bodyJson, cleanup } = await fetchWithTimeout(url, timeout, apiKey);
 
 			if (response.status === 429) {
+				cleanup();
 				console.warn('[API Client] Rate limited');
 				return {
 					success: false,
@@ -229,12 +235,14 @@ export async function checkDomainThreat(
 			}
 
 			if (!response.ok) {
+				cleanup();
 				lastError = `HTTP ${response.status}`;
 				lastCategory = 'http_error';
 				continue;
 			}
 
 			const rawData = (await bodyJson()) as Record<string, unknown>;
+			cleanup();
 
 			if (typeof rawData.isMalicious !== 'boolean' || typeof rawData.domain !== 'string') {
 				console.warn('[API Client] Invalid API response structure:', rawData);
@@ -283,11 +291,12 @@ export async function pingApi(options?: ApiClientOptions): Promise<ApiHealthStat
 	if (!navigator.onLine) return 'unavailable';
 
 	try {
-		const { response } = await fetchWithTimeout(
+		const { response, cleanup } = await fetchWithTimeout(
 			`${baseUrl}/api/v1/threats/address/0x0000000000000000000000000000000000000000`,
 			timeout,
 			options?.apiKey,
 		);
+		cleanup();
 
 		if (response.status === 401 || response.status === 403) return 'auth_error';
 		if (!response.ok) return 'unavailable';

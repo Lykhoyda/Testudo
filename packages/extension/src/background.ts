@@ -179,8 +179,14 @@ phishingSync.loadFromStorage().catch((error) => {
 });
 
 let apiHealthStatus: ApiHealthStatus = 'unchecked';
+let lastHealthCheckMs = 0;
+const HEALTH_CHECK_TTL = 5 * 60 * 1000; // 5 minutes
 
 async function runApiHealthCheck(): Promise<void> {
+	const now = Date.now();
+	if (apiHealthStatus !== 'unchecked' && now - lastHealthCheckMs < HEALTH_CHECK_TTL) return;
+	lastHealthCheckMs = now;
+
 	apiHealthStatus = await pingApi();
 	if (apiHealthStatus === 'auth_error') {
 		console.error('[Testudo] API auth error — API key may be invalid or expired');

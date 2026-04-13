@@ -121,7 +121,9 @@ export function ContextDetails({
 						label="Amount"
 						value={formatApprovalAmount(approvalInfo.amount)}
 						style={
-							isUnlimitedValue(approvalInfo.amount) ? 'color:#e74c3c;font-weight:700' : undefined
+							isUnlimitedValue(approvalInfo.amount)
+								? 'color:var(--danger);font-weight:700'
+								: undefined
 						}
 					/>
 					<AddressRow
