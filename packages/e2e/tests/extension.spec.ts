@@ -653,7 +653,10 @@ test.describe('Phishing Pattern Detection (ANT-222)', () => {
 		const modal = page.locator('#testudo-warning-overlay');
 		await expect(modal).toBeVisible({ timeout: 10000 });
 
-		await expect(modal.locator('.testudo-title')).toContainText('Blind Signature Request');
+		// HIGH-risk phishing patterns trigger the elevated headline (commit 176cec1).
+		// Standard blind-signature uses "Blind Signature Request"; phishing uses
+		// "Suspicious Message Detected" via buildBlindSignatureIntent(info, 'HIGH').
+		await expect(modal.locator('.testudo-title')).toContainText('Suspicious Message Detected');
 
 		await page.close();
 	});
@@ -804,8 +807,12 @@ test.describe('Settings Page', () => {
 		const page = await context.newPage();
 		await page.goto(`chrome-extension://${extensionId}/options.html`);
 
-		await expect(page.locator('h1')).toContainText('Testudo Settings');
-		await expect(page.locator('.tab.active')).toContainText('General');
+		// Sidebar layout (commit 8d84ac0): brand text in sidebar, page title
+		// is the active tab name (e.g. "General"). The active tab uses
+		// .opt-tab.active not .tab.active.
+		await expect(page.locator('.opt-brand-text')).toContainText('Testudo');
+		await expect(page.locator('h1.opt-title')).toContainText('General');
+		await expect(page.locator('.opt-tab.active')).toContainText('General');
 
 		await page.close();
 	});
