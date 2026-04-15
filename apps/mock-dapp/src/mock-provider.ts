@@ -120,12 +120,13 @@ export function initMockProvider(): void {
 		},
 	};
 
+	// Simple assignment triggers Testudo's setter trap on window.ethereum.
+	// Using Object.defineProperty would bypass the setter (installs a data
+	// descriptor over an accessor descriptor), breaking extension integration.
+	// If another wallet extension's proxy overrides us (e.g. Polkadot.js),
+	// we re-apply via simple assignment so Testudo's setter fires again.
 	function applyProvider(): void {
-		Object.defineProperty(window, 'ethereum', {
-			value: mockProvider,
-			writable: true,
-			configurable: true,
-		});
+		(window as unknown as { ethereum: MockProvider }).ethereum = mockProvider;
 	}
 
 	applyProvider();
