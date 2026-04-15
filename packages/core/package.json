@@ -16,11 +16,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "viem": "^2.44.1"
+    "viem": "^2.47.18"
   },
   "devDependencies": {
-    "rolldown": "^1.0.0-beta.9",
+    "rolldown": "^1.0.0-rc.15",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.16"
+    "vitest": "^4.1.4"
   }
 }
