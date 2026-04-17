@@ -108,10 +108,13 @@ export function detectAutoForwarder(instructions: Instruction[]): boolean {
 
 export function detectUnlimitedApproval(instructions: Instruction[]): boolean {
 	for (const instruction of instructions) {
-		if (instruction.opcode === 'PUSH32') {
-			if (instruction.data?.every((byte) => byte === 0xff)) {
-				return true;
-			}
+		if (
+			instruction.opcode === 'PUSH32' &&
+			!instruction.truncated &&
+			instruction.data?.length === 32 &&
+			instruction.data.every((byte) => byte === 0xff)
+		) {
+			return true;
 		}
 	}
 

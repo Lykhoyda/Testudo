@@ -98,7 +98,8 @@ export type WarningContext =
 	| 'nft-approval'
 	| 'blind-signature'
 	| 'typed-data-scan'
-	| 'eth-sign-danger';
+	| 'eth-sign-danger'
+	| 'replay-risk';
 
 export interface TokenInfo {
 	address: string;

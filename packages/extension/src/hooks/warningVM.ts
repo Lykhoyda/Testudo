@@ -102,7 +102,11 @@ export function showLoading(opts: LoadingOptions): Promise<boolean> {
 	});
 }
 
-export function updateAnalysis(analysis: AnalysisResult, intent?: HumanReadableIntent): void {
+export function updateAnalysis(
+	analysis: AnalysisResult,
+	intent?: HumanReadableIntent,
+	context?: WarningContext,
+): void {
 	const current = state.value;
 	if (!current.visible || !current.resolver) return;
 	state.value = {
@@ -110,6 +114,7 @@ export function updateAnalysis(analysis: AnalysisResult, intent?: HumanReadableI
 		loading: false,
 		analysis,
 		intent,
+		context: context ?? current.context,
 	};
 }
 

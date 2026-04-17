@@ -30,6 +30,7 @@ import type {
 	AnalysisResult,
 	TypedDataMessage,
 	TypedDataScanInfo,
+	WarningContext,
 	WarningOptions,
 } from './utils/types';
 
@@ -512,12 +513,19 @@ function wrapEthereumProvider(): void {
 				}
 
 				if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
-					const intent = buildIntent({ analysis, chainId: rawChainId }, null);
-					warningVM.updateAnalysis(analysis, intent ?? undefined);
+					// chainId=0 replay is so dangerous we require typed confirmation like
+					// eth_sign. Re-context so ModalButtons renders EthSignConfirm.
+					const context: WarningContext = isReplayRisk ? 'replay-risk' : 'delegation';
+					const intent = buildIntent({ analysis, context, chainId: rawChainId }, null);
+					warningVM.updateAnalysis(analysis, intent ?? undefined, context);
 					const userConfirmed = await loadingPromise;
 
 					if (!userConfirmed) {
-						throw new Error('Testudo: Delegation blocked by user - dangerous contract detected');
+						throw new Error(
+							isReplayRisk
+								? 'Testudo: Delegation blocked by user — cross-chain replay risk rejected'
+								: 'Testudo: Delegation blocked by user - dangerous contract detected',
+						);
 					}
 				} else if (analysis.risk === 'MEDIUM') {
 					warningVM.dismissLoading();

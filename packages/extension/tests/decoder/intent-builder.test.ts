@@ -6,6 +6,7 @@ import {
 	buildEthSignIntent,
 	buildNftApprovalIntent,
 	buildPermitIntent,
+	buildReplayRiskIntent,
 	buildTransactionIntent,
 	buildTypedDataScanIntent,
 } from '../../src/decoder/intent-builder';
@@ -409,6 +410,35 @@ describe('buildTypedDataScanIntent', () => {
 
 		const intent = buildTypedDataScanIntent(info);
 		expect(intent.details.find((d) => d.label === 'Domain')).toBeUndefined();
+	});
+});
+
+describe('buildReplayRiskIntent', () => {
+	const DELEGATE = '0xabcdef1234567890abcdef1234567890abcdef12';
+
+	it('flags cross-chain replay risk with all-network impact', () => {
+		const intent = buildReplayRiskIntent(DELEGATE);
+		expect(intent.headline).toBe('Cross-Chain Replay Risk');
+		expect(intent.action).toContain('ALL networks');
+
+		const network = intent.details.find((d) => d.label === 'Network');
+		expect(network?.value).toContain('chainId=0');
+		expect(network?.emphasis).toBe('danger');
+	});
+
+	it('marks every detail as danger emphasis', () => {
+		const intent = buildReplayRiskIntent(DELEGATE);
+		for (const detail of intent.details) {
+			expect(detail.emphasis).toBe('danger');
+		}
+	});
+
+	it('truncates delegate address in both action and details', () => {
+		const intent = buildReplayRiskIntent(DELEGATE);
+		const delegate = intent.details.find((d) => d.label === 'Delegate');
+		expect(delegate?.mono).toBe(true);
+		expect(delegate?.value).not.toBe(DELEGATE);
+		expect(intent.action).toContain(delegate?.value);
 	});
 });
 

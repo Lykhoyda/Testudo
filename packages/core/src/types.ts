@@ -58,6 +58,8 @@ export interface Instruction {
 	byteIndex: number;
 	data?: Uint8Array;
 	size?: number;
+	/** True when a PUSH opcode's data is cut short by bytecode end. */
+	truncated?: boolean;
 }
 
 export interface ProxyDetectionResult {

@@ -27,7 +27,7 @@ export function ModalButtons({
 				<span class="testudo-material-icon">shield</span>
 				Cancel (Safe)
 			</button>
-			{context === 'eth-sign-danger' ? (
+			{context === 'eth-sign-danger' || context === 'replay-risk' ? (
 				<EthSignConfirm
 					confirmInput={confirmInput}
 					isConfirmValid={isConfirmValid}
