@@ -14,7 +14,10 @@ const ANALYSIS_TIMEOUT = 5_000; // 5s global timeout for three-layer analysis
 
 export interface AnalysisDeps {
 	safeFilter: { isKnownSafe(address: string): boolean };
-	checkAddressThreat(address: string, options?: { baseUrl?: string }): Promise<ApiClientResult>;
+	checkAddressThreat(
+		address: string,
+		options?: { baseUrl?: string; chainId?: number },
+	): Promise<ApiClientResult>;
 	analyzeContract(address: `0x${string}`, options?: { rpcUrl?: string }): Promise<AnalysisResult>;
 	checkKnownMalicious(address: string): { type: string } | null;
 	assessDeployerRisk(
@@ -37,9 +40,24 @@ export interface AnalysisDeps {
 }
 
 export interface AnalysisPipeline {
-	analyzeWithCache(address: string, url?: string): Promise<ExtendedAnalysisResult>;
-	addressCheckWithCache(address: string, url?: string): Promise<ExtendedAnalysisResult>;
+	analyzeWithCache(
+		address: string,
+		url?: string,
+		chainId?: number,
+	): Promise<ExtendedAnalysisResult>;
+	addressCheckWithCache(
+		address: string,
+		url?: string,
+		chainId?: number,
+	): Promise<ExtendedAnalysisResult>;
 	readonly analysisCache: Map<string, { result: ExtendedAnalysisResult; timestamp: number }>;
+}
+
+const DEFAULT_CHAIN_ID = 1;
+
+function cacheKey(address: string, chainId: number | undefined): string {
+	const chain = chainId && Number.isFinite(chainId) && chainId > 0 ? chainId : DEFAULT_CHAIN_ID;
+	return `${chain}:${address}`;
 }
 
 export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
@@ -56,8 +74,10 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 	async function performAddressOnlyCheck(
 		normalizedAddress: string,
 		url?: string,
+		chainId?: number,
 	): Promise<ExtendedAnalysisResult> {
 		const baseResult = { address: normalizedAddress as `0x${string}` };
+		const key = cacheKey(normalizedAddress, chainId);
 
 		if (deps.safeFilter.isKnownSafe(normalizedAddress)) {
 			const result: ExtendedAnalysisResult = {
@@ -67,7 +87,7 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 				blocked: false,
 				source: 'safe-filter',
 			};
-			analysisCache.set(normalizedAddress, { result, timestamp: Date.now() });
+			analysisCache.set(key, { result, timestamp: Date.now() });
 			return result;
 		}
 
@@ -80,13 +100,13 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 				blocked: true,
 				source: 'local-malicious-db',
 			};
-			analysisCache.set(normalizedAddress, { result, timestamp: Date.now() });
+			analysisCache.set(key, { result, timestamp: Date.now() });
 			return result;
 		}
 
 		const apiUrl = await getApiUrl();
 		const api = await deps
-			.checkAddressThreat(normalizedAddress, { baseUrl: apiUrl })
+			.checkAddressThreat(normalizedAddress, { baseUrl: apiUrl, chainId })
 			.catch(() => ({ success: false, error: 'API call failed' }) as ApiClientResult);
 
 		let result: ExtendedAnalysisResult;
@@ -118,7 +138,7 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 			};
 		}
 
-		analysisCache.set(normalizedAddress, { result, timestamp: Date.now() });
+		analysisCache.set(key, { result, timestamp: Date.now() });
 
 		await deps.recordScan({
 			address: normalizedAddress,
@@ -135,7 +155,10 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 	async function performThreeLayerAnalysis(
 		normalizedAddress: string,
 		url?: string,
+		chainId?: number,
 	): Promise<ExtendedAnalysisResult> {
+		const key = cacheKey(normalizedAddress, chainId);
+
 		// LAYER 0: Safe Filter (local Set - instant)
 		if (deps.safeFilter.isKnownSafe(normalizedAddress)) {
 			const result: ExtendedAnalysisResult = {
@@ -145,7 +168,7 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 				blocked: false,
 				source: 'safe-filter',
 			};
-			analysisCache.set(normalizedAddress, { result, timestamp: Date.now() });
+			analysisCache.set(key, { result, timestamp: Date.now() });
 			return result;
 		}
 
@@ -159,7 +182,7 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 				blocked: true,
 				source: 'local-malicious-db',
 			};
-			analysisCache.set(normalizedAddress, { result, timestamp: Date.now() });
+			analysisCache.set(key, { result, timestamp: Date.now() });
 			return result;
 		}
 
@@ -184,7 +207,7 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 
 		const settled = await Promise.race([
 			Promise.allSettled([
-				deps.checkAddressThreat(normalizedAddress, { baseUrl: apiUrl }),
+				deps.checkAddressThreat(normalizedAddress, { baseUrl: apiUrl, chainId }),
 				deps.analyzeContract(normalizedAddress as `0x${string}`, { rpcUrl }),
 				fetchDeployerStaticCached(normalizedAddress),
 			]).then((results) => {
@@ -203,7 +226,7 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 				source: 'fallback',
 				apiUnavailable: true,
 			};
-			analysisCache.set(normalizedAddress, { result, timestamp: Date.now() });
+			analysisCache.set(key, { result, timestamp: Date.now() });
 			await deps.recordScan({
 				address: normalizedAddress,
 				risk: result.risk,
@@ -262,7 +285,7 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 		// DECISION MATRIX (ADR-006)
 		const finalResult = applyDecisionMatrix(api, local, normalizedAddress);
 
-		analysisCache.set(normalizedAddress, { result: finalResult, timestamp: Date.now() });
+		analysisCache.set(key, { result: finalResult, timestamp: Date.now() });
 
 		await deps.recordScan({
 			address: normalizedAddress,
@@ -280,8 +303,10 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 	async function addressCheckWithCache(
 		address: string,
 		url?: string,
+		chainId?: number,
 	): Promise<ExtendedAnalysisResult> {
 		const normalizedAddress = address.toLowerCase();
+		const key = cacheKey(normalizedAddress, chainId);
 
 		const whitelisted = await deps.isWhitelisted(normalizedAddress);
 		if (whitelisted) {
@@ -295,26 +320,31 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 			};
 		}
 
-		const cached = analysisCache.get(normalizedAddress);
+		const cached = analysisCache.get(key);
 		if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
 			return { ...cached.result, cached: true };
 		}
 
-		const pending = pendingAddressCheck.get(normalizedAddress);
+		const pending = pendingAddressCheck.get(key);
 		if (pending) return pending;
 
-		const checkPromise = performAddressOnlyCheck(normalizedAddress, url);
-		pendingAddressCheck.set(normalizedAddress, checkPromise);
+		const checkPromise = performAddressOnlyCheck(normalizedAddress, url, chainId);
+		pendingAddressCheck.set(key, checkPromise);
 
 		try {
 			return await checkPromise;
 		} finally {
-			pendingAddressCheck.delete(normalizedAddress);
+			pendingAddressCheck.delete(key);
 		}
 	}
 
-	async function analyzeWithCache(address: string, url?: string): Promise<ExtendedAnalysisResult> {
+	async function analyzeWithCache(
+		address: string,
+		url?: string,
+		chainId?: number,
+	): Promise<ExtendedAnalysisResult> {
 		const normalizedAddress = address.toLowerCase();
+		const key = cacheKey(normalizedAddress, chainId);
 
 		const whitelisted = await deps.isWhitelisted(normalizedAddress);
 		if (whitelisted) {
@@ -329,7 +359,7 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 		}
 
 		// Only trust full analysis results or global allows — not address-only (source: 'api')
-		const cached = analysisCache.get(normalizedAddress);
+		const cached = analysisCache.get(key);
 		if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
 			const source = cached.result.source || '';
 			const isFullAnalysis = source.includes('local') || source === 'api+local';
@@ -340,16 +370,16 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 			}
 		}
 
-		const pending = pendingFullAnalysis.get(normalizedAddress);
+		const pending = pendingFullAnalysis.get(key);
 		if (pending) return pending;
 
-		const analysisPromise = performThreeLayerAnalysis(normalizedAddress, url);
-		pendingFullAnalysis.set(normalizedAddress, analysisPromise);
+		const analysisPromise = performThreeLayerAnalysis(normalizedAddress, url, chainId);
+		pendingFullAnalysis.set(key, analysisPromise);
 
 		try {
 			return await analysisPromise;
 		} finally {
-			pendingFullAnalysis.delete(normalizedAddress);
+			pendingFullAnalysis.delete(key);
 		}
 	}
 

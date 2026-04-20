@@ -30,11 +30,11 @@ function sendTestudoRequest<T>(
 	});
 }
 
-export function requestAddressCheck(address: string): Promise<AnalysisResult> {
+export function requestAddressCheck(address: string, chainId?: number): Promise<AnalysisResult> {
 	return sendTestudoRequest<AnalysisResult>(
 		MessageTypes.CHECK_ADDRESS,
 		MessageTypes.ADDRESS_CHECK_RESULT,
-		{ address },
+		{ address, chainId },
 	);
 }
 
@@ -45,6 +45,7 @@ export interface BatchCheckResult {
 
 export async function batchCheckAddresses(
 	addresses: ExtractedAddress[],
+	chainId?: number,
 ): Promise<BatchCheckResult> {
 	const uniqueMap = new Map<string, ExtractedAddress[]>();
 	for (const entry of addresses) {
@@ -58,7 +59,7 @@ export async function batchCheckAddresses(
 
 	const checks = Array.from(uniqueMap.entries()).map(async ([addr, entries]) => {
 		try {
-			const result = await requestAddressCheck(addr);
+			const result = await requestAddressCheck(addr, chainId);
 			results.set(addr, result);
 			if (result.risk === 'CRITICAL' || result.risk === 'HIGH') {
 				malicious.push(...entries);
@@ -73,11 +74,14 @@ export async function batchCheckAddresses(
 	return { malicious, results };
 }
 
-export function requestAnalysis(delegateAddress: string): Promise<AnalysisResult> {
+export function requestAnalysis(
+	delegateAddress: string,
+	chainId?: number,
+): Promise<AnalysisResult> {
 	return sendTestudoRequest<AnalysisResult>(
 		MessageTypes.ANALYZE_REQUEST,
 		MessageTypes.ANALYZE_RESULT,
-		{ delegateAddress },
+		{ delegateAddress, chainId },
 	);
 }
 

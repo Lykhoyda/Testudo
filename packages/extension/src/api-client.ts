@@ -28,12 +28,25 @@ export interface ThreatResponse {
 	confidence?: number;
 	sources?: string[];
 	firstSeen?: string;
+	/** Chain the threat was found on, if returned by API (S-16 response field). */
+	matchedChainId?: number;
+	/** True when the match came from a different chain than requested. */
+	crossChainMatch?: boolean;
 }
 
 export interface ApiClientOptions {
 	baseUrl?: string;
 	timeout?: number;
 	apiKey?: string;
+	/** EVM chain id for threat lookup. Defaults to 1 (mainnet) if omitted. */
+	chainId?: number;
+}
+
+/** Mainnet fallback — matches api-server's current behavior for missing chainId. */
+const DEFAULT_CHAIN_ID = 1;
+
+function resolveChainId(chainId: number | undefined): number {
+	return chainId && Number.isFinite(chainId) && chainId > 0 ? chainId : DEFAULT_CHAIN_ID;
 }
 
 export type ApiErrorCategory =
@@ -120,7 +133,8 @@ export async function checkAddressThreat(
 	}
 
 	const apiKey = options?.apiKey;
-	const url = `${baseUrl}/api/v1/threats/address/${address.toLowerCase()}`;
+	const chainId = resolveChainId(options?.chainId);
+	const url = `${baseUrl}/api/v1/chains/${chainId}/threats/address/${address.toLowerCase()}`;
 	let lastError: string = '';
 	let lastCategory: ApiErrorCategory = 'unknown';
 
@@ -287,12 +301,13 @@ export type ApiHealthStatus = 'healthy' | 'auth_error' | 'unavailable' | 'unchec
 export async function pingApi(options?: ApiClientOptions): Promise<ApiHealthStatus> {
 	const baseUrl = options?.baseUrl || DEFAULT_API_URL;
 	const timeout = options?.timeout || 3000;
+	const chainId = resolveChainId(options?.chainId);
 
 	if (!navigator.onLine) return 'unavailable';
 
 	try {
 		const { response, cleanup } = await fetchWithTimeout(
-			`${baseUrl}/api/v1/threats/address/0x0000000000000000000000000000000000000000`,
+			`${baseUrl}/api/v1/chains/${chainId}/threats/address/0x0000000000000000000000000000000000000000`,
 			timeout,
 			options?.apiKey,
 		);
