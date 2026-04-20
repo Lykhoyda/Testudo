@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseBytecode } from '../src/parser';
+import { InvalidBytecodeError, parseBytecode } from '../src/parser';
 
 describe('parseBytecode', () => {
 	it('should parse empty bytecode', () => {
@@ -91,10 +91,53 @@ describe('parseBytecode', () => {
 		expect(result[0]?.size).toBe(1);
 	});
 
-	it('should handle odd-length hex string gracefully', () => {
-		// Odd-length hex strings can occur with corrupted bytecode
-		const result = parseBytecode('0x6');
-		expect(result).toBeDefined();
+	it('should throw InvalidBytecodeError on odd-length hex string', () => {
+		// Previously silently parsed '0x6' as a single byte via regex greed; now rejected.
+		expect(() => parseBytecode('0x6')).toThrow(InvalidBytecodeError);
+		expect(() => parseBytecode('0x6')).toThrow(/odd length/i);
+	});
+
+	it('should throw InvalidBytecodeError on non-hex characters', () => {
+		expect(() => parseBytecode('0xZZ')).toThrow(InvalidBytecodeError);
+		expect(() => parseBytecode('0x60GG')).toThrow(InvalidBytecodeError);
+		expect(() => parseBytecode('not-hex-at-all')).toThrow(InvalidBytecodeError);
+	});
+
+	it('should accept uppercase 0X prefix', () => {
+		const result = parseBytecode('0X60FF');
+		expect(result).toHaveLength(1);
+		expect(result[0]?.opcode).toBe('PUSH1');
+		expect(result[0]?.data).toEqual(new Uint8Array([0xff]));
+	});
+
+	it('should mark truncated PUSH as truncated', () => {
+		// PUSH2 with only 1 byte of data
+		const result = parseBytecode('0x61ff');
+		expect(result).toHaveLength(1);
+		expect(result[0]?.opcode).toBe('PUSH2');
+		expect(result[0]?.truncated).toBe(true);
+		expect(result[0]?.data?.length).toBe(1);
+	});
+
+	it('should mark PUSH with zero data bytes as truncated', () => {
+		// PUSH1 at EOF with no data byte at all
+		const result = parseBytecode('0x60');
+		expect(result).toHaveLength(1);
+		expect(result[0]?.opcode).toBe('PUSH1');
+		expect(result[0]?.truncated).toBe(true);
+	});
+
+	it('should not mark complete PUSH as truncated', () => {
+		const result = parseBytecode('0x6001');
+		expect(result).toHaveLength(1);
+		expect(result[0]?.opcode).toBe('PUSH1');
+		expect(result[0]?.truncated).toBeUndefined();
+	});
+
+	it('should throw on non-string input', () => {
+		expect(() => parseBytecode(null as unknown as string)).toThrow(InvalidBytecodeError);
+		expect(() => parseBytecode(undefined as unknown as string)).toThrow(InvalidBytecodeError);
+		expect(() => parseBytecode(123 as unknown as string)).toThrow(InvalidBytecodeError);
 	});
 
 	it('should parse consecutive PUSH instructions consuming all bytes', () => {

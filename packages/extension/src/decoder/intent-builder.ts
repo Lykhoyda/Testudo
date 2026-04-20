@@ -282,6 +282,23 @@ export function buildTypedDataScanIntent(info: TypedDataScanInfo): HumanReadable
 	};
 }
 
+export function buildReplayRiskIntent(address: string): HumanReadableIntent {
+	const delegate = truncateAddress(address);
+	return {
+		headline: 'Cross-Chain Replay Risk',
+		action: `Delegate wallet control to ${delegate} on ALL networks`,
+		details: [
+			{ label: 'Delegate', value: delegate, emphasis: 'danger', mono: true },
+			{ label: 'Network', value: 'All Networks (chainId=0)', emphasis: 'danger' },
+			{
+				label: 'Impact',
+				value: 'Signature can be replayed on every EVM chain',
+				emphasis: 'danger',
+			},
+		],
+	};
+}
+
 export function buildEthSignIntent(info: BlindSignatureInfo): HumanReadableIntent {
 	return {
 		headline: 'Dangerous: eth_sign Detected',

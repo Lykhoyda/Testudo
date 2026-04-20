@@ -6,6 +6,7 @@ import {
 	buildEthSignIntent,
 	buildNftApprovalIntent,
 	buildPermitIntent,
+	buildReplayRiskIntent,
 	buildTransactionIntent,
 	buildTypedDataScanIntent,
 } from './intent-builder';
@@ -28,6 +29,9 @@ export function buildIntent(
 
 		case 'delegation':
 			return buildDelegationIntent(opts.analysis.address, opts.chainId, opts.analysis.deployerRisk);
+
+		case 'replay-risk':
+			return buildReplayRiskIntent(opts.analysis.address);
 
 		case 'transaction':
 			return buildTransactionIntent(opts.analysis.address);
@@ -56,6 +60,7 @@ export {
 	buildEthSignIntent,
 	buildNftApprovalIntent,
 	buildPermitIntent,
+	buildReplayRiskIntent,
 	buildTransactionIntent,
 	buildTypedDataScanIntent,
 } from './intent-builder';

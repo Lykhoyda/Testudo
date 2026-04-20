@@ -384,6 +384,16 @@ describe('detectUnlimitedApproval', () => {
 			const instructions = parseBytecode(UNLIMITED_APPROVAL_CONTRACTS.almostMax);
 			expect(detectUnlimitedApproval(instructions)).toBe(false);
 		});
+
+		it('rejects truncated PUSH32 with only 0xFF bytes at EOF', () => {
+			// PUSH32 opcode (0x7f) followed by only 3 bytes of 0xFF — truncated.
+			// Previous implementation would return true via Array.every on the short slice;
+			// the hardened detector now requires data.length === 32.
+			const instructions = parseBytecode('0x7fffffff');
+			expect(instructions[0]?.opcode).toBe('PUSH32');
+			expect(instructions[0]?.truncated).toBe(true);
+			expect(detectUnlimitedApproval(instructions)).toBe(false);
+		});
 	});
 });
 

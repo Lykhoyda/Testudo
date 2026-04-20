@@ -35,7 +35,7 @@ export {
 	LOOK_AHEAD,
 	runAllDetectors,
 } from './detectors';
-export { fetchBytecode, resolveProxyImplementation } from './fetcher';
+export { BytecodeFetchError, fetchBytecode, resolveProxyImplementation } from './fetcher';
 export {
 	checkKnownMalicious,
 	isKnownSafe,
@@ -55,7 +55,7 @@ export {
 	PERMIT2_SELECTORS,
 	TOKEN_SELECTORS,
 } from './opcode';
-export { parseBytecode } from './parser';
+export { InvalidBytecodeError, parseBytecode } from './parser';
 export type {
 	AnalysisResult,
 	ChainIdDetectionResult,

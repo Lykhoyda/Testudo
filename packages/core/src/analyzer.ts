@@ -1,8 +1,8 @@
 import type { Address } from 'viem';
 import { extractMinimalProxyTarget, runAllDetectors } from './detectors';
-import { fetchBytecode, resolveProxyImplementation } from './fetcher';
+import { BytecodeFetchError, fetchBytecode, resolveProxyImplementation } from './fetcher';
 import { isKnownSafe } from './malicious-db';
-import { parseBytecode } from './parser';
+import { InvalidBytecodeError, parseBytecode } from './parser';
 import type { AnalysisResult, DetectionResults, Warning } from './types';
 
 const MAX_PROXY_DEPTH = 2;
@@ -11,6 +11,8 @@ export interface AnalyzeOptions {
 	rpcUrl?: string;
 	/** @internal Used to prevent infinite proxy resolution loops */
 	_proxyDepth?: number;
+	/** @internal Visited addresses (normalized, lowercase) for proxy-chain cycle detection */
+	_visitedAddresses?: ReadonlySet<string>;
 }
 
 export function generateWarnings(detectionResults: DetectionResults): Warning[] {
@@ -477,6 +479,18 @@ export async function analyzeContract(
 	// The core analyzer focuses on pure bytecode analysis
 
 	const currentDepth = options?._proxyDepth ?? 0;
+	const visited = options?._visitedAddresses ?? new Set<string>();
+
+	// Proxy-chain cycle guard: A → B → A would loop forever otherwise.
+	if (visited.has(normalizedAddress)) {
+		return {
+			address: normalizedAddress,
+			risk: 'UNKNOWN',
+			threats: ['proxy_cycle_detected'],
+			blocked: false,
+			error: `Proxy delegation cycle detected at ${normalizedAddress}`,
+		};
+	}
 
 	try {
 		const bytecode = await fetchBytecode(normalizedAddress, options?.rpcUrl);
@@ -508,9 +522,12 @@ export async function analyzeContract(
 
 			if (implAddr) {
 				implementationAddress = implAddr.toLowerCase() as Address;
+				const nextVisited = new Set(visited);
+				nextVisited.add(normalizedAddress);
 				implementationAnalysis = await analyzeContract(implementationAddress, {
 					rpcUrl: options?.rpcUrl,
 					_proxyDepth: currentDepth + 1,
+					_visitedAddresses: nextVisited,
 				});
 			}
 		}
@@ -533,12 +550,22 @@ export async function analyzeContract(
 			implementationAnalysis,
 		};
 	} catch (error) {
+		// Classify known error types so callers can distinguish transient
+		// network failures from malformed bytecode. Both stay fail-open
+		// (risk: UNKNOWN) so the extension's decision matrix decides what to
+		// do — see ADR-006 / ADR-013.
+		let threatTag = 'Analysis failed';
+		if (error instanceof BytecodeFetchError) {
+			threatTag = 'bytecode_fetch_failed';
+		} else if (error instanceof InvalidBytecodeError) {
+			threatTag = 'invalid_bytecode';
+		}
 		return {
 			address: normalizedAddress,
 			risk: 'UNKNOWN',
-			threats: ['Analysis failed'],
+			threats: [threatTag],
 			blocked: false,
-			error: String(error),
+			error: error instanceof Error ? error.message : String(error),
 		};
 	}
 }

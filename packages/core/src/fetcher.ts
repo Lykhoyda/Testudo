@@ -8,6 +8,16 @@ const DEFAULT_RPC = 'https://eth.llamarpc.com';
 let cachedClient: ReturnType<typeof createPublicClient> | null = null;
 let cachedRpcUrl: string | null = null;
 
+export class BytecodeFetchError extends Error {
+	constructor(
+		message: string,
+		public readonly cause: unknown,
+	) {
+		super(message);
+		this.name = 'BytecodeFetchError';
+	}
+}
+
 function getClient(rpcUrl?: string): ReturnType<typeof createPublicClient> {
 	const url = rpcUrl || DEFAULT_RPC;
 
@@ -28,11 +38,19 @@ function getClient(rpcUrl?: string): ReturnType<typeof createPublicClient> {
 export async function fetchBytecode(address: string, rpcUrl?: string): Promise<string | null> {
 	const client = getClient(rpcUrl);
 
-	const bytecode = await client.getCode({
-		address: address as `0x${string}`,
-	});
+	let bytecode: `0x${string}` | undefined;
+	try {
+		bytecode = await client.getCode({
+			address: address as `0x${string}`,
+		});
+	} catch (err) {
+		throw new BytecodeFetchError(
+			`Failed to fetch bytecode for ${address}: ${err instanceof Error ? err.message : String(err)}`,
+			err,
+		);
+	}
 
-	return bytecode === '0x' ? null : (bytecode as `0x${string}`);
+	return !bytecode || bytecode === '0x' ? null : (bytecode as `0x${string}`);
 }
 
 export async function resolveProxyImplementation(
