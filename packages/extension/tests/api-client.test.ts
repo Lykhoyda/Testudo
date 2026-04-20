@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { checkAddressThreat, checkDomainThreat } from '../src/api-client';
+import { checkAddressThreat, checkDomainThreat, pingApi } from '../src/api-client';
 
 // Stub navigator for Node.js CI (no browser globals)
 vi.stubGlobal('navigator', { onLine: true });
@@ -147,13 +147,13 @@ describe('checkAddressThreat', () => {
 		expect(fetch).toHaveBeenCalledTimes(2);
 	});
 
-	it('lowercases the address in the request URL', async () => {
+	it('lowercases the address in the request URL and defaults chainId to 1', async () => {
 		vi.mocked(fetch).mockResolvedValue(mockResponse(cleanThreat));
 
 		await checkAddressThreat(ADDRESS, { baseUrl: BASE_URL });
 
 		expect(fetch).toHaveBeenCalledWith(
-			`${BASE_URL}/api/v1/threats/address/${ADDRESS_LOWER}`,
+			`${BASE_URL}/api/v1/chains/1/threats/address/${ADDRESS_LOWER}`,
 			expect.objectContaining({ headers: { 'Content-Type': 'application/json' } }),
 		);
 	});
@@ -165,9 +165,32 @@ describe('checkAddressThreat', () => {
 		await checkAddressThreat(ADDRESS, { baseUrl: customUrl, timeout: 2000 });
 
 		expect(fetch).toHaveBeenCalledWith(
-			`${customUrl}/api/v1/threats/address/${ADDRESS_LOWER}`,
+			`${customUrl}/api/v1/chains/1/threats/address/${ADDRESS_LOWER}`,
 			expect.any(Object),
 		);
+	});
+
+	it('routes threat lookup through the provided chainId segment (S-16)', async () => {
+		vi.mocked(fetch).mockResolvedValue(mockResponse(cleanThreat));
+
+		await checkAddressThreat(ADDRESS, { baseUrl: BASE_URL, chainId: 8453 });
+
+		expect(fetch).toHaveBeenCalledWith(
+			`${BASE_URL}/api/v1/chains/8453/threats/address/${ADDRESS_LOWER}`,
+			expect.any(Object),
+		);
+	});
+
+	it('falls back to chainId=1 when given non-positive or non-finite chainId', async () => {
+		vi.mocked(fetch).mockResolvedValue(mockResponse(cleanThreat));
+
+		await checkAddressThreat(ADDRESS, { baseUrl: BASE_URL, chainId: 0 });
+		await checkAddressThreat(ADDRESS, { baseUrl: BASE_URL, chainId: -1 });
+		await checkAddressThreat(ADDRESS, { baseUrl: BASE_URL, chainId: Number.NaN });
+
+		for (const call of vi.mocked(fetch).mock.calls) {
+			expect(call[0]).toBe(`${BASE_URL}/api/v1/chains/1/threats/address/${ADDRESS_LOWER}`);
+		}
 	});
 
 	it('handles non-Error thrown objects with Unknown error', async () => {
@@ -259,7 +282,7 @@ describe('checkDomainThreat', () => {
 		expect(fetch).not.toHaveBeenCalled();
 	});
 
-	it('calls correct API endpoint for domain lookup', async () => {
+	it('calls correct API endpoint for domain lookup (still global, no chainId)', async () => {
 		vi.mocked(fetch).mockResolvedValue(mockResponse(cleanDomainThreat));
 
 		await checkDomainThreat(DOMAIN, { baseUrl: BASE_URL });
@@ -267,6 +290,41 @@ describe('checkDomainThreat', () => {
 		expect(fetch).toHaveBeenCalledWith(
 			`${BASE_URL}/api/v1/threats/domain/${encodeURIComponent(DOMAIN)}`,
 			expect.objectContaining({ headers: { 'Content-Type': 'application/json' } }),
+		);
+	});
+});
+
+describe('pingApi', () => {
+	beforeEach(() => {
+		vi.stubGlobal('navigator', { onLine: true });
+		vi.stubGlobal('fetch', vi.fn());
+		vi.spyOn(console, 'log').mockImplementation(() => {});
+		vi.spyOn(console, 'warn').mockImplementation(() => {});
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it('routes the health ping through the chainId segment', async () => {
+		vi.mocked(fetch).mockResolvedValue(mockResponse(cleanThreat));
+
+		await pingApi({ baseUrl: BASE_URL, chainId: 42161 });
+
+		expect(fetch).toHaveBeenCalledWith(
+			`${BASE_URL}/api/v1/chains/42161/threats/address/0x0000000000000000000000000000000000000000`,
+			expect.any(Object),
+		);
+	});
+
+	it('defaults to chainId=1 when none is supplied', async () => {
+		vi.mocked(fetch).mockResolvedValue(mockResponse(cleanThreat));
+
+		await pingApi({ baseUrl: BASE_URL });
+
+		expect(fetch).toHaveBeenCalledWith(
+			`${BASE_URL}/api/v1/chains/1/threats/address/0x0000000000000000000000000000000000000000`,
+			expect.any(Object),
 		);
 	});
 });

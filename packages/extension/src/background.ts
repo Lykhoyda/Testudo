@@ -271,8 +271,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 		// Use real URL from sender tab, not from message (security)
 		const url = sender.tab?.url ? new URL(sender.tab.url).origin : undefined;
+		const chainId = typeof message.chainId === 'number' ? message.chainId : undefined;
 
-		analyzeWithCache(message.delegateAddress, url)
+		analyzeWithCache(message.delegateAddress, url, chainId)
 			.then((result) => {
 				console.log('[Testudo Background] Result:', result);
 				sendResponse(result);
@@ -293,8 +294,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 	if (message.type === 'CHECK_ADDRESS') {
 		const address = (message.address as string).toLowerCase();
 		const url = sender.tab?.url ? new URL(sender.tab.url).origin : undefined;
+		const chainId = typeof message.chainId === 'number' ? message.chainId : undefined;
 
-		addressCheckWithCache(address, url)
+		addressCheckWithCache(address, url, chainId)
 			.then((result) => sendResponse(result))
 			.catch((error) => {
 				console.error('[Testudo Background] Address check error:', error);

@@ -131,6 +131,60 @@ let providerWrapped = false;
 let activeWrapper: ((args: { method: string; params?: unknown[] }) => Promise<unknown>) | null =
 	null;
 
+// ============================================================================
+// CHAIN ID CACHE (S-16)
+// ============================================================================
+// Threat lookups now route through `/api/v1/chains/:chainId/...`. We cache the
+// last known chainId from `eth_chainId` and invalidate on `chainChanged`.
+// Falls back to 1 (mainnet) — matches api-server behavior for missing chainId
+// and keeps protection live during cold-start before the wallet resolves.
+let cachedChainId: number | undefined;
+let chainIdInFlight: Promise<number | undefined> | null = null;
+
+function parseChainIdHex(hex: unknown): number | undefined {
+	if (typeof hex === 'number' && Number.isFinite(hex) && hex > 0) return hex;
+	if (typeof hex !== 'string' || hex.length === 0) return undefined;
+	try {
+		const parsed = Number.parseInt(hex, 16);
+		return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+async function getCurrentChainId(
+	request: (args: { method: string; params?: unknown[] }) => Promise<unknown>,
+): Promise<number | undefined> {
+	if (cachedChainId !== undefined) return cachedChainId;
+	if (chainIdInFlight) return chainIdInFlight;
+
+	chainIdInFlight = (async () => {
+		try {
+			const hex = await request({ method: 'eth_chainId' });
+			const parsed = parseChainIdHex(hex);
+			if (parsed !== undefined) cachedChainId = parsed;
+			return parsed;
+		} catch {
+			return undefined;
+		} finally {
+			chainIdInFlight = null;
+		}
+	})();
+
+	return chainIdInFlight;
+}
+
+function installChainChangedListener(provider: typeof window.ethereum): void {
+	if (typeof provider?.on !== 'function') return;
+	try {
+		provider.on('chainChanged', (chainId: unknown) => {
+			cachedChainId = parseChainIdHex(chainId);
+		});
+	} catch {
+		// Non-fatal — some providers lack event support.
+	}
+}
+
 function wrapEthereumProvider(): void {
 	if (providerWrapped || typeof window.ethereum === 'undefined') {
 		return;
@@ -140,6 +194,7 @@ function wrapEthereumProvider(): void {
 	providerWrapped = true;
 
 	const originalRequest = window.ethereum.request.bind(window.ethereum);
+	installChainChangedListener(window.ethereum);
 
 	try {
 		const wrappedRequest = async (args: { method: string; params?: unknown[] }) => {
@@ -161,7 +216,8 @@ function wrapEthereumProvider(): void {
 								return originalRequest(args);
 							}
 
-							const analysis = await requestAddressCheck(nftApprovalInfo.operator);
+							const chainId = await getCurrentChainId(originalRequest);
+							const analysis = await requestAddressCheck(nftApprovalInfo.operator, chainId);
 
 							if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
 								const userConfirmed = await showWarningWithIntent({
@@ -218,7 +274,8 @@ function wrapEthereumProvider(): void {
 								return originalRequest(args);
 							}
 
-							const analysis = await requestAddressCheck(approvalInfo.spender);
+							const chainId = await getCurrentChainId(originalRequest);
+							const analysis = await requestAddressCheck(approvalInfo.spender, chainId);
 							const unlimited = isUnlimitedValue(approvalInfo.amount);
 
 							if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
@@ -259,7 +316,8 @@ function wrapEthereumProvider(): void {
 
 					// Check recipient address for non-approval transactions
 					if (toAddress && /^0x[a-fA-F0-9]{40}$/.test(toAddress)) {
-						const analysis = await requestAddressCheck(toAddress);
+						const chainId = await getCurrentChainId(originalRequest);
+						const analysis = await requestAddressCheck(toAddress, chainId);
 
 						if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
 							const userConfirmed = await showWarningWithIntent({
@@ -391,7 +449,11 @@ function wrapEthereumProvider(): void {
 					const permitInfo = extractPermitInfo(typedData);
 					if (permitInfo) {
 						console.log('[Testudo] Permit signature detected:', permitInfo.type);
-						const analysis = await requestAddressCheck(permitInfo.spender);
+						// Permit typed-data domain carries chainId; fall back to active chain.
+						const permitChainId =
+							parseChainIdHex(typedData.domain?.chainId) ??
+							(await getCurrentChainId(originalRequest));
+						const analysis = await requestAddressCheck(permitInfo.spender, permitChainId);
 
 						const unlimited = isUnlimitedValue(permitInfo.value);
 						if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
@@ -427,7 +489,10 @@ function wrapEthereumProvider(): void {
 					try {
 						const addresses = extractTypedDataAddresses(typedData);
 						if (addresses.length > 0) {
-							const { malicious, results } = await batchCheckAddresses(addresses);
+							const typedChainId =
+								parseChainIdHex(typedData.domain?.chainId) ??
+								(await getCurrentChainId(originalRequest));
+							const { malicious, results } = await batchCheckAddresses(addresses, typedChainId);
 							if (malicious.length > 0) {
 								const worstAddr = malicious[0].address.toLowerCase();
 								const worstResult = results.get(worstAddr);
@@ -488,7 +553,12 @@ function wrapEthereumProvider(): void {
 
 				let analysis: AnalysisResult;
 				try {
-					analysis = await requestAnalysis(delegateAddress);
+					// EIP-7702 authorizations carry an explicit chainId. chainId=0 means
+					// "any network" (replay risk) — fall back to the active chain for
+					// the threat lookup so we still key into the real chain's registry.
+					const authChainId = parseChainIdHex(rawChainId);
+					const lookupChainId = authChainId ?? (await getCurrentChainId(originalRequest));
+					analysis = await requestAnalysis(delegateAddress, lookupChainId);
 				} catch (err) {
 					console.error('[Testudo] Analysis failed, failing open:', err);
 					warningVM.dismissLoading();

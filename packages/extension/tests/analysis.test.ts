@@ -125,7 +125,8 @@ describe('analyzeWithCache', () => {
 		const { analyzeWithCache, addressCheckWithCache, analysisCache } = createAnalysisPipeline(deps);
 
 		await addressCheckWithCache(ADDR, URL);
-		const cached = analysisCache.get(ADDR);
+		// Cache is partitioned by chainId — default is chain 1 (S-16)
+		const cached = analysisCache.get(`1:${ADDR}`);
 		expect(cached?.result.source).toBe('api');
 
 		await analyzeWithCache(ADDR, URL);
@@ -501,7 +502,73 @@ describe('pipeline isolation', () => {
 
 		await pipeline1.addressCheckWithCache(ADDR, URL);
 
-		expect(pipeline1.analysisCache.has(ADDR)).toBe(true);
-		expect(pipeline2.analysisCache.has(ADDR)).toBe(false);
+		// Cache is keyed `${chainId}:${address}` — default chainId 1 (S-16)
+		expect(pipeline1.analysisCache.has(`1:${ADDR}`)).toBe(true);
+		expect(pipeline2.analysisCache.has(`1:${ADDR}`)).toBe(false);
+	});
+});
+
+// ============================================================================
+// S-16: chainId threading + per-chain cache partitioning
+// ============================================================================
+
+describe('chainId threading (S-16)', () => {
+	it('forwards chainId into checkAddressThreat for address-only checks', async () => {
+		const api = vi.fn().mockResolvedValue(makeApiClean());
+		const deps = makeDeps({ checkAddressThreat: api });
+		const { addressCheckWithCache } = createAnalysisPipeline(deps);
+
+		await addressCheckWithCache(ADDR, URL, 8453);
+
+		expect(api).toHaveBeenCalledWith(ADDR, expect.objectContaining({ chainId: 8453 }));
+	});
+
+	it('forwards chainId into checkAddressThreat for full three-layer analysis', async () => {
+		const api = vi.fn().mockResolvedValue(makeApiClean());
+		const deps = makeDeps({
+			checkAddressThreat: api,
+			analyzeContract: vi.fn().mockResolvedValue(makeLocalResult()),
+		});
+		const { analyzeWithCache } = createAnalysisPipeline(deps);
+
+		await analyzeWithCache(ADDR, URL, 42161);
+
+		expect(api).toHaveBeenCalledWith(ADDR, expect.objectContaining({ chainId: 42161 }));
+	});
+
+	it('partitions the cache by chainId — same address on different chains', async () => {
+		const api = vi.fn().mockResolvedValue(makeApiClean());
+		const deps = makeDeps({ checkAddressThreat: api });
+		const { addressCheckWithCache, analysisCache } = createAnalysisPipeline(deps);
+
+		await addressCheckWithCache(ADDR, URL, 1);
+		await addressCheckWithCache(ADDR, URL, 8453);
+
+		expect(analysisCache.has(`1:${ADDR}`)).toBe(true);
+		expect(analysisCache.has(`8453:${ADDR}`)).toBe(true);
+		expect(api).toHaveBeenCalledTimes(2);
+	});
+
+	it('uses chainId=1 as default cache key when no chainId is passed', async () => {
+		const deps = makeDeps({ checkAddressThreat: vi.fn().mockResolvedValue(makeApiClean()) });
+		const { addressCheckWithCache, analysisCache } = createAnalysisPipeline(deps);
+
+		await addressCheckWithCache(ADDR, URL);
+
+		expect(analysisCache.has(`1:${ADDR}`)).toBe(true);
+	});
+
+	it('returns cached result for the same chainId but not across chains', async () => {
+		const api = vi.fn().mockResolvedValue(makeApiClean());
+		const deps = makeDeps({ checkAddressThreat: api });
+		const { addressCheckWithCache } = createAnalysisPipeline(deps);
+
+		await addressCheckWithCache(ADDR, URL, 10);
+		const second = await addressCheckWithCache(ADDR, URL, 10);
+		expect(second.cached).toBe(true);
+		expect(api).toHaveBeenCalledTimes(1);
+
+		await addressCheckWithCache(ADDR, URL, 8453);
+		expect(api).toHaveBeenCalledTimes(2);
 	});
 });

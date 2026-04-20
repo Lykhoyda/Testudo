@@ -188,6 +188,7 @@ function initChannel(channelNonce: string) {
 		switch (msg.type) {
 			case MessageTypes.ANALYZE_REQUEST: {
 				const delegateAddress = msg.delegateAddress as string;
+				const chainId = typeof msg.chainId === 'number' ? msg.chainId : undefined;
 				if (!/^0x[a-fA-F0-9]{40}$/.test(delegateAddress)) {
 					reply(MessageTypes.ANALYZE_RESULT, requestId, {
 						risk: 'UNKNOWN',
@@ -200,6 +201,7 @@ function initChannel(channelNonce: string) {
 					const result = await chrome.runtime.sendMessage({
 						type: 'ANALYZE_DELEGATION',
 						delegateAddress,
+						chainId,
 					});
 					reply(MessageTypes.ANALYZE_RESULT, requestId, result);
 				} catch (error) {
@@ -215,6 +217,7 @@ function initChannel(channelNonce: string) {
 
 			case MessageTypes.CHECK_ADDRESS: {
 				const address = msg.address as string;
+				const chainId = typeof msg.chainId === 'number' ? msg.chainId : undefined;
 				if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
 					reply(MessageTypes.ADDRESS_CHECK_RESULT, requestId, {
 						risk: 'UNKNOWN',
@@ -225,7 +228,11 @@ function initChannel(channelNonce: string) {
 					return;
 				}
 				try {
-					const result = await chrome.runtime.sendMessage({ type: 'CHECK_ADDRESS', address });
+					const result = await chrome.runtime.sendMessage({
+						type: 'CHECK_ADDRESS',
+						address,
+						chainId,
+					});
 					reply(MessageTypes.ADDRESS_CHECK_RESULT, requestId, result);
 				} catch {
 					reply(MessageTypes.ADDRESS_CHECK_RESULT, requestId, {
