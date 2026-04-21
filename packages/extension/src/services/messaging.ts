@@ -12,18 +12,19 @@ function sendTestudoRequest<T>(
 ): Promise<T> {
 	return new Promise((resolve, reject) => {
 		const requestId = crypto.randomUUID();
+		let timer: ReturnType<typeof setTimeout> | undefined;
 
 		const unsubscribe = channel.onResponse((msg) => {
 			if (msg.type === responseType && msg.requestId === requestId) {
 				unsubscribe();
-				clearTimeout(timer);
+				if (timer !== undefined) clearTimeout(timer);
 				resolve(msg.result as T);
 			}
 		});
 
 		channel.sendRequest({ type: requestType, requestId, ...payload });
 
-		const timer = setTimeout(() => {
+		timer = setTimeout(() => {
 			unsubscribe();
 			reject(new Error(`${requestType} timeout`));
 		}, timeoutMs);
