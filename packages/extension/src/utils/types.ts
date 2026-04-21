@@ -88,6 +88,9 @@ export interface RecentScan {
 	address: string;
 	risk: string;
 	timestamp: number;
+	threats?: string[];
+	url?: string;
+	blocked?: boolean;
 }
 
 export type WarningContext =

@@ -30,7 +30,8 @@ Testudo acts as an antivirus for every Ethereum transaction. It intercepts signa
 
 | Capability | Method |
 |-----------|--------|
-| EIP-7702 delegation analysis | Bytecode capability extraction (14 detectors) |
+| EIP-7702 delegation analysis | Bytecode capability extraction (23 detectors) |
+| EIP-7702 cross-chain replay (`chainId=0`) | Typed "I ACCEPT THE RISK" confirmation gate |
 | Token approvals (`approve`, `increaseAllowance`) | Calldata decoding + address check |
 | NFT `setApprovalForAll` | Calldata decoding + marketplace allowlist |
 | Permit / Permit2 signatures | Typed data primaryType detection |
@@ -38,18 +39,20 @@ Testudo acts as an antivirus for every Ethereum transaction. It intercepts signa
 | `eth_sign` hard block | Always CRITICAL, typed confirmation required |
 | Typed data address scanning | Recursive address extraction + batch check |
 | Malicious transaction recipients | Address-only check pipeline |
+| Phishing domain blocking | DNR rules + bloom filter + CDN sync |
 | Deployer reputation | Nonce/age heuristic via Blockscout + RPC |
 | Human-readable intent | Token metadata resolution + intent builder |
+| Proxy resolution | EIP-1967 storage + EIP-1167 bytecode + cycle guard |
 
 ## Architecture
 
 **3-layer defense** — every unknown address passes through:
 
-1. **Safe Filter** (local, instant) — known-good addresses skip API
-2. **Threat Intelligence API** (800ms timeout) — 15K+ malicious addresses + GoPlus real-time fallback
-3. **Local Bytecode Analysis** (parallel) — 14 deterministic detectors, no ML
+1. **Safe Filter** (local, instant) — known-good addresses skip API. Ed25519-signed CDN manifest with rollback protection
+2. **Threat Intelligence API** (800ms timeout, per-chain routes) — aggregated malicious address registry + GoPlus real-time fallback
+3. **Local Bytecode Analysis** (parallel) — 23 deterministic detectors, no ML
 
-All results are **explainable**: "This contract HAS capability X because of opcode Y at offset Z."
+Decision matrix is **fail-closed on strong local signals**: API "clean" cannot downgrade a CRITICAL local bytecode match (zero-day protection, ADR-013). All results are **explainable**: "This contract HAS capability X because of opcode Y at offset Z."
 
 ## Installation
 
@@ -82,9 +85,10 @@ yarn test
 
 ```
 packages/
-  core/             # @testudo/core — Detection engine (190 tests)
-  extension/        # @testudo/extension — Chrome extension (Preact + Signals)
-  e2e/              # End-to-end tests (Playwright, 43 tests)
+  core/             # @testudo/core — Detection engine (395 tests)
+  extension/        # @testudo/extension — Chrome extension (Preact + Signals, 375 tests)
+  e2e/              # Playwright E2E tests
+  e2e-docker/       # Synpress + Anvil attack-pattern E2E
 
 apps/
   mock-dapp/        # Demo playground for testing
