@@ -79,7 +79,7 @@ export function RecentActivity({ scans, onViewAll }: Props) {
 								</button>
 
 								{isExpanded && (
-									<div class="activity-details">
+									<div class="activity-details" data-risk={scan.risk.toLowerCase()}>
 										<dl class="activity-details-grid">
 											<dt>Address</dt>
 											<dd class="activity-details-mono">{scan.address}</dd>
@@ -96,11 +96,8 @@ export function RecentActivity({ scans, onViewAll }: Props) {
 
 											<dt>Status</dt>
 											<dd>
-												<span class={`activity-status${scan.blocked ? ' blocked' : ' allowed'}`}>
-													<MaterialIcon
-														name={scan.blocked ? 'block' : 'check_circle'}
-														class="activity-status-icon"
-													/>
+												<span class={`activity-status ${scan.blocked ? 'blocked' : 'allowed'}`}>
+													<span class="activity-status-dot" aria-hidden="true" />
 													{scan.blocked ? 'Blocked' : 'Allowed'}
 												</span>
 											</dd>
@@ -109,11 +106,13 @@ export function RecentActivity({ scans, onViewAll }: Props) {
 												<>
 													<dt>Threats</dt>
 													<dd>
-														<ul class="activity-threats">
+														<div class="activity-threats">
 															{threats.map((t) => (
-																<li key={t}>{t.replace(/_/g, ' ').toLowerCase()}</li>
+																<span class="activity-threat-chip" key={t}>
+																	{t.toUpperCase()}
+																</span>
 															))}
-														</ul>
+														</div>
 													</dd>
 												</>
 											)}
