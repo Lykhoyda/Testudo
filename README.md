@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="packages/extension/store-assets/icon.png" alt="Testudo" width="128" height="128">
+  <img src="packages/extension/assets/icon-testudo.svg" alt="Testudo" width="128" height="128">
 </p>
 
 <h1 align="center">Testudo</h1>
