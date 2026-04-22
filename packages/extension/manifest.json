@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Testudo",
   "short_name": "Testudo",
-  "version": "0.2.0",
-  "description": "Protect your wallet from malicious EIP-7702 delegations. Real-time bytecode analysis warns you before signing dangerous contracts.",
+  "version": "0.3.0",
+  "description": "Antivirus for your Ethereum wallet. Analyzes contracts, approvals, and signatures before you sign — EIP-7702, permits, phishing, and more.",
   "homepage_url": "https://github.com/Lykhoyda/Testudo",
   "minimum_chrome_version": "137",
 
