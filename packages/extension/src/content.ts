@@ -1,15 +1,16 @@
 /**
- * CONTENT SCRIPT
+ * CONTENT SCRIPT (ISOLATED world)
  *
- * Runs in isolated content script context.
  * Bridges communication between:
- * - Injected script (page context) via CustomEvent channel (nonce-gated)
- * - Background script (extension context) via chrome.runtime.sendMessage
+ * - The MAIN-world injected script, over a private MessagePort (ADR-016).
+ *   injected.js is declared as a MAIN-world content script in the manifest, so
+ *   this script no longer DOM-injects it.
+ * - The background service worker, via chrome.runtime.sendMessage.
  *
- * Also responsible for injecting the injected.js script into the page.
+ * Also injects the warning-modal fonts and runs the navigation-time phishing check.
  */
 
-import { createChannel } from './services/channel';
+import { acceptIsolatedBridge, type BridgeMessage, type RequestReply } from './services/channel';
 import { MessageTypes } from './utils/message-types';
 
 // Layer A+ & B: Phishing domain check (top-level frame only)
@@ -106,49 +107,11 @@ function injectFonts() {
 	(document.head || document.documentElement).appendChild(style);
 }
 
-// Inject the injected.js script into the page with a nonce for secure channel
-function injectScript(): string {
-	const nonce = crypto.randomUUID();
-
-	// Set up handshake listener BEFORE injecting the module.
-	// The injected script will dispatch 'testudo-handshake' with a random token,
-	// and we respond on a token-specific event with the real channel nonce.
-	// All synchronous — the nonce never appears as a DOM attribute. (QA-005)
-	let handshakeComplete = false;
-	document.addEventListener(
-		'testudo-handshake',
-		(e: Event) => {
-			if (handshakeComplete) return;
-			handshakeComplete = true;
-			const token = (e as CustomEvent<string>).detail;
-			document.dispatchEvent(
-				new CustomEvent(`testudo-hs-${token}`, {
-					detail: nonce,
-					bubbles: false,
-					cancelable: false,
-				}),
-			);
-		},
-		{ once: true },
-	);
-
-	const script = document.createElement('script');
-	script.src = chrome.runtime.getURL('injected.js');
-	script.type = 'module';
-
-	// Insert at document_start to ensure we intercept before any dApp code runs
-	(document.head || document.documentElement).appendChild(script);
-
-	script.onload = () => {
-		script.remove(); // Clean up after injection
-	};
-
-	return nonce;
-}
-
-// Inject immediately
+// injected.js is declared as a MAIN-world content script in the manifest (ADR-016),
+// so the browser injects it at document_start — no DOM <script> tag, no nonce
+// handshake. The content script only injects the shared fonts the warning modal
+// reads from the page DOM.
 injectFonts();
-const nonce = injectScript();
 
 // Fire-and-forget wake-up ping — pre-warms the SW on every page load
 chrome.runtime.sendMessage({ type: 'HEARTBEAT' }).catch(() => {});
@@ -174,108 +137,101 @@ if (DAPP_DOMAINS.some((d) => location.hostname === d || location.hostname.endsWi
 	}, HEARTBEAT_MS);
 }
 
-// Set up nonce-gated channel to communicate with injected script
-function initChannel(channelNonce: string) {
-	const channel = createChannel(channelNonce);
+// Bridge requests from the MAIN-world injected script to the background worker,
+// over the private MessagePort established by acceptIsolatedBridge (ADR-016).
+async function handleBridgeRequest(msg: BridgeMessage, reply: RequestReply): Promise<void> {
+	const { requestId } = msg;
 
-	function reply(type: string, requestId: string, result: unknown) {
-		channel.sendResponse({ type, requestId, result });
-	}
-
-	channel.onRequest(async (msg) => {
-		const { requestId } = msg;
-
-		switch (msg.type) {
-			case MessageTypes.ANALYZE_REQUEST: {
-				const delegateAddress = msg.delegateAddress as string;
-				const chainId = typeof msg.chainId === 'number' ? msg.chainId : undefined;
-				if (!/^0x[a-fA-F0-9]{40}$/.test(delegateAddress)) {
-					reply(MessageTypes.ANALYZE_RESULT, requestId, {
-						risk: 'UNKNOWN',
-						threats: [],
-						address: delegateAddress,
-					});
-					return;
-				}
-				try {
-					const result = await chrome.runtime.sendMessage({
-						type: 'ANALYZE_DELEGATION',
-						delegateAddress,
-						chainId,
-					});
-					reply(MessageTypes.ANALYZE_RESULT, requestId, result);
-				} catch (error) {
-					reply(MessageTypes.ANALYZE_RESULT, requestId, {
-						risk: 'UNKNOWN',
-						threats: [],
-						address: delegateAddress,
-						error: String(error),
-					});
-				}
-				break;
+	switch (msg.type) {
+		case MessageTypes.ANALYZE_REQUEST: {
+			const delegateAddress = msg.delegateAddress as string;
+			const chainId = typeof msg.chainId === 'number' ? msg.chainId : undefined;
+			if (!/^0x[a-fA-F0-9]{40}$/.test(delegateAddress)) {
+				reply(MessageTypes.ANALYZE_RESULT, requestId, {
+					risk: 'UNKNOWN',
+					threats: [],
+					address: delegateAddress,
+				});
+				return;
 			}
-
-			case MessageTypes.CHECK_ADDRESS: {
-				const address = msg.address as string;
-				const chainId = typeof msg.chainId === 'number' ? msg.chainId : undefined;
-				if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
-					reply(MessageTypes.ADDRESS_CHECK_RESULT, requestId, {
-						risk: 'UNKNOWN',
-						threats: [],
-						address,
-						blocked: false,
-					});
-					return;
-				}
-				try {
-					const result = await chrome.runtime.sendMessage({
-						type: 'CHECK_ADDRESS',
-						address,
-						chainId,
-					});
-					reply(MessageTypes.ADDRESS_CHECK_RESULT, requestId, result);
-				} catch {
-					reply(MessageTypes.ADDRESS_CHECK_RESULT, requestId, {
-						risk: 'UNKNOWN',
-						threats: [],
-						address,
-						blocked: false,
-					});
-				}
-				break;
+			try {
+				const result = await chrome.runtime.sendMessage({
+					type: 'ANALYZE_DELEGATION',
+					delegateAddress,
+					chainId,
+				});
+				reply(MessageTypes.ANALYZE_RESULT, requestId, result);
+			} catch (error) {
+				reply(MessageTypes.ANALYZE_RESULT, requestId, {
+					risk: 'UNKNOWN',
+					threats: [],
+					address: delegateAddress,
+					error: String(error),
+				});
 			}
-
-			case MessageTypes.RESOLVE_TOKEN: {
-				const address = msg.address as string;
-				const nullResult = { name: null, symbol: null, decimals: null };
-				if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
-					reply(MessageTypes.TOKEN_RESULT, requestId, nullResult);
-					return;
-				}
-				chrome.runtime
-					.sendMessage({ type: 'RESOLVE_TOKEN', address })
-					.then((result) => reply(MessageTypes.TOKEN_RESULT, requestId, result ?? nullResult))
-					.catch(() => reply(MessageTypes.TOKEN_RESULT, requestId, nullResult));
-				break;
-			}
-
-			case MessageTypes.GET_SETTINGS: {
-				chrome.runtime
-					.sendMessage({ type: 'GET_SETTINGS' })
-					.then((result) => reply(MessageTypes.SETTINGS_RESULT, requestId, result ?? {}))
-					.catch(() => reply(MessageTypes.SETTINGS_RESULT, requestId, {}));
-				break;
-			}
-
-			case MessageTypes.RECORD_BLOCKED: {
-				chrome.runtime.sendMessage({ type: 'RECORD_BLOCKED' }).catch(() => {});
-				break;
-			}
+			break;
 		}
-	});
+
+		case MessageTypes.CHECK_ADDRESS: {
+			const address = msg.address as string;
+			const chainId = typeof msg.chainId === 'number' ? msg.chainId : undefined;
+			if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+				reply(MessageTypes.ADDRESS_CHECK_RESULT, requestId, {
+					risk: 'UNKNOWN',
+					threats: [],
+					address,
+					blocked: false,
+				});
+				return;
+			}
+			try {
+				const result = await chrome.runtime.sendMessage({
+					type: 'CHECK_ADDRESS',
+					address,
+					chainId,
+				});
+				reply(MessageTypes.ADDRESS_CHECK_RESULT, requestId, result);
+			} catch {
+				reply(MessageTypes.ADDRESS_CHECK_RESULT, requestId, {
+					risk: 'UNKNOWN',
+					threats: [],
+					address,
+					blocked: false,
+				});
+			}
+			break;
+		}
+
+		case MessageTypes.RESOLVE_TOKEN: {
+			const address = msg.address as string;
+			const nullResult = { name: null, symbol: null, decimals: null };
+			if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+				reply(MessageTypes.TOKEN_RESULT, requestId, nullResult);
+				return;
+			}
+			chrome.runtime
+				.sendMessage({ type: 'RESOLVE_TOKEN', address })
+				.then((result) => reply(MessageTypes.TOKEN_RESULT, requestId, result ?? nullResult))
+				.catch(() => reply(MessageTypes.TOKEN_RESULT, requestId, nullResult));
+			break;
+		}
+
+		case MessageTypes.GET_SETTINGS: {
+			chrome.runtime
+				.sendMessage({ type: 'GET_SETTINGS' })
+				.then((result) => reply(MessageTypes.SETTINGS_RESULT, requestId, result ?? {}))
+				.catch(() => reply(MessageTypes.SETTINGS_RESULT, requestId, {}));
+			break;
+		}
+
+		case MessageTypes.RECORD_BLOCKED: {
+			chrome.runtime.sendMessage({ type: 'RECORD_BLOCKED' }).catch(() => {});
+			break;
+		}
+	}
 }
 
-initChannel(nonce);
+acceptIsolatedBridge(handleBridgeRequest);
 
 // Listen for messages from background script (e.g., for popup updates)
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

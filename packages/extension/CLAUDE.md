@@ -31,7 +31,7 @@ window.ethereum.request intercepted
 
 ### Message Bridge (content.ts → background.ts)
 
-**Transport**: CustomEvent + nonce channel (ADR-011). Content script generates `crypto.randomUUID()` nonce, passes via `data-testudo-nonce` attribute. Injected script reads nonce and creates channel with nonce-prefixed event names. Prevents response forgery by hostile dApps.
+**Transport**: Private MessagePort bridge (ADR-016, supersedes ADR-011). `injected.js` is a declared MAIN-world content script; the ISOLATED content script creates a `MessageChannel` and transfers one port to it once at `document_start` (before any page script runs). All traffic then flows over a capability the page cannot observe, enumerate, or forge — no nonce. Order-resilient handshake (`ISO_READY`/`MAIN_READY`); fail-secure async init (no top-level throw).
 
 **Constants**: `src/utils/message-types.ts` — shared `MessageTypes` object (use instead of raw strings).
 
@@ -94,7 +94,7 @@ src/
 │   └── typed-data.ts     # EIP-7702, permit, address extraction
 │
 ├── services/             # I/O bridges
-│   ├── channel.ts        # CustomEvent + nonce channel (ADR-011)
+│   ├── channel.ts        # MessagePort bridge (ADR-016)
 │   ├── messaging.ts      # IPC: sendTestudoRequest, requestAddressCheck, etc.
 │   └── deployer-lookup.ts # Blockscout API + viem RPC
 │
@@ -184,7 +184,7 @@ Located in `packages/extension/tests/`:
 | decoder/intent-builder.test.ts | 34 | All 8 context-specific intent builders, replay risk |
 | decoder/token-resolver.test.ts | 16 | Well-known lookup, RPC fallback, cache |
 | services/deployer-lookup.test.ts | 8 | Blockscout API, viem RPC, error handling |
-| services/channel.test.ts | 11 | Channel isolation, nonce lifecycle, empty guard |
+| services/channel.test.ts | 7 | MessagePort request/response correlation, timeout, handshake wiring |
 
 ```bash
 yarn workspace @testudo/extension run test

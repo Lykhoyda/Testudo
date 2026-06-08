@@ -1,8 +1,13 @@
 import { MessageTypes } from '../utils/message-types';
 import type { AnalysisResult, ExtractedAddress } from '../utils/types';
-import { createChannel, readNonce } from './channel';
+import { connectMainBridge } from './channel';
 
-const channel = createChannel(readNonce());
+// Connect to the ISOLATED content script over the private MessagePort (ADR-016).
+// Resolves once the port is transferred; NEVER throws synchronously, so a failed
+// bridge can never abort module evaluation and leave the provider unwrapped
+// (AUDIT-2). Each request still bounds its own wait below (fail-secure, the
+// caller decides what to do on timeout — it must not silently fail open).
+const channelPromise = connectMainBridge();
 
 function sendTestudoRequest<T>(
 	requestType: string,
@@ -10,24 +15,26 @@ function sendTestudoRequest<T>(
 	payload: Record<string, unknown>,
 	timeoutMs = 10000,
 ): Promise<T> {
-	return new Promise((resolve, reject) => {
-		const requestId = crypto.randomUUID();
-		let timer: ReturnType<typeof setTimeout> | undefined;
-
-		const unsubscribe = channel.onResponse((msg) => {
-			if (msg.type === responseType && msg.requestId === requestId) {
-				unsubscribe();
-				if (timer !== undefined) clearTimeout(timer);
-				resolve(msg.result as T);
-			}
-		});
-
-		channel.sendRequest({ type: requestType, requestId, ...payload });
-
-		timer = setTimeout(() => {
-			unsubscribe();
-			reject(new Error(`${requestType} timeout`));
-		}, timeoutMs);
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(() => reject(new Error(`${requestType} timeout`)), timeoutMs);
+		channelPromise.then(
+			(channel) => {
+				channel.request<T>(requestType, responseType, payload, timeoutMs).then(
+					(value) => {
+						clearTimeout(timer);
+						resolve(value);
+					},
+					(error) => {
+						clearTimeout(timer);
+						reject(error as Error);
+					},
+				);
+			},
+			(error) => {
+				clearTimeout(timer);
+				reject(error as Error);
+			},
+		);
 	});
 }
 
@@ -87,7 +94,7 @@ export function requestAnalysis(
 }
 
 export function recordBlocked(): void {
-	channel.sendRequest({ type: MessageTypes.RECORD_BLOCKED, requestId: crypto.randomUUID() });
+	channelPromise.then((channel) => channel.post(MessageTypes.RECORD_BLOCKED)).catch(() => {});
 }
 
 export interface TokenResolveResult {
