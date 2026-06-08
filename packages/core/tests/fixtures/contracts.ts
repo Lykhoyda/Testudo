@@ -155,16 +155,19 @@ export const TOKEN_TRANSFER_CONTRACTS = {
 	noTokenSelectors: '0x6001600201',
 };
 
+// Real ecrecover hashes the message (KECCAK256) immediately before the precompile
+// call, so a bare `PUSH1 0x01` is not sufficient evidence (AUDIT-3). These fixtures
+// model the realistic shape: PUSH1 0x00; PUSH1 0x00; KECCAK256; PUSH1 0x01; (STATIC)CALL.
 export const AUTHORIZATION_CONTRACTS = {
-	withEcrecover: '0x6001fa',
+	withEcrecover: '0x60006000206001fa',
 	withEcrecoverPush20: `0x73${'00'.repeat(19)}01fa`,
-	withEcrecoverCall: '0x6001f1',
+	withEcrecoverCall: '0x60006000206001f1',
 	withEcrecoverCallPush20: `0x73${'00'.repeat(19)}01f1`,
 	withMsgSenderCheck: '0x3360001014',
 	withNonceTracking: '0x60005460016001015500',
-	withFullAuth: '0x6001fa3360001014600054600100015500',
+	withFullAuth: '0x60006000206001fa3360001014600054600100015500',
 	noAuth: '0x63a9059cbb',
-	ecrecoverWithoutNonce: '0x63a9059cbb6001fa',
+	ecrecoverWithoutNonce: '0x63a9059cbb60006000206001fa',
 	msgSenderWithoutEcrecover: '0x63a9059cbb3360001014',
 };
 
@@ -360,6 +363,6 @@ export const EXTCODEHASH_CONTRACTS = {
 export const DRAINER_PATTERNS = {
 	infernoStyle: '0x63a22cb46573deadbeefdeadbeefdeadbeefdeadbeefdeadbeeef1',
 	crimeEnjoyerWithToken: '0x3663a9059cbb60006000f1',
-	safeWalletPattern: '0x63a9059cbb6001fa600054600100015500',
+	safeWalletPattern: '0x63a9059cbb60006000206001fa600054600100015500',
 	legitimateWithAuth: '0x63a9059cbb3360001014600054600100015500',
 };

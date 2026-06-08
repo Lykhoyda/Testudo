@@ -230,27 +230,46 @@ export function detectTokenSelectors(instructions: Instruction[]): TokenSelector
 }
 
 export function detectEcrecover(instructions: Instruction[]): boolean {
+	// ecrecover is the precompile at address 0x01. Genuine detection requires the
+	// precompile address to be pushed before a CALL/STATICCALL. Two evidence levels:
+	//   1. PUSH20 0x00..01 — an unambiguous 20-byte address literal; nobody pushes
+	//      this except to call the precompile, so it stands alone.
+	//   2. PUSH1 0x01 — indistinguishable from pushing the integer 1 (loop counters,
+	//      booleans, lengths), so it counts ONLY when corroborated by a KECCAK256 in
+	//      the same look-back window: real signature verification hashes the message
+	//      immediately before the precompile call. (AUDIT-3: prevents an attacker from
+	//      suppressing CRITICAL drainer warnings with a single stray PUSH1 0x01.)
 	for (let i = 0; i < instructions.length; i++) {
 		const instruction = instructions[i];
-		// Check for both STATICCALL (0xFA) and CALL (0xF1) - older contracts use CALL for precompiles
+		// STATICCALL (0xFA) is the modern read-only precompile idiom; CALL (0xF1) is
+		// used by older contracts. Both are accepted with sufficient evidence.
 		if (instruction.opcode === 'STATICCALL' || instruction.opcode === 'CALL') {
 			const lookBackLimit = Math.max(0, i - LOOK_AHEAD.address);
+			let hasPush1Addr = false;
+			let hasKeccak = false;
 			for (let j = i - 1; j >= lookBackLimit; j--) {
 				const prevInstruction = instructions[j];
-				if (prevInstruction.opcode === 'PUSH1' && prevInstruction.data) {
-					const value = prevInstruction.data[0];
-					if (value === 0x01) {
-						return true;
-					}
-				}
 				if (prevInstruction.opcode === 'PUSH20' && prevInstruction.data) {
-					const allZerosExceptLast =
+					const isPrecompileAddress =
 						prevInstruction.data.slice(0, 19).every((b) => b === 0) &&
 						prevInstruction.data[19] === 0x01;
-					if (allZerosExceptLast) {
+					if (isPrecompileAddress) {
 						return true;
 					}
 				}
+				if (
+					prevInstruction.opcode === 'PUSH1' &&
+					prevInstruction.data &&
+					prevInstruction.data[0] === 0x01
+				) {
+					hasPush1Addr = true;
+				}
+				if (prevInstruction.opcode === 'KECCAK256') {
+					hasKeccak = true;
+				}
+			}
+			if (hasPush1Addr && hasKeccak) {
+				return true;
 			}
 		}
 	}
