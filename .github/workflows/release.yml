@@ -1,0 +1,183 @@
+name: Release to Chrome Web Store
+
+# DRAFT-FIRST, safe-by-default release pipeline for a security extension.
+#
+#   trigger  → v* tag push (or manual dispatch)
+#   gate     → lint + core/extension unit tests (mirrors e2e.yml `quality-gate`)
+#   release  → production build (real API key) → version guards → zip → UPLOAD AS DRAFT
+#
+# It does NOT publish. A human reviews the draft in the Chrome Web Store dashboard
+# and clicks Publish. (A guarded, opt-in publish step exists at the bottom but is
+# OFF unless you manually dispatch with publish=true.)
+#
+# PREREQUISITES (see docs/CHROME_WEB_STORE_RELEASE.md):
+#   1. A `chrome-web-store` GitHub Environment with required reviewers, holding
+#      secrets: CWS_CLIENT_ID, CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN, CWS_EXTENSION_ID,
+#      TESTUDO_API_KEY  (and optional repo variable TESTUDO_API_URL).
+#   2. The commit you tag MUST already be green on e2e.yml — including the
+#      `e2e-docker` Synpress suite, which does NOT run on tag pushes. Workflow:
+#      merge to main → let e2e.yml run e2e-docker → tag THAT commit.
+#   3. Bump packages/extension/manifest.json AND package.json (in lockstep) before
+#      tagging; the tag vX.Y.Z must equal the manifest version. CWS reserves every
+#      accepted version number forever, so versions can never be reused.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'DANGER: submit for review/publishing, not just upload a draft. Leave false.'
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1) Lint + unit gate (mirrors e2e.yml `quality-gate`).
+  #    The full E2E suites (e2e-basic + e2e-docker/Synpress) are intentionally NOT
+  #    re-run here — they need the API/Docker/MetaMask setup from e2e.yml and a
+  #    display. Instead, REQUIRE the tagged commit to already be green on e2e.yml.
+  gate:
+    name: Lint + Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'yarn'
+      - run: yarn install --immutable
+      - name: Lint
+        run: yarn biome check .
+      - name: Build core
+        run: yarn workspace @testudo/core run build
+      - name: Core tests
+        run: yarn workspace @testudo/core run test
+      - name: Extension tests
+        run: yarn workspace @testudo/extension run test
+
+  # ---------------------------------------------------------------------------
+  # 2) Production build → version guards → zip → upload as DRAFT.
+  #    Runs in the protected `chrome-web-store` Environment (required reviewers),
+  #    which is where the CWS_* + TESTUDO_API_KEY secrets live.
+  release:
+    name: Build + Upload Draft to CWS
+    needs: gate
+    runs-on: ubuntu-latest
+    environment: chrome-web-store
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'yarn'
+      - run: yarn install --immutable
+
+      # --- Version guards (deterministic, local) -------------------------------
+      # manifest.json === package.json, and (for tag triggers) tag vX.Y.Z === manifest.
+      # The CWS upload step itself rejects an already-published version, so we don't
+      # call the (deprecated, sunset 2026-10-15) v1.1 status API here.
+      - name: Verify versions are in lockstep
+        id: ver
+        run: |
+          MANIFEST_VER=$(node -p "require('./packages/extension/manifest.json').version")
+          PKG_VER=$(node -p "require('./packages/extension/package.json').version")
+          echo "manifest=$MANIFEST_VER  package=$PKG_VER"
+          # Strict semver only — also prevents shell/action injection via the version downstream.
+          if ! printf '%s' "$MANIFEST_VER" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::manifest version '$MANIFEST_VER' is not strict semver (X.Y.Z)."
+            exit 1
+          fi
+          if [ "$MANIFEST_VER" != "$PKG_VER" ]; then
+            echo "::error::manifest.json ($MANIFEST_VER) != package.json ($PKG_VER). Bump both in lockstep."
+            exit 1
+          fi
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG_VER="${GITHUB_REF_NAME#v}"
+            if [ "$TAG_VER" != "$MANIFEST_VER" ]; then
+              echo "::error::Tag $GITHUB_REF_NAME does not match manifest version $MANIFEST_VER."
+              exit 1
+            fi
+          fi
+          echo "version=$MANIFEST_VER" >> "$GITHUB_OUTPUT"
+
+      # --- Production build (real key baked in at build time by rolldown) -------
+      - name: Build core
+        run: yarn workspace @testudo/core run build
+
+      - name: Build extension (PRODUCTION)
+        env:
+          TESTUDO_API_URL: ${{ vars.TESTUDO_API_URL || 'https://testudo-api-production.up.railway.app' }}
+          TESTUDO_API_KEY: ${{ secrets.TESTUDO_API_KEY }}
+        run: |
+          if [ -z "${TESTUDO_API_KEY}" ]; then
+            echo "::error::TESTUDO_API_KEY is empty. rolldown only WARNS, so this would ship an unauthenticated (401) build. Aborting."
+            exit 1
+          fi
+          yarn workspace @testudo/extension run build
+
+      - name: Sanity-check the key was inlined (without printing it)
+        run: |
+          if grep -q 'process.env.TESTUDO_API_KEY' packages/extension/dist/background.js; then
+            echo "::error::define replacement failed — raw process.env reference still present in bundle."
+            exit 1
+          fi
+          echo "API key string-replaced at build time (value not printed)."
+
+      # --- Package -------------------------------------------------------------
+      - name: Zip dist/
+        env:
+          VERSION: ${{ steps.ver.outputs.version }} # validated strict semver above
+        run: |
+          mkdir -p packages/extension/store-assets
+          cd packages/extension/dist
+          zip -r "../store-assets/testudo-v${VERSION}.zip" .
+          cd -
+          ls -la packages/extension/store-assets/
+
+      - name: Upload build artifact (audit trail)
+        uses: actions/upload-artifact@v4
+        with:
+          name: testudo-extension-v${{ steps.ver.outputs.version }}
+          path: packages/extension/store-assets/testudo-v${{ steps.ver.outputs.version }}.zip
+          retention-days: 30
+
+      # --- Upload as DRAFT (does NOT publish) -----------------------------------
+      # SECURITY: third-party action handling publish credentials — pinned to a full
+      # commit SHA (v6.0.0), not a moving tag. Keep current via Dependabot. The upload
+      # step also rejects a version that already exists on CWS.
+      - name: Upload to Chrome Web Store (DRAFT — no publish)
+        uses: mnao305/chrome-extension-upload@fdfe79400af990f5145a319e834aee64907ccff4 # v6.0.0
+        with:
+          file-path: packages/extension/store-assets/testudo-v${{ steps.ver.outputs.version }}.zip
+          extension-id: ${{ secrets.CWS_EXTENSION_ID }}
+          client-id: ${{ secrets.CWS_CLIENT_ID }}
+          client-secret: ${{ secrets.CWS_CLIENT_SECRET }}
+          refresh-token: ${{ secrets.CWS_REFRESH_TOKEN }}
+          publish: false # SAFE DEFAULT: upload only; a human clicks Publish in the dashboard.
+
+      # --- GUARDED publish (opt-in only; OFF by default) ------------------------
+      # Only when manually dispatched with publish=true. Even then this merely
+      # SUBMITS FOR REVIEW (goes live in days–weeks). Keep off for a security product
+      # unless you have deliberately decided to auto-submit.
+      - name: Submit for publishing (GUARDED — opt-in)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish == true }}
+        uses: mnao305/chrome-extension-upload@fdfe79400af990f5145a319e834aee64907ccff4 # v6.0.0
+        with:
+          file-path: packages/extension/store-assets/testudo-v${{ steps.ver.outputs.version }}.zip
+          extension-id: ${{ secrets.CWS_EXTENSION_ID }}
+          client-id: ${{ secrets.CWS_CLIENT_ID }}
+          client-secret: ${{ secrets.CWS_CLIENT_SECRET }}
+          refresh-token: ${{ secrets.CWS_REFRESH_TOKEN }}
+          publish: true
+          # publish-target: trustedTesters  # uncomment to ship to testers only first
