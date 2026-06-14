@@ -73,6 +73,24 @@ describe('parseBlindSignature', () => {
 		expect(result?.isHex).toBe(true);
 	});
 
+	it('surfaces embedded printable text from a mixed binary/text payload (AUDIT-17)', () => {
+		// Drainer payloads often wrap human-readable phishing text in binary noise.
+		// The printable text must reach decodedMessage so phishing scanning sees it.
+		const payload = '\x00\x01Verify your wallet seed phrase to claim\x00\x02';
+		const hex = `0x${Buffer.from(payload, 'binary').toString('hex')}`;
+		const result = parseBlindSignature('personal_sign', [hex, validSigner]);
+		expect(result).not.toBeNull();
+		expect(result?.decodedMessage).toContain('Verify your wallet seed phrase to claim');
+		expect(result?.decodedMessage).not.toBe(hex);
+	});
+
+	it('decodes multi-byte UTF-8 text rather than mangling it (AUDIT-17)', () => {
+		const hex = `0x${Buffer.from('Café — please sign', 'utf-8').toString('hex')}`;
+		const result = parseBlindSignature('personal_sign', [hex, validSigner]);
+		expect(result).not.toBeNull();
+		expect(result?.decodedMessage).toBe('Café — please sign');
+	});
+
 	it('truncates message preview at 100 chars', () => {
 		const longMessage = 'A'.repeat(200);
 		const result = parseBlindSignature('personal_sign', [longMessage, validSigner]);

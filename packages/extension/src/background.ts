@@ -386,25 +386,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 		const ruleId = 900000 + tabId;
 		(async () => {
-			await chrome.declarativeNetRequest.updateDynamicRules({
-				addRules: [
-					{
-						id: ruleId,
-						priority: 2,
-						action: { type: 'allow' as const },
-						condition: {
-							urlFilter: `||${domain}`,
-							resourceTypes: ['main_frame' as const],
-							tabIds: [tabId],
+			try {
+				await chrome.declarativeNetRequest.updateDynamicRules({
+					// AUDIT-18: remove any existing rule for this tab first so a repeat
+					// override (ruleId is deterministic per tab) atomically replaces it
+					// instead of throwing "rule with id already exists".
+					removeRuleIds: [ruleId],
+					addRules: [
+						{
+							id: ruleId,
+							priority: 2,
+							action: { type: 'allow' as const },
+							condition: {
+								urlFilter: `||${domain}`,
+								resourceTypes: ['main_frame' as const],
+								tabIds: [tabId],
+							},
 						},
-					},
-				],
-			});
-			await chrome.storage.session.set({
-				[`phishing-override-${tabId}-${domain}`]: true,
-			});
-			// Navigation handled client-side via safeNavigate in blockedVM
-			sendResponse({ success: true });
+					],
+				});
+				await chrome.storage.session.set({
+					[`phishing-override-${tabId}-${domain}`]: true,
+				});
+				// Navigation handled client-side via safeNavigate in blockedVM
+				sendResponse({ success: true });
+			} catch (error) {
+				// AUDIT-18: a failed rule update must still answer so blocked.html
+				// doesn't hang waiting on a response that never arrives.
+				console.error('[Testudo] Phishing override failed:', error);
+				sendResponse({ success: false, error: 'Override failed' });
+			}
 		})();
 		return true;
 	}

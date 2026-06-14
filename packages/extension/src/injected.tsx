@@ -207,7 +207,27 @@ function wrapEthereumProvider(): void {
 							}
 
 							const chainId = await getCurrentChainId(originalRequest);
-							const analysis = await requestAddressCheck(nftApprovalInfo.operator, chainId);
+							const [analysis, collectionAnalysis] = await Promise.all([
+								requestAddressCheck(nftApprovalInfo.operator, chainId),
+								requestAddressCheck(toAddress, chainId),
+							]);
+
+							// AUDIT-12: the collection contract itself (the tx `to`) can be the
+							// threat, not just the operator. Block if the called contract is
+							// known-malicious before evaluating the operator.
+							if (collectionAnalysis.risk === 'CRITICAL' || collectionAnalysis.risk === 'HIGH') {
+								const userConfirmed = await showWarningWithIntent({
+									analysis: collectionAnalysis,
+									context: 'nft-approval',
+									nftApprovalInfo,
+								});
+								if (!userConfirmed) {
+									throw new Error(
+										'Testudo: NFT approval blocked by user - malicious collection contract',
+									);
+								}
+								return originalRequest(args);
+							}
 
 							if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
 								const userConfirmed = await showWarningWithIntent({
@@ -265,8 +285,29 @@ function wrapEthereumProvider(): void {
 							}
 
 							const chainId = await getCurrentChainId(originalRequest);
-							const analysis = await requestAddressCheck(approvalInfo.spender, chainId);
+							const [analysis, tokenAnalysis] = await Promise.all([
+								requestAddressCheck(approvalInfo.spender, chainId),
+								requestAddressCheck(approvalInfo.tokenAddress, chainId),
+							]);
 							const unlimited = isUnlimitedValue(approvalInfo.amount);
+
+							// AUDIT-12: the token contract itself can be the threat, not just the
+							// spender. Block if the called contract is known-malicious before
+							// evaluating the spender/allowance.
+							if (tokenAnalysis.risk === 'CRITICAL' || tokenAnalysis.risk === 'HIGH') {
+								const userConfirmed = await showWarningWithIntent(
+									{
+										analysis: tokenAnalysis,
+										context: 'approval',
+										approvalInfo,
+									},
+									approvalInfo.tokenAddress,
+								);
+								if (!userConfirmed) {
+									throw new Error('Testudo: Approval blocked by user - malicious token contract');
+								}
+								return originalRequest(args);
+							}
 
 							if (analysis.risk === 'CRITICAL' || analysis.risk === 'HIGH') {
 								const userConfirmed = await showWarningWithIntent(
