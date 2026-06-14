@@ -26,6 +26,7 @@ import {
 	isPermitSignature,
 } from './parsers/typed-data';
 import { batchCheckAddresses, requestAddressCheck, requestAnalysis } from './services/messaging';
+import { parseChainId } from './utils/chain-id';
 import type {
 	AnalysisResult,
 	TypedDataMessage,
@@ -141,17 +142,6 @@ let activeWrapper: ((args: { method: string; params?: unknown[] }) => Promise<un
 let cachedChainId: number | undefined;
 let chainIdInFlight: Promise<number | undefined> | null = null;
 
-function parseChainIdHex(hex: unknown): number | undefined {
-	if (typeof hex === 'number' && Number.isFinite(hex) && hex > 0) return hex;
-	if (typeof hex !== 'string' || hex.length === 0) return undefined;
-	try {
-		const parsed = Number.parseInt(hex, 16);
-		return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-	} catch {
-		return undefined;
-	}
-}
-
 async function getCurrentChainId(
 	request: (args: { method: string; params?: unknown[] }) => Promise<unknown>,
 ): Promise<number | undefined> {
@@ -161,7 +151,7 @@ async function getCurrentChainId(
 	chainIdInFlight = (async () => {
 		try {
 			const hex = await request({ method: 'eth_chainId' });
-			const parsed = parseChainIdHex(hex);
+			const parsed = parseChainId(hex);
 			if (parsed !== undefined) cachedChainId = parsed;
 			return parsed;
 		} catch {
@@ -178,7 +168,7 @@ function installChainChangedListener(provider: typeof window.ethereum): void {
 	if (typeof provider?.on !== 'function') return;
 	try {
 		provider.on('chainChanged', (chainId: unknown) => {
-			cachedChainId = parseChainIdHex(chainId);
+			cachedChainId = parseChainId(chainId);
 		});
 	} catch {
 		// Non-fatal — some providers lack event support.
@@ -451,8 +441,7 @@ function wrapEthereumProvider(): void {
 						console.log('[Testudo] Permit signature detected:', permitInfo.type);
 						// Permit typed-data domain carries chainId; fall back to active chain.
 						const permitChainId =
-							parseChainIdHex(typedData.domain?.chainId) ??
-							(await getCurrentChainId(originalRequest));
+							parseChainId(typedData.domain?.chainId) ?? (await getCurrentChainId(originalRequest));
 						const analysis = await requestAddressCheck(permitInfo.spender, permitChainId);
 
 						const unlimited = isUnlimitedValue(permitInfo.value);
@@ -490,7 +479,7 @@ function wrapEthereumProvider(): void {
 						const addresses = extractTypedDataAddresses(typedData);
 						if (addresses.length > 0) {
 							const typedChainId =
-								parseChainIdHex(typedData.domain?.chainId) ??
+								parseChainId(typedData.domain?.chainId) ??
 								(await getCurrentChainId(originalRequest));
 							const { malicious, results } = await batchCheckAddresses(addresses, typedChainId);
 							if (malicious.length > 0) {
@@ -556,7 +545,7 @@ function wrapEthereumProvider(): void {
 					// EIP-7702 authorizations carry an explicit chainId. chainId=0 means
 					// "any network" (replay risk) — fall back to the active chain for
 					// the threat lookup so we still key into the real chain's registry.
-					const authChainId = parseChainIdHex(rawChainId);
+					const authChainId = parseChainId(rawChainId);
 					const lookupChainId = authChainId ?? (await getCurrentChainId(originalRequest));
 					analysis = await requestAnalysis(delegateAddress, lookupChainId);
 				} catch (err) {

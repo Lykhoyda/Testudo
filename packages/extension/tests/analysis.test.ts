@@ -572,3 +572,52 @@ describe('chainId threading (S-16)', () => {
 		expect(api).toHaveBeenCalledTimes(2);
 	});
 });
+
+// ============================================================================
+// chain-aware bytecode/deployer gating (AUDIT-5)
+// ============================================================================
+
+describe('chain-aware bytecode/deployer gating (AUDIT-5)', () => {
+	it('skips bytecode + deployer analysis on non-mainnet chains (fail-secure)', async () => {
+		const deps = makeDeps();
+		const { analyzeWithCache } = createAnalysisPipeline(deps);
+
+		const result = await analyzeWithCache(ADDR, URL, 8453); // Base
+
+		expect(deps.analyzeContract).not.toHaveBeenCalled();
+		expect(deps.fetchDeployerStaticInfo).not.toHaveBeenCalled();
+		// API unavailable (default) + skipped local → UNKNOWN: never a wrong-chain
+		// verdict and never a false "clean".
+		expect(result.risk).toBe('UNKNOWN');
+		expect(result.blocked).toBe(false);
+	});
+
+	it('still BLOCKS on non-mainnet when the chain-aware API flags malicious', async () => {
+		const deps = makeDeps({ checkAddressThreat: vi.fn().mockResolvedValue(makeApiMalicious()) });
+		const { analyzeWithCache } = createAnalysisPipeline(deps);
+
+		const result = await analyzeWithCache(ADDR, URL, 10); // Optimism
+
+		expect(deps.analyzeContract).not.toHaveBeenCalled();
+		expect(result.risk).toBe('CRITICAL');
+		expect(result.blocked).toBe(true);
+	});
+
+	it('runs bytecode + deployer analysis on mainnet (chainId 1)', async () => {
+		const deps = makeDeps();
+		const { analyzeWithCache } = createAnalysisPipeline(deps);
+
+		await analyzeWithCache(ADDR, URL, 1);
+
+		expect(deps.analyzeContract).toHaveBeenCalled();
+	});
+
+	it('runs bytecode analysis when chainId is undefined (defaults to mainnet)', async () => {
+		const deps = makeDeps();
+		const { analyzeWithCache } = createAnalysisPipeline(deps);
+
+		await analyzeWithCache(ADDR, URL);
+
+		expect(deps.analyzeContract).toHaveBeenCalled();
+	});
+});

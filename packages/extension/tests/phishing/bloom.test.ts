@@ -67,6 +67,29 @@ describe('PhishingBloomFilter', () => {
 		expect(filter.byteLength).toBeLessThan(500_000);
 	});
 
+	it('round-trips at production (non-byte-aligned) size with no false negatives (AUDIT-6 guard)', () => {
+		// optimalBitCount(250_000, 0.001) is NOT a multiple of 8. The audit alleged
+		// that insert used that raw value while query used bits.length*8 after
+		// deserialization, dropping ~99.97% of lookups. In reality the constructor
+		// derives bitCount = bits.length*8 for BOTH insert and query, so the moduli
+		// always match. This guards that invariant across the serialize boundary.
+		const rawOptimalBits = Math.ceil((-250_000 * Math.log(0.001)) / (Math.LN2 * Math.LN2));
+		const inserted: string[] = [];
+		for (let i = 0; i < 2000; i++) {
+			inserted.push(`phishing-${i}-${((i * 2654435761) >>> 0).toString(36)}.example`);
+		}
+
+		const filter = PhishingBloomFilter.fromDomains(inserted, 250_000);
+		// Confirm we are genuinely in the non-byte-aligned regime the audit worried about.
+		expect(rawOptimalBits % 8).not.toBe(0);
+		expect(filter.byteLength * 8).not.toBe(rawOptimalBits);
+
+		const restored = PhishingBloomFilter.fromBase64(filter.toBase64(), filter.numHashes);
+		for (const domain of inserted) {
+			expect(restored.has(domain)).toBe(true); // no false negatives after round-trip
+		}
+	});
+
 	it('uses Uint8Array internally (no Node.js Buffer)', () => {
 		const filter = PhishingBloomFilter.fromDomains(SAMPLE_DOMAINS, SAMPLE_DOMAINS.length);
 		const binary = filter.toBinary();

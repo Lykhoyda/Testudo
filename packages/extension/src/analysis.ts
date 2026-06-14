@@ -60,6 +60,19 @@ function cacheKey(address: string, chainId: number | undefined): string {
 	return `${chain}:${address}`;
 }
 
+/**
+ * Bytecode + deployer analysis currently runs only against Ethereum mainnet
+ * (DEFAULT_RPC + mainnet Blockscout). On any other chain those layers would
+ * query the WRONG chain — a false "clean" for an L2-only contract, or a bogus
+ * verdict from an unrelated mainnet contract at the same address (AUDIT-5).
+ * Until per-chain RPC + explorers exist we fail secure: skip the local layers
+ * off-mainnet and let the chain-aware threat API decide (the decision matrix
+ * preserves UNKNOWN, never a false clean).
+ */
+function supportsBytecodeAnalysis(chainId: number | undefined): boolean {
+	return chainId === undefined || chainId === DEFAULT_CHAIN_ID;
+}
+
 export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 	const analysisCache = new Map<string, { result: ExtendedAnalysisResult; timestamp: number }>();
 	const deployerCache = new Map<string, DeployerStaticInfo>();
@@ -186,17 +199,21 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 			return result;
 		}
 
-		// LAYER 1 + LAYER 2: Run API and Local Analysis in parallel
+		// LAYER 1 + LAYER 2: Run the chain-aware API and (mainnet-only) local
+		// analysis in parallel. Off-mainnet, bytecode + deployer analysis is
+		// skipped (fail-secure) so we never produce a wrong-chain verdict (AUDIT-5).
 		const apiUrl = await getApiUrl();
+		const runLocal = supportsBytecodeAnalysis(chainId);
 		const settings = await deps.getSettings();
 		const rpcUrl = settings.rpcUrl || DEFAULT_RPC;
-		const client = deps.getOrCreateClient(rpcUrl);
+		const deployerKey = cacheKey(normalizedAddress, chainId);
 
 		async function fetchDeployerStaticCached(addr: string): Promise<DeployerStaticInfo | null> {
-			const cached = deployerCache.get(addr);
+			const cached = deployerCache.get(deployerKey);
 			if (cached) return cached;
+			const client = deps.getOrCreateClient(rpcUrl);
 			const info = await deps.fetchDeployerStaticInfo(addr as Address, client);
-			if (info) deployerCache.set(addr, info);
+			if (info) deployerCache.set(deployerKey, info);
 			return info;
 		}
 
@@ -205,11 +222,17 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 			timeoutId = setTimeout(() => resolve('timeout'), ANALYSIS_TIMEOUT);
 		});
 
+		const localTasks = runLocal
+			? [
+					deps.analyzeContract(normalizedAddress as `0x${string}`, { rpcUrl }),
+					fetchDeployerStaticCached(normalizedAddress),
+				]
+			: [];
+
 		const settled = await Promise.race([
 			Promise.allSettled([
 				deps.checkAddressThreat(normalizedAddress, { baseUrl: apiUrl, chainId }),
-				deps.analyzeContract(normalizedAddress as `0x${string}`, { rpcUrl }),
-				fetchDeployerStaticCached(normalizedAddress),
+				...localTasks,
 			]).then((results) => {
 				clearTimeout(timeoutId);
 				return results;
@@ -238,24 +261,40 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 			return result;
 		}
 
-		const [apiResult, localResult, deployerResult] = settled;
-
+		const apiResult = settled[0];
 		const api =
 			apiResult.status === 'fulfilled'
-				? apiResult.value
+				? (apiResult.value as ApiClientResult)
 				: ({ success: false, error: 'Promise rejected' } as ApiClientResult);
 
-		let local =
-			localResult.status === 'fulfilled'
-				? localResult.value
-				: ({
-						risk: 'UNKNOWN',
-						threats: ['Local analysis failed'],
-						address: normalizedAddress,
-						blocked: false,
-					} as AnalysisResult);
+		let local: AnalysisResult;
+		let deployerStatic: DeployerStaticInfo | null = null;
 
-		const deployerStatic = deployerResult.status === 'fulfilled' ? deployerResult.value : null;
+		if (runLocal) {
+			const localResult = settled[1];
+			const deployerResult = settled[2];
+			local =
+				localResult?.status === 'fulfilled'
+					? (localResult.value as AnalysisResult)
+					: ({
+							risk: 'UNKNOWN',
+							threats: ['Local analysis failed'],
+							address: normalizedAddress,
+							blocked: false,
+						} as AnalysisResult);
+			deployerStatic =
+				deployerResult?.status === 'fulfilled'
+					? (deployerResult.value as DeployerStaticInfo | null)
+					: null;
+		} else {
+			// Fail-secure: bytecode analysis was not run on this chain → UNKNOWN, never clean.
+			local = {
+				risk: 'UNKNOWN',
+				threats: [`Bytecode analysis unavailable on chain ${chainId}`],
+				address: normalizedAddress as `0x${string}`,
+				blocked: false,
+			} as AnalysisResult;
+		}
 
 		// Merge deployer warnings into local result
 		if (deployerStatic) {

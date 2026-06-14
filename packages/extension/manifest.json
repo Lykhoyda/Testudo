@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Testudo",
   "short_name": "Testudo",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Antivirus for your Ethereum wallet. Analyzes contracts, approvals, and signatures before you sign — EIP-7702, permits, phishing, and more.",
   "homepage_url": "https://github.com/Lykhoyda/Testudo",
   "minimum_chrome_version": "137",
@@ -45,12 +45,19 @@
       "js": ["content.js"],
       "run_at": "document_start",
       "all_frames": true
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["injected.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": true
     }
   ],
 
   "web_accessible_resources": [
     {
-      "resources": ["injected.js", "fonts/*"],
+      "resources": ["fonts/*"],
       "matches": ["<all_urls>"]
     }
   ],

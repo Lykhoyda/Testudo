@@ -40,3 +40,7 @@ git-crypt-key.bin
 
 # Generated store/marketing screenshots (promote chosen shots to store-assets/ by hand)
 packages/extension/store-assets/screenshots/
+
+# Extension store bundle — built in CI by .github/workflows/release.yml, never committed
+# (a committed copy drifts from source; see Codex review on PR #8)
+packages/extension/store-assets/*.zip

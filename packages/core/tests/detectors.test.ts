@@ -853,7 +853,7 @@ describe('detectTokenSelectors', () => {
 });
 
 describe('detectEcrecover', () => {
-	it('detects ecrecover with STATICCALL + PUSH1 0x01', () => {
+	it('detects ecrecover with KECCAK256 + PUSH1 0x01 + STATICCALL', () => {
 		const instructions = parseBytecode(AUTHORIZATION_CONTRACTS.withEcrecover);
 		expect(detectEcrecover(instructions)).toBe(true);
 	});
@@ -863,7 +863,7 @@ describe('detectEcrecover', () => {
 		expect(detectEcrecover(instructions)).toBe(true);
 	});
 
-	it('detects ecrecover with CALL + PUSH1 0x01 (older contracts)', () => {
+	it('detects ecrecover with KECCAK256 + PUSH1 0x01 + CALL (older contracts)', () => {
 		const instructions = parseBytecode(AUTHORIZATION_CONTRACTS.withEcrecoverCall);
 		expect(detectEcrecover(instructions)).toBe(true);
 	});
@@ -876,6 +876,25 @@ describe('detectEcrecover', () => {
 	it('returns false without ecrecover', () => {
 		const instructions = parseBytecode(AUTHORIZATION_CONTRACTS.noAuth);
 		expect(detectEcrecover(instructions)).toBe(false);
+	});
+
+	// AUDIT-3: a bare `PUSH1 0x01` is ubiquitous (loop counters, booleans, lengths).
+	// It must NOT alone signal an ecrecover auth pattern, or an attacker can suppress
+	// CRITICAL drainer warnings by inserting one stray opcode before any CALL.
+	it('does NOT treat bare PUSH1 0x01 + CALL as ecrecover (drainer bypass)', () => {
+		const instructions = parseBytecode('0x6001f1'); // PUSH1 0x01; CALL
+		expect(detectEcrecover(instructions)).toBe(false);
+	});
+
+	it('does NOT treat bare PUSH1 0x01 + STATICCALL as ecrecover (no hash)', () => {
+		const instructions = parseBytecode('0x6001fa'); // PUSH1 0x01; STATICCALL
+		expect(detectEcrecover(instructions)).toBe(false);
+	});
+
+	it('detects real ecrecover: KECCAK256 + PUSH1 0x01 + STATICCALL', () => {
+		// PUSH1 0x00; PUSH1 0x00; KECCAK256; PUSH1 0x01; STATICCALL
+		const instructions = parseBytecode('0x60006000206001fa');
+		expect(detectEcrecover(instructions)).toBe(true);
 	});
 });
 

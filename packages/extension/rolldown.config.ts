@@ -78,8 +78,12 @@ const shared = {
 
 export default defineConfig([
 	{
+		// injected.js is a MAIN-world content script (ADR-016): it must be a single
+		// classic self-contained bundle (no ESM import/export, no chunks) because it
+		// runs under the page's CSP. IIFE guarantees that.
 		input: 'src/injected.tsx',
 		...shared,
+		output: { ...shared.output, format: 'iife' as const },
 	},
 	{
 		input: 'src/content.ts',
