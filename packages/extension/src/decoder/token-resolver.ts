@@ -119,7 +119,12 @@ export async function resolveToken(address: string): Promise<TokenInfo> {
 		isVerified: false,
 	};
 
-	cacheSet(normalized, info);
+	// AUDIT-14: a fully-failed resolution (every field null) is almost always a
+	// transient RPC error. Caching it would poison every later lookup for this
+	// token with no TTL — leave it uncached so a subsequent attempt can retry.
+	const resolvedSomething =
+		result.name !== null || result.symbol !== null || result.decimals !== null;
+	if (resolvedSomething) cacheSet(normalized, info);
 	return info;
 }
 

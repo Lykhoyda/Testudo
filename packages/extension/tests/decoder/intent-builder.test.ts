@@ -69,7 +69,10 @@ describe('buildPermitIntent', () => {
 
 		const intent = buildPermitIntent(info);
 		expect(intent.headline).toContain('Token');
-		expect(intent.action).toContain(info.value as string);
+		// AUDIT-15: without decimals the amount is shown as raw base units with an
+		// explicit caveat rather than a bare integer that reads as a token count.
+		expect(intent.action).toContain('1,000,000');
+		expect(intent.action).toContain('(raw, decimals unknown)');
 	});
 
 	it('handles batch permit', () => {

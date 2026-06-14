@@ -35,9 +35,26 @@ describe('formatTokenAmount', () => {
 		expect(formatTokenAmount(MAX_UINT256, 18, null)).toBe('Unlimited');
 	});
 
-	it('formats without decimals', () => {
+	it('flags raw base units when decimals are unknown (AUDIT-15)', () => {
 		const result = formatTokenAmount('42', null, 'TOKEN');
-		expect(result).toBe('42 TOKEN');
+		expect(result).toBe('42 TOKEN (raw, decimals unknown)');
+	});
+
+	it('does not mislabel a large but finite value as Unlimited (AUDIT-13)', () => {
+		// 10^28 base units of an 18-decimal token = 10 billion tokens — large, finite.
+		const result = formatTokenAmount('10000000000000000000000000000', 18, 'DAI');
+		expect(result).toBe('10,000,000,000 DAI');
+	});
+
+	it('ignores attacker-controlled out-of-range decimals (AUDIT-16)', () => {
+		// A hostile `decimals` of 77 would scale this to "0.000000" and hide the amount.
+		const result = formatTokenAmount('1000000', 77, 'EVIL');
+		expect(result).toBe('1,000,000 EVIL (raw, decimals unknown)');
+	});
+
+	it('does not render a tiny nonzero amount as 0.000000 (AUDIT-16)', () => {
+		const result = formatTokenAmount('1', 18, 'ETH');
+		expect(result).toBe('<0.000001 ETH');
 	});
 
 	it('formats without symbol', () => {

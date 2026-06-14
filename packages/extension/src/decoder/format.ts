@@ -2,7 +2,13 @@ import { MAX_UINT160, MAX_UINT256 } from '../utils/constants';
 
 const MAX_UINT256_BI = BigInt(MAX_UINT256);
 const MAX_UINT160_BI = BigInt(MAX_UINT160);
-const UNLIMITED_THRESHOLD = BigInt(10) ** BigInt(28);
+
+// ERC-20 `decimals` is attacker-controlled on-chain metadata. Genuine tokens use
+// 0–18 (a few outliers go a little higher); anything beyond this is treated as
+// untrusted so a hostile `decimals` (e.g. 77) cannot silently scale a real
+// approval down to "0.000000". (AUDIT-16)
+const MAX_SANE_DECIMALS = 36;
+const DISPLAY_DECIMALS = 6;
 
 export function isNeverExpiry(deadline: string): boolean {
 	try {
@@ -17,32 +23,58 @@ export function formatTokenAmount(
 	decimals: number | null,
 	symbol: string | null,
 ): string {
+	let val: bigint;
 	try {
-		const val = BigInt(raw);
-
-		if (val >= UNLIMITED_THRESHOLD || val === MAX_UINT256_BI || val === MAX_UINT160_BI) {
-			return symbol ? `Unlimited ${symbol}` : 'Unlimited';
-		}
-
-		if (decimals !== null && decimals > 0) {
-			const divisor = BigInt(10) ** BigInt(decimals);
-			const whole = val / divisor;
-			const remainder = val % divisor;
-
-			if (remainder === 0n) {
-				return formatWithSymbol(whole.toLocaleString('en-US'), symbol);
-			}
-
-			const remainderStr = remainder.toString().padStart(decimals, '0');
-			const trimmed = remainderStr.replace(/0+$/, '');
-			const display = trimmed.length > 6 ? trimmed.slice(0, 6) : trimmed;
-			return formatWithSymbol(`${whole.toLocaleString('en-US')}.${display}`, symbol);
-		}
-
-		return formatWithSymbol(val.toLocaleString('en-US'), symbol);
+		val = BigInt(raw);
 	} catch {
 		return symbol ? `? ${symbol}` : raw;
 	}
+
+	// AUDIT-13: only the canonical max-uint sentinels are unequivocally
+	// "unlimited" (consistent with isUnlimitedValue). A merely-large finite value
+	// is rendered as its real scaled amount, not mislabeled "Unlimited" — a
+	// 10-billion-token approval is large, but it is not infinite.
+	if (val === MAX_UINT256_BI || val === MAX_UINT160_BI) {
+		return symbol ? `Unlimited ${symbol}` : 'Unlimited';
+	}
+
+	// AUDIT-15 / AUDIT-16: without trustworthy decimals we cannot compute a real
+	// amount. Show the raw base units with an explicit caveat rather than a
+	// misleading number (a bare integer reads as a token count; a hostile
+	// `decimals` would round the amount to "0.000000").
+	const decimalsUsable =
+		decimals !== null &&
+		Number.isInteger(decimals) &&
+		decimals >= 0 &&
+		decimals <= MAX_SANE_DECIMALS;
+	if (!decimalsUsable) {
+		const base = val.toLocaleString('en-US');
+		const withSymbol = symbol ? `${base} ${symbol}` : base;
+		return `${withSymbol} (raw, decimals unknown)`;
+	}
+
+	if (decimals > 0) {
+		const divisor = BigInt(10) ** BigInt(decimals);
+		const whole = val / divisor;
+		const remainder = val % divisor;
+
+		if (remainder === 0n) {
+			return formatWithSymbol(whole.toLocaleString('en-US'), symbol);
+		}
+
+		const remainderStr = remainder.toString().padStart(decimals, '0');
+		const display = remainderStr.replace(/0+$/, '').slice(0, DISPLAY_DECIMALS);
+
+		// AUDIT-16: a nonzero value whose first 6 fractional digits are all zero
+		// would render as "0.000000" and hide that anything is being approved.
+		if (whole === 0n && /^0*$/.test(display)) {
+			return formatWithSymbol('<0.000001', symbol);
+		}
+
+		return formatWithSymbol(`${whole.toLocaleString('en-US')}.${display}`, symbol);
+	}
+
+	return formatWithSymbol(val.toLocaleString('en-US'), symbol);
 }
 
 function formatWithSymbol(amount: string, symbol: string | null): string {

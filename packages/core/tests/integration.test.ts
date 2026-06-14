@@ -830,7 +830,9 @@ describe('Threat Combination Risk Scoring', () => {
 	});
 
 	describe('realistic multi-threat combinations', () => {
-		it('proxy + delegatecall → HIGH (mitigated DELEGATECALL MEDIUM + PROXY MEDIUM)', () => {
+		// AUDIT-10: a normal upgradeable proxy (proxy-mitigated DELEGATECALL + PROXY_PATTERN,
+		// both benign MEDIUM capabilities) must NOT auto-block.
+		it('proxy + delegatecall (benign capabilities) → MEDIUM, not blocked (AUDIT-10)', () => {
 			const result = createMockDetectionResults({
 				isDelegatedCall: true,
 				proxy: {
@@ -845,17 +847,17 @@ describe('Threat Combination Risk Scoring', () => {
 
 			const delegateWarning = warnings.find((w) => w.type === 'DELEGATE_CALL');
 			expect(delegateWarning?.severity).toBe('MEDIUM');
-			expect(risk).toBe('HIGH');
-			expect(blocked).toBe(true);
+			expect(risk).toBe('MEDIUM');
+			expect(blocked).toBe(false);
 		});
 
-		it('diamond proxy + multicall → HIGH (2x MEDIUM)', () => {
+		it('diamond proxy + multicall (benign capabilities) → MEDIUM, not blocked (AUDIT-10)', () => {
 			const result = createMockDetectionResults({ hasDiamondProxy: true, hasMulticall: true });
 			const warnings = generateWarnings(result);
 			const { risk, blocked } = deriveRiskFromWarnings(warnings);
 
-			expect(risk).toBe('HIGH');
-			expect(blocked).toBe(true);
+			expect(risk).toBe('MEDIUM');
+			expect(blocked).toBe(false);
 		});
 
 		it('timestamp + coinbase → HIGH (2x MEDIUM)', () => {
@@ -913,7 +915,7 @@ describe('Threat Combination Risk Scoring', () => {
 			expect(blocked).toBe(false);
 		});
 
-		it('Diamond proxy + DELEGATECALL: mitigation reduces to MEDIUM', () => {
+		it('Diamond proxy + DELEGATECALL: both benign MEDIUM → not blocked (AUDIT-10)', () => {
 			const result = createMockDetectionResults({
 				isDelegatedCall: true,
 				hasDiamondProxy: true,
@@ -925,8 +927,8 @@ describe('Threat Combination Risk Scoring', () => {
 			expect(delegateWarning?.severity).toBe('MEDIUM');
 			const diamondWarning = warnings.find((w) => w.type === 'DIAMOND_PROXY');
 			expect(diamondWarning?.severity).toBe('MEDIUM');
-			expect(risk).toBe('HIGH');
-			expect(blocked).toBe(true);
+			expect(risk).toBe('MEDIUM');
+			expect(blocked).toBe(false);
 		});
 
 		it('CALLCODE + proxy: mitigation reduces CALLCODE to MEDIUM', () => {
@@ -1125,13 +1127,15 @@ describe('Threat Combination Risk Scoring', () => {
 	});
 
 	describe('token transfer + bytecode warning interactions', () => {
-		it('TOKEN_NO_AUTH (HIGH) + PROXY_PATTERN (MEDIUM) → CRITICAL', () => {
+		// AUDIT-10: a genuine HIGH threat still blocks, but a benign MEDIUM capability
+		// (proxy) no longer escalates it to CRITICAL.
+		it('TOKEN_NO_AUTH (HIGH) + PROXY_PATTERN (benign MEDIUM) → HIGH, blocked', () => {
 			const warnings = [
 				createMockWarning('HIGH', 'TOKEN_NO_AUTH'),
 				createMockWarning('MEDIUM', 'PROXY_PATTERN'),
 			];
 			const { risk, blocked } = deriveRiskFromWarnings(warnings);
-			expect(risk).toBe('CRITICAL');
+			expect(risk).toBe('HIGH');
 			expect(blocked).toBe(true);
 		});
 
@@ -1178,7 +1182,7 @@ describe('Threat Combination Risk Scoring', () => {
 			expect(blocked).toBe(false);
 		});
 
-		it('proxy + diamond + multicall = 3x MEDIUM → HIGH', () => {
+		it('proxy + diamond + multicall = 3x benign MEDIUM → MEDIUM, not blocked (AUDIT-10)', () => {
 			const result = createMockDetectionResults({
 				proxy: {
 					isProxy: true,
@@ -1194,8 +1198,8 @@ describe('Threat Combination Risk Scoring', () => {
 
 			const mediumWarnings = warnings.filter((w) => w.severity === 'MEDIUM');
 			expect(mediumWarnings.length).toBeGreaterThanOrEqual(3);
-			expect(risk).toBe('HIGH');
-			expect(blocked).toBe(true);
+			expect(risk).toBe('MEDIUM');
+			expect(blocked).toBe(false);
 		});
 
 		it('all INFO warnings = LOW even with many detections', () => {
