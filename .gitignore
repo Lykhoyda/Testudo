@@ -37,3 +37,6 @@ playwright/.cache/
 # Synpress wallet cache
 .cache-synpress/
 git-crypt-key.bin
+
+# Generated store/marketing screenshots (promote chosen shots to store-assets/ by hand)
+packages/extension/store-assets/screenshots/
