@@ -306,11 +306,18 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 			if (deployerWarnings.length > 0) {
 				const allWarnings = [...(local.warnings || []), ...deployerWarnings];
 				const derived = deps.deriveRiskFromWarnings(allWarnings);
+				// AUDIT-9: if the bytecode analysis was incomplete (UNKNOWN), a deployer
+				// warning may only ESCALATE (to a blocking CRITICAL/HIGH) — it must never
+				// downgrade UNKNOWN to a falsely-confident MEDIUM/LOW that hides the
+				// "we couldn't inspect this contract" signal.
+				const escalates = derived.risk === 'CRITICAL' || derived.risk === 'HIGH';
+				const risk = local.risk === 'UNKNOWN' && !escalates ? 'UNKNOWN' : derived.risk;
+				const blocked = risk === 'UNKNOWN' ? false : derived.blocked;
 				local = {
 					...local,
 					warnings: allWarnings,
-					risk: derived.risk,
-					blocked: derived.blocked,
+					risk,
+					blocked,
 					deployerRisk: assessment,
 					threats: allWarnings
 						.filter((w) => w.severity !== 'INFO')

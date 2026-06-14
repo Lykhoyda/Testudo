@@ -422,6 +422,20 @@ export function generateWarnings(detectionResults: DetectionResults): Warning[] 
 	return warnings;
 }
 
+// AUDIT-10: capabilities that are normal for proxies / smart wallets and are not,
+// by themselves, threats. At MEDIUM severity they must NOT count toward the
+// "2+ suspicious behaviors → escalate" rule (which auto-blocked legitimate
+// upgradeable proxies). A proxy-mitigated DELEGATECALL/CALLCODE is already MEDIUM;
+// an unmitigated one is HIGH and still counts (via hasHigh and suspiciousCount).
+const BENIGN_CAPABILITY_TYPES: ReadonlySet<Warning['type']> = new Set([
+	'PROXY_PATTERN',
+	'DIAMOND_PROXY',
+	'MINIMAL_PROXY',
+	'MULTICALL_CAPABILITY',
+	'DELEGATE_CALL',
+	'CALLCODE',
+]);
+
 export function deriveRiskFromWarnings(warnings: Warning[]): {
 	risk: AnalysisResult['risk'];
 	blocked: boolean;
@@ -434,7 +448,12 @@ export function deriveRiskFromWarnings(warnings: Warning[]): {
 
 	const hasCritical = actionableWarnings.some((w) => w.severity === 'CRITICAL');
 	const hasHigh = actionableWarnings.some((w) => w.severity === 'HIGH');
-	const multipleThreats = actionableWarnings.length >= 2;
+	// Only genuinely-suspicious warnings count toward the 2+ escalation; a benign
+	// MEDIUM capability (proxy/wallet feature) doesn't make a contract dangerous.
+	const suspiciousCount = actionableWarnings.filter(
+		(w) => !(w.severity === 'MEDIUM' && BENIGN_CAPABILITY_TYPES.has(w.type)),
+	).length;
+	const multipleThreats = suspiciousCount >= 2;
 
 	// CRITICAL: Any CRITICAL warning OR (HIGH + multiple threats)
 	if (hasCritical) {
