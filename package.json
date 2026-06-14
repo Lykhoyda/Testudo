@@ -17,6 +17,7 @@
 		"dev": "yarn workspace @testudo/extension run watch",
 		"dev:dapp": "yarn workspace @testudo/mock-dapp run dev",
 		"build:dapp": "yarn workspace @testudo/mock-dapp run build",
+		"screenshots": "yarn workspace @testudo/extension run build && yarn workspace @testudo/e2e run screenshots",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",

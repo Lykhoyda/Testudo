@@ -8,5 +8,11 @@
 		"skipLibCheck": true,
 		"noEmit": true
 	},
-	"include": ["fixtures/**/*.ts", "tests/**/*.ts", "playwright.config.ts"]
+	"include": [
+		"fixtures/**/*.ts",
+		"tests/**/*.ts",
+		"screenshots/**/*.ts",
+		"playwright.config.ts",
+		"screenshots.config.ts"
+	]
 }
