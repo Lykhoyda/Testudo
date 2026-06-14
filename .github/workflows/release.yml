@@ -145,11 +145,21 @@ jobs:
           cd -
           ls -la packages/extension/store-assets/
 
-      - name: Upload build artifact (audit trail)
+      # Audit trail only — NOT the bundle itself. The zip has the production API key
+      # baked in; Actions artifacts are downloadable on a public repo, so uploading
+      # the keyed bundle would expose the key and bypass the protected Environment.
+      # The bundle's only destination is the CWS draft upload below.
+      - name: Checksum the bundle (no secret) for the audit trail
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          cd packages/extension/store-assets
+          sha256sum "testudo-v${VERSION}.zip" | tee "testudo-v${VERSION}.zip.sha256"
+      - name: Upload checksum artifact
         uses: actions/upload-artifact@v4
         with:
-          name: testudo-extension-v${{ steps.ver.outputs.version }}
-          path: packages/extension/store-assets/testudo-v${{ steps.ver.outputs.version }}.zip
+          name: testudo-extension-v${{ steps.ver.outputs.version }}-sha256
+          path: packages/extension/store-assets/testudo-v${{ steps.ver.outputs.version }}.zip.sha256
           retention-days: 30
 
       # --- Upload as DRAFT (does NOT publish) -----------------------------------

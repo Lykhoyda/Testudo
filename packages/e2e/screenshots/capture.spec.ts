@@ -218,7 +218,9 @@ test('blocked page (phishing hard-block)', async ({ context, extensionId }) => {
 	});
 	await page.goto(`chrome-extension://${extensionId}/blocked.html?${params.toString()}`);
 	await prep(page);
-	await expect(page.locator('body')).toBeVisible();
+	// Wait for the resolved interstitial, not the "Analyzing…" loading frame:
+	// blockedVM sets screenState to the action param even when the API is offline.
+	await expect(page.getByText('THREAT INTERCEPTED')).toBeVisible({ timeout: 15_000 });
 	await page.evaluate(() => document.fonts.ready);
 	await page.screenshot({
 		path: path.join(OUT_DIR, 'blocked-phishing.png'),
