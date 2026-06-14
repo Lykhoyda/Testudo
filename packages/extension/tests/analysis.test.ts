@@ -216,6 +216,66 @@ describe('analyzeWithCache', () => {
 		expect(result.blocked).toBe(true);
 	});
 
+	// AUDIT-7: an EIP-7702 delegation (analyzeWithCache is the delegation-only path)
+	// to an address with NO deployed code is a deploy-after-sign / counterfactual
+	// risk — elevate from a passive UNKNOWN to a blocking warning.
+	it('elevates a no-deployed-code delegation target to a blocking warning (AUDIT-7)', async () => {
+		const deps = makeDeps({
+			checkAddressThreat: vi.fn().mockResolvedValue(makeApiClean()),
+			analyzeContract: vi
+				.fn()
+				.mockResolvedValue(makeLocalResult({ risk: 'UNKNOWN', threats: ['No bytecode found'] })),
+			fetchDeployerStaticInfo: vi.fn().mockResolvedValue(null),
+		});
+		const { analyzeWithCache } = createAnalysisPipeline(deps);
+
+		const result = await analyzeWithCache(ADDR, URL, 1);
+
+		expect(result.blocked).toBe(true);
+		expect(result.risk).toBe('HIGH');
+		expect(result.threats).toContain('no_deployed_code');
+	});
+
+	it('does NOT elevate a generic UNKNOWN (non-no-code) delegation result (AUDIT-7)', async () => {
+		const deps = makeDeps({
+			checkAddressThreat: vi.fn().mockResolvedValue(makeApiClean()),
+			analyzeContract: vi
+				.fn()
+				.mockResolvedValue(makeLocalResult({ risk: 'UNKNOWN', threats: ['Local analysis failed'] })),
+			fetchDeployerStaticInfo: vi.fn().mockResolvedValue(null),
+		});
+		const { analyzeWithCache } = createAnalysisPipeline(deps);
+
+		const result = await analyzeWithCache(ADDR, URL, 1);
+
+		expect(result.risk).toBe('UNKNOWN');
+		expect(result.blocked).toBe(false);
+	});
+
+	// AUDIT-8: a global timeout must not discard a completed API verdict. If the API
+	// flagged the address malicious but the (slow) bytecode fetch times out, the
+	// transaction must still BLOCK — not fall through to a non-blocking UNKNOWN.
+	it('still BLOCKS when the API flags malicious but local analysis hangs past the timeout (AUDIT-8)', async () => {
+		vi.useFakeTimers();
+		try {
+			const deps = makeDeps({
+				checkAddressThreat: vi.fn().mockResolvedValue(makeApiMalicious()),
+				analyzeContract: vi.fn().mockReturnValue(new Promise<never>(() => {})), // hangs
+				fetchDeployerStaticInfo: vi.fn().mockReturnValue(new Promise<never>(() => {})), // hangs
+			});
+			const { analyzeWithCache } = createAnalysisPipeline(deps);
+
+			const promise = analyzeWithCache(ADDR, URL, 1);
+			await vi.advanceTimersByTimeAsync(6000); // past the 5s ANALYSIS_TIMEOUT
+			const result = await promise;
+
+			expect(result.blocked).toBe(true);
+			expect(result.risk).toBe('CRITICAL');
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	// AUDIT-9: when bytecode analysis was incomplete (UNKNOWN), a non-escalating
 	// deployer warning must NOT overwrite UNKNOWN with a falsely-confident MEDIUM —
 	// that masks the "we couldn't actually inspect this contract" signal.

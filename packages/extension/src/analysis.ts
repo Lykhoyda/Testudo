@@ -217,75 +217,45 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 			return info;
 		}
 
-		let timeoutId: ReturnType<typeof setTimeout>;
-		const timeoutSignal = new Promise<'timeout'>((resolve) => {
-			timeoutId = setTimeout(() => resolve('timeout'), ANALYSIS_TIMEOUT);
+		// AUDIT-8: bound each task by the global timeout INDEPENDENTLY and capture
+		// whatever resolves. A completed result (e.g. an API "malicious" verdict) must
+		// never be discarded just because a sibling (a slow bytecode fetch) timed out.
+		// Whatever is available then flows through the decision matrix below, so a
+		// timeout is never a blind clean allow.
+		const TIMED_OUT = { ok: false } as const;
+		let deadlineId: ReturnType<typeof setTimeout> | undefined;
+		const deadline = new Promise<typeof TIMED_OUT>((resolve) => {
+			deadlineId = setTimeout(() => resolve(TIMED_OUT), ANALYSIS_TIMEOUT);
 		});
-
-		const localTasks = runLocal
-			? [
-					deps.analyzeContract(normalizedAddress as `0x${string}`, { rpcUrl }),
-					fetchDeployerStaticCached(normalizedAddress),
-				]
-			: [];
-
-		const settled = await Promise.race([
-			Promise.allSettled([
-				deps.checkAddressThreat(normalizedAddress, { baseUrl: apiUrl, chainId }),
-				...localTasks,
-			]).then((results) => {
-				clearTimeout(timeoutId);
-				return results;
-			}),
-			timeoutSignal,
-		]);
-
-		if (settled === 'timeout') {
-			const result: ExtendedAnalysisResult = {
-				risk: 'UNKNOWN',
-				threats: ['Analysis timeout'],
-				address: normalizedAddress as `0x${string}`,
-				blocked: false,
-				source: 'fallback',
-				apiUnavailable: true,
-			};
-			analysisCache.set(key, { result, timestamp: Date.now() });
-			await deps.recordScan({
-				address: normalizedAddress,
-				risk: result.risk,
-				threats: result.threats,
-				url,
-				blocked: result.blocked,
-			});
-			await deps.incrementScanned();
-			return result;
+		function bound<T>(p: Promise<T>): Promise<{ ok: true; value: T } | typeof TIMED_OUT> {
+			return Promise.race([p.then((value) => ({ ok: true as const, value }), () => TIMED_OUT), deadline]);
 		}
 
-		const apiResult = settled[0];
-		const api =
-			apiResult.status === 'fulfilled'
-				? (apiResult.value as ApiClientResult)
-				: ({ success: false, error: 'Promise rejected' } as ApiClientResult);
+		const [apiB, localB, deployerB] = await Promise.all([
+			bound(deps.checkAddressThreat(normalizedAddress, { baseUrl: apiUrl, chainId })),
+			runLocal
+				? bound(deps.analyzeContract(normalizedAddress as `0x${string}`, { rpcUrl }))
+				: Promise.resolve(TIMED_OUT),
+			runLocal ? bound(fetchDeployerStaticCached(normalizedAddress)) : Promise.resolve(TIMED_OUT),
+		]);
+		clearTimeout(deadlineId);
+
+		const api: ApiClientResult = apiB.ok
+			? (apiB.value as ApiClientResult)
+			: ({ success: false, error: 'API timeout or unavailable' } as ApiClientResult);
 
 		let local: AnalysisResult;
-		let deployerStatic: DeployerStaticInfo | null = null;
-
 		if (runLocal) {
-			const localResult = settled[1];
-			const deployerResult = settled[2];
-			local =
-				localResult?.status === 'fulfilled'
-					? (localResult.value as AnalysisResult)
-					: ({
-							risk: 'UNKNOWN',
-							threats: ['Local analysis failed'],
-							address: normalizedAddress,
-							blocked: false,
-						} as AnalysisResult);
-			deployerStatic =
-				deployerResult?.status === 'fulfilled'
-					? (deployerResult.value as DeployerStaticInfo | null)
-					: null;
+			// Local timed out or failed → UNKNOWN (never a clean allow). The decision
+			// matrix preserves UNKNOWN and still BLOCKS if the API said malicious.
+			local = localB.ok
+				? (localB.value as AnalysisResult)
+				: ({
+						risk: 'UNKNOWN',
+						threats: ['Analysis timeout'],
+						address: normalizedAddress,
+						blocked: false,
+					} as AnalysisResult);
 		} else {
 			// Fail-secure: bytecode analysis was not run on this chain → UNKNOWN, never clean.
 			local = {
@@ -295,6 +265,17 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 				blocked: false,
 			} as AnalysisResult;
 		}
+		const deployerStatic: DeployerStaticInfo | null =
+			runLocal && deployerB.ok ? (deployerB.value as DeployerStaticInfo | null) : null;
+
+		// AUDIT-7: capture the no-deployed-code signal from the original bytecode
+		// result before the deployer merge can rewrite local.threats. This path
+		// (analyzeWithCache) is EIP-7702 delegation only, so authorizing delegation
+		// to an address with no code is a deploy-after-sign / counterfactual risk.
+		const noDeployedCode =
+			runLocal &&
+			local.risk === 'UNKNOWN' &&
+			(local.threats?.includes('No bytecode found') ?? false);
 
 		// Merge deployer warnings into local result
 		if (deployerStatic) {
@@ -329,7 +310,21 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 		}
 
 		// DECISION MATRIX (ADR-006)
-		const finalResult = applyDecisionMatrix(api, local, normalizedAddress);
+		let finalResult = applyDecisionMatrix(api, local, normalizedAddress);
+
+		// AUDIT-7: elevate a counterfactual (no deployed code) delegation target from
+		// a passive UNKNOWN to a blocking warning so the user must explicitly confirm.
+		// A genuine delegation targets an already-deployed implementation; a no-code
+		// target lets an attacker deploy malicious code AFTER the signature.
+		if (noDeployedCode && finalResult.risk !== 'CRITICAL') {
+			finalResult = {
+				...finalResult,
+				risk: 'HIGH',
+				blocked: true,
+				threats: [...new Set(['no_deployed_code', ...finalResult.threats])],
+				source: finalResult.source ?? 'local',
+			};
+		}
 
 		analysisCache.set(key, { result: finalResult, timestamp: Date.now() });
 
