@@ -37,3 +37,7 @@ playwright/.cache/
 # Synpress wallet cache
 .cache-synpress/
 git-crypt-key.bin
+
+# Extension store bundle — built in CI by .github/workflows/release.yml, never committed
+# (a committed copy drifts from source; see Codex review on PR #8)
+packages/extension/store-assets/*.zip
