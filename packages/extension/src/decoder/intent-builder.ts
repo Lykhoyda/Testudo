@@ -27,10 +27,11 @@ export function buildPermitIntent(
 		amountText = 'Multiple tokens (batch)';
 	} else if (unlimited) {
 		amountText = symbol ? `Unlimited ${symbol}` : 'Unlimited';
-	} else if (info.value && decimals !== null) {
-		amountText = formatTokenAmount(info.value, decimals, symbol);
 	} else if (info.value) {
-		amountText = symbol ? `${info.value} (raw) ${symbol}` : info.value;
+		// AUDIT-15: formatTokenAmount now renders an explicit "(raw, decimals
+		// unknown)" caveat when decimals are unavailable, instead of a bare
+		// integer that reads as a token count.
+		amountText = formatTokenAmount(info.value, decimals, symbol);
 	} else {
 		amountText = 'Unknown amount';
 	}

@@ -113,7 +113,7 @@ describe('resolveToken — messaging bridge fallback', () => {
 	});
 
 	it('caches result to avoid repeated bridge calls', async () => {
-		mockRequestTokenResolve.mockResolvedValue({ name: null, symbol: null, decimals: null });
+		mockRequestTokenResolve.mockResolvedValue({ name: 'Token', symbol: 'TKN', decimals: 18 });
 
 		await resolveToken('0x0000000000000000000000000000000000000002');
 		await resolveToken('0x0000000000000000000000000000000000000002');
@@ -149,5 +149,38 @@ describe('resolveToken — messaging bridge fallback', () => {
 		expect(info.symbol).toBeNull();
 		expect(info.decimals).toBeNull();
 		expect(info.isVerified).toBe(false);
+	});
+});
+
+describe('resolveToken — failed metadata is not cached (AUDIT-14)', () => {
+	it('retries on a later call instead of serving a poisoned all-null entry', async () => {
+		mockRequestTokenResolve.mockResolvedValue({ name: null, symbol: null, decimals: null });
+		const addr = '0x00000000000000000000000000000000000000a1';
+
+		const first = await resolveToken(addr);
+		expect(first.symbol).toBeNull();
+
+		await resolveToken(addr);
+		// A transient resolution failure must not be cached — the second lookup
+		// has to hit the network again so a now-healthy RPC can succeed.
+		expect(mockRequestTokenResolve).toHaveBeenCalledTimes(2);
+	});
+
+	it('caches a partially-resolved entry (at least one non-null field)', async () => {
+		mockRequestTokenResolve.mockResolvedValue({ name: null, symbol: 'TKN', decimals: null });
+		const addr = '0x00000000000000000000000000000000000000a2';
+
+		await resolveToken(addr);
+		await resolveToken(addr);
+		expect(mockRequestTokenResolve).toHaveBeenCalledTimes(1);
+	});
+
+	it('caches a fully-resolved entry so a later call is served from cache', async () => {
+		mockRequestTokenResolve.mockResolvedValue({ name: 'Token', symbol: 'TKN', decimals: 18 });
+		const addr = '0x00000000000000000000000000000000000000a3';
+
+		await resolveToken(addr);
+		await resolveToken(addr);
+		expect(mockRequestTokenResolve).toHaveBeenCalledTimes(1);
 	});
 });
