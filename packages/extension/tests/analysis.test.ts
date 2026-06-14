@@ -241,7 +241,9 @@ describe('analyzeWithCache', () => {
 			checkAddressThreat: vi.fn().mockResolvedValue(makeApiClean()),
 			analyzeContract: vi
 				.fn()
-				.mockResolvedValue(makeLocalResult({ risk: 'UNKNOWN', threats: ['Local analysis failed'] })),
+				.mockResolvedValue(
+					makeLocalResult({ risk: 'UNKNOWN', threats: ['Local analysis failed'] }),
+				),
 			fetchDeployerStaticInfo: vi.fn().mockResolvedValue(null),
 		});
 		const { analyzeWithCache } = createAnalysisPipeline(deps);
@@ -297,7 +299,9 @@ describe('analyzeWithCache', () => {
 				deployerNonce: 30,
 				reasons: ['Recent deployer'],
 			} satisfies DeployerRiskAssessment),
-			generateDeployerWarnings: vi.fn().mockReturnValue([makeWarning('MEDIUM', 'DEPLOYER_LOW_NONCE')]),
+			generateDeployerWarnings: vi
+				.fn()
+				.mockReturnValue([makeWarning('MEDIUM', 'DEPLOYER_LOW_NONCE')]),
 			deriveRiskFromWarnings: vi.fn().mockReturnValue({ risk: 'MEDIUM', blocked: false }),
 		});
 		const { analyzeWithCache } = createAnalysisPipeline(deps);
@@ -326,7 +330,9 @@ describe('analyzeWithCache', () => {
 				deployerNonce: 2,
 				reasons: ['Low nonce'],
 			} satisfies DeployerRiskAssessment),
-			generateDeployerWarnings: vi.fn().mockReturnValue([makeWarning('HIGH', 'DEPLOYER_LOW_NONCE')]),
+			generateDeployerWarnings: vi
+				.fn()
+				.mockReturnValue([makeWarning('HIGH', 'DEPLOYER_LOW_NONCE')]),
 			deriveRiskFromWarnings: vi.fn().mockReturnValue({ risk: 'HIGH', blocked: true }),
 		});
 		const { analyzeWithCache } = createAnalysisPipeline(deps);

@@ -228,7 +228,13 @@ export function createAnalysisPipeline(deps: AnalysisDeps): AnalysisPipeline {
 			deadlineId = setTimeout(() => resolve(TIMED_OUT), ANALYSIS_TIMEOUT);
 		});
 		function bound<T>(p: Promise<T>): Promise<{ ok: true; value: T } | typeof TIMED_OUT> {
-			return Promise.race([p.then((value) => ({ ok: true as const, value }), () => TIMED_OUT), deadline]);
+			return Promise.race([
+				p.then(
+					(value) => ({ ok: true as const, value }),
+					() => TIMED_OUT,
+				),
+				deadline,
+			]);
 		}
 
 		const [apiB, localB, deployerB] = await Promise.all([
