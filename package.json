@@ -17,6 +17,7 @@
 		"dev": "yarn workspace @testudo/extension run watch",
 		"dev:dapp": "yarn workspace @testudo/mock-dapp run dev",
 		"build:dapp": "yarn workspace @testudo/mock-dapp run build",
+		"screenshots": "yarn workspace @testudo/core run build && yarn workspace @testudo/extension run build && yarn workspace @testudo/e2e run screenshots",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"format": "biome format --write .",
@@ -32,17 +33,20 @@
 		"tar": ">=7.5.11",
 		"minimatch": ">=10.2.3",
 		"picomatch": ">=4.0.4",
-		"axios": ">=1.15.0",
+		"axios": ">=1.16.0",
 		"glob": ">=10.5.0",
 		"@isaacs/brace-expansion": ">=5.0.1",
-		"brace-expansion": ">=5.0.5",
+		"brace-expansion": ">=5.0.6",
 		"ajv": ">=8.18.0",
 		"yaml": ">=2.8.3",
 		"rollup": ">=4.59.0",
-		"esbuild": ">=0.25.0",
+		"esbuild": ">=0.28.1",
 		"vite": ">=7.3.2",
-		"ws": ">=8.18.3",
+		"ws": ">=8.20.1",
 		"follow-redirects": ">=1.16.0",
-		"tsup": ">=8.5.1"
+		"tsup": ">=8.5.1",
+		"postcss": ">=8.5.10",
+		"ip-address": ">=10.1.1",
+		"fast-uri": ">=3.1.2"
 	}
 }
